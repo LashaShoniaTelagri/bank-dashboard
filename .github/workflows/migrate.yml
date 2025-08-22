@@ -122,20 +122,21 @@ jobs:
         with:
           version: latest
 
-      - name: 🔐 Authenticate with Supabase
+      - name: 🔐 Link to Supabase project  
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ needs.environment.outputs.project_id }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔐 Linking to Supabase project (${{ needs.environment.outputs.env }})..."
-          supabase link --project-ref $SUPABASE_PROJECT_ID
+          supabase link --project-ref $SUPABASE_PROJECT_ID --password "$SUPABASE_DB_PASSWORD"
 
       - name: 📋 List current migration status
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "📋 Current migration status:"
-          supabase migration list --linked
+          supabase migration list
 
       - name: 🗄️ Apply migrations (push)
         if: github.event.inputs.migration_action == 'push'
@@ -169,7 +170,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "📊 Final migration status:"
-          supabase migration list --linked
+          supabase migration list
           echo ""
           echo "🗄️ Database schema info:"
           supabase db diff --linked || echo "No schema differences detected"
