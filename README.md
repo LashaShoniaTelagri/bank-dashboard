@@ -127,6 +127,39 @@ supabase functions deploy function_name
 supabase functions logs function_name
 ```
 
+### **🗄️ Database Migrations in CI/CD**
+
+Database migrations are automatically handled in GitHub Actions:
+
+**Automatic Migration**: Runs on every deployment
+- Migrations execute **before** AWS deployment
+- Failed migrations prevent broken deployments
+- Environment-specific project targeting
+
+**Manual Migration Control**: Use the dedicated workflow
+```bash
+# Access via GitHub Actions → "🗄️ Database Migrations"
+Actions: push | list | repair | reset (destructive)
+Environments: dev | staging | prod
+```
+
+**Setup Requirements**:
+```bash
+# Validate your setup
+./scripts/validate-migration-setup.sh
+
+# Required GitHub secrets:
+SUPABASE_ACCESS_TOKEN    # From Supabase dashboard
+SUPABASE_PROJECT_ID      # Your project ID
+
+# Optional environment-specific IDs:
+SUPABASE_PROJECT_ID_DEV
+SUPABASE_PROJECT_ID_STAGING  
+SUPABASE_PROJECT_ID_PROD
+```
+
+📖 **Complete setup guide**: [SUPABASE_MIGRATIONS_SETUP.md](./SUPABASE_MIGRATIONS_SETUP.md)
+
 ## 🔐 Security
 
 This application handles sensitive financial data and implements banking-grade security:
@@ -154,6 +187,7 @@ See [AWS_DEPLOYMENT_GUIDE.md](./AWS_DEPLOYMENT_GUIDE.md) for complete deployment
 GitHub Actions workflow includes:
 - Automated testing and linting
 - Security vulnerability scanning
+- **🗄️ Database migration deployment**
 - Performance testing with Lighthouse
 - Automated deployment to AWS
 - Supabase function deployment
