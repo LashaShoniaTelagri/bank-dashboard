@@ -3,6 +3,7 @@ import { Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -614,7 +615,20 @@ const Auth = () => {
           pageLoading ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'
         }`}>
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl font-semibold text-slate-700">Sign In</CardTitle>
+            <CardTitle className="text-xl font-semibold text-slate-700">Welcome to TelAgri</CardTitle>
+            <div className="mt-2 space-y-2">
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Your secure gateway to agricultural financial management
+              </p>
+              <p className="text-xs text-slate-500">
+                Manage farmer loans, F-100 reports, and bank partnerships with confidence
+              </p>
+            </div>
+            <Alert className="mt-4">
+              <AlertDescription>
+                Welcome to the TelAgri banking platform. Please sign in to access your dashboard.
+              </AlertDescription>
+            </Alert>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignIn} className="space-y-4">
