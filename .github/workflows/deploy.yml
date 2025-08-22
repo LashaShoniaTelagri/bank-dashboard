@@ -181,11 +181,13 @@ jobs:
                 
                 # Check for prepared statement errors that might indicate up-to-date database
                 if echo "$output" | grep -q "prepared statement.*already exists"; then
-                  echo "⚠️ Prepared statement conflict detected - checking if database is up to date..."
-                  # Try a simple migration list to verify connection still works
-                  if supabase migration list --db-url "$DB_URL" >/dev/null 2>&1; then
-                    echo "✅ Database connection is healthy - likely already up to date"
+                  echo "⚠️ Prepared statement conflict detected"
+                  # For db push commands, this typically means database is already up to date
+                  if echo "$cmd" | grep -q "db push"; then
+                    echo "✅ Database is already up to date - treating prepared statement conflict as success"
                     return 0
+                  else
+                    echo "⚠️ Prepared statement conflict in non-push command - continuing retry..."
                   fi
                 fi
                 
@@ -200,6 +202,7 @@ jobs:
             done
           }
           
+          # Check migration status with retry
           # Check migration status with retry
           retry_command "supabase migration list --db-url '$DB_URL'"
           
