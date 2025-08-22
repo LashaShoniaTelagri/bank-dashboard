@@ -119,11 +119,11 @@ export class TelAgriStack extends cdk.Stack {
       responseHeadersPolicyName: `TelAgri-Security-Headers-${environment}`,
       securityHeadersBehavior: {
         contentSecurityPolicy: {
-          contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: cdn.telagri.com; font-src 'self' data:; connect-src 'self' *.supabase.co wss://*.supabase.co; worker-src 'self' blob:;",
+          contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co https://cdn.telagri.com; style-src 'self' 'unsafe-inline' https://cdn.telagri.com; img-src 'self' data: https: https://cdn.telagri.com; font-src 'self' data: https://cdn.telagri.com; connect-src 'self' *.supabase.co wss://*.supabase.co https://cdn.telagri.com; worker-src 'self' blob:; manifest-src 'self';",
           override: true,
         },
         contentTypeOptions: { override: true },
-        frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
+        frameOptions: { frameOption: cloudfront.HeadersFrameOption.SAMEORIGIN, override: true },
         referrerPolicy: { referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
         strictTransportSecurity: {
           accessControlMaxAge: cdk.Duration.seconds(31536000),
