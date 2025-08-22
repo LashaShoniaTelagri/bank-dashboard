@@ -38,11 +38,11 @@ interface Farmer {
   farm_location?: string;
   total_area_hectares?: number;
   crop_type?: string;
-  crop_varieties?: any[];
+  crop_varieties?: CropVariety[];
   irrigation_type?: string;
   has_reservoir?: boolean;
   reservoir_count?: number;
-  reservoir_volumes?: any[];
+  reservoir_volumes?: ReservoirVolume[];
   water_source?: string;
   last_year_harvest_quantity?: number;
   last_year_harvest_unit?: string;
@@ -50,6 +50,18 @@ interface Farmer {
   irrigation_system_schema_path?: string;
   equipment_list?: string;
   lab_analysis_path?: string;
+}
+
+interface CropVariety {
+  id: string;
+  name: string;
+  plantingYear: number;
+  areaHectares: number;
+}
+
+interface ReservoirVolume {
+  id: string;
+  volume: number;
 }
 
 interface FarmersTableProps {
