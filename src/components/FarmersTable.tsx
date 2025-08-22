@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Upload, Eye, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { ComprehensiveFarmerModal } from "@/components/ComprehensiveFarmerModal";
+import { FarmerModal } from "@/components/FarmerModal";
 import { F100Modal } from "@/components/F100Modal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
@@ -31,37 +31,6 @@ interface Farmer {
   contact_phone?: string;
   contact_email?: string;
   contact_address?: string;
-  // Comprehensive fields
-  company_name?: string;
-  first_name?: string;
-  last_name?: string;
-  farm_location?: string;
-  total_area_hectares?: number;
-  crop_type?: string;
-  crop_varieties?: CropVariety[];
-  irrigation_type?: string;
-  has_reservoir?: boolean;
-  reservoir_count?: number;
-  reservoir_volumes?: ReservoirVolume[];
-  water_source?: string;
-  last_year_harvest_quantity?: number;
-  last_year_harvest_unit?: string;
-  irrigation_sectors_count?: number;
-  irrigation_system_schema_path?: string;
-  equipment_list?: string;
-  lab_analysis_path?: string;
-}
-
-interface CropVariety {
-  id: string;
-  name: string;
-  plantingYear: number;
-  areaHectares: number;
-}
-
-interface ReservoirVolume {
-  id: string;
-  volume: number;
 }
 
 interface FarmersTableProps {
@@ -353,7 +322,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         </CardContent>
       </Card>
 
-      <ComprehensiveFarmerModal
+      <FarmerModal
         isOpen={farmerModal.open}
         onClose={() => setFarmerModal({ open: false })}
         farmer={farmerModal.farmer}
