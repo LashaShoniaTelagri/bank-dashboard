@@ -139,18 +139,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
           mask-aws-account-id: false
 
-      - name: 🔐 Assume cross-account role for Route53
-        if: ${{ vars.CROSS_ACCOUNT_ROLE_ARN }}
-        run: |
-          # Assume the cross-account role for Route53 management
-          TEMP_ROLE=$(aws sts assume-role \
-            --role-arn "${{ vars.CROSS_ACCOUNT_ROLE_ARN }}" \
-            --role-session-name "GitHubActions-Route53-${GITHUB_RUN_ID}" \
-            --output json)
-          
-          echo "CROSS_ACCOUNT_ACCESS_KEY_ID=$(echo $TEMP_ROLE | jq -r .Credentials.AccessKeyId)" >> $GITHUB_ENV
-          echo "CROSS_ACCOUNT_SECRET_ACCESS_KEY=$(echo $TEMP_ROLE | jq -r .Credentials.SecretAccessKey)" >> $GITHUB_ENV
-          echo "CROSS_ACCOUNT_SESSION_TOKEN=$(echo $TEMP_ROLE | jq -r .Credentials.SessionToken)" >> $GITHUB_ENV
+             # Cross-account role step removed since we're not managing Route53 via CDK
 
       - name: 📦 Install CDK dependencies
         working-directory: cdk
@@ -165,10 +154,7 @@ jobs:
         env:
           ENVIRONMENT: ${{ needs.environment.outputs.env }}
           DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
-          HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
-          CROSS_ACCOUNT_ROLE_ARN: ${{ vars.CROSS_ACCOUNT_ROLE_ARN }}
-          ROOT_ACCOUNT_ID: ${{ vars.ROOT_ACCOUNT_ID }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
         run: |
           echo "🔍 Showing infrastructure changes..."
@@ -179,10 +165,7 @@ jobs:
         env:
           ENVIRONMENT: ${{ needs.environment.outputs.env }}
           DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
-          HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
-          CROSS_ACCOUNT_ROLE_ARN: ${{ vars.CROSS_ACCOUNT_ROLE_ARN }}
-          ROOT_ACCOUNT_ID: ${{ vars.ROOT_ACCOUNT_ID }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
         run: |
           echo "🚀 Deploying TelAgri Bank Dashboard to ${{ needs.environment.outputs.env }}..."

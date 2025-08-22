@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "pwa:icons": "./scripts/generate-pwa-icons.sh",
     "setup:cdk": "./scripts/setup-cdk.sh",
+    "setup:github": "./scripts/setup-github-role.sh",
     "validate:aws": "./scripts/validate-aws-setup.sh"
   },
   "dependencies": {

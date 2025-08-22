@@ -36,7 +36,7 @@ Create a role that GitHub Actions can assume:
     {
       "Effect": "Allow",
       "Principal": {
-        "Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+        "Federated": "arn:aws:iam::183784642322:oidc-provider/token.actions.githubusercontent.com"
       },
       "Action": "sts:AssumeRole",
       "Condition": {
@@ -44,7 +44,7 @@ Create a role that GitHub Actions can assume:
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_ORG/telagri-bank-dashboard:*"
+                          "token.actions.githubusercontent.com:sub": "repo:LashaShoniaTelagri/bank-dashboard:*"
         }
       }
     }
@@ -91,13 +91,12 @@ Add these repository variables:
 
 | Variable | Example Value | Description |
 |----------|---------------|-------------|
-| `AWS_ACCOUNT_ID` | `123456789012` | Your AWS deployment account ID |
+| `AWS_ACCOUNT_ID` | `183784642322` | Your AWS deployment account ID |
 | `AWS_REGION` | `us-east-1` | AWS region (use us-east-1 for CloudFront) |
-| `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/GitHubActionsRole` | OIDC role for GitHub Actions |
-| `HOSTED_ZONE_ID` | `Z1D633PJN98FT9` | Route 53 hosted zone ID (from root account) |
-| `CERTIFICATE_ARN` | `arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012` | ACM SSL certificate ARN |
-| `CROSS_ACCOUNT_ROLE_ARN` | `arn:aws:iam::987654321098:role/TelAgriRoute53CrossAccountRole` | Cross-account Route 53 role |
-| `ROOT_ACCOUNT_ID` | `987654321098` | AWS root account ID (where Route 53 is hosted) |
+| `AWS_ROLE_ARN` | `arn:aws:iam::183784642322:role/GitHubActionsRole` | OIDC role for GitHub Actions |
+| `CERTIFICATE_ARN` | `arn:aws:acm:us-east-1:183784642322:certificate/01bf431a-ee0c-4003-bfa4-717daf70fa3b` | ACM SSL certificate ARN |
+
+**Note**: We simplified the setup by removing Route53 automation. DNS will be managed manually.
 
 ### Environment-Specific Variables (Optional)
 Create environments: `dev`, `staging`, `prod`
