@@ -1,14 +1,21 @@
-name: 🌾 Deploy TelAgri Bank Dashboard (Access Keys)
+name: 🌾 Deploy TelAgri Bank Dashboard
+
+# This workflow:
+# - On PULL REQUEST: Only runs build, lint, test, and security scan (no deployment)
+# - On PUSH (merge): Runs full pipeline including deployment to AWS  
+# - On MANUAL: Allows manual deployment to any environment
 
 on:
   push:
     branches:
       - main
-      - develop
+      - develop 
       - staging
   pull_request:
     branches:
       - main
+      - develop
+      - staging
   workflow_dispatch:
     inputs:
       environment:
@@ -102,6 +109,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, environment]
     environment: ${{ needs.environment.outputs.env }}
+    # Only deploy on push events (when PRs are merged), not on pull_request events
+    if: github.event_name != 'pull_request'
     
     steps:
       - name: 📥 Checkout repository
@@ -182,11 +191,12 @@ jobs:
           echo "🔧 Environment: ${{ needs.environment.outputs.env }}"
           echo "📊 Build: ${{ github.sha }}"
 
-  # Security scan (optional)
+  # Security scan (runs on all events)
   security-scan:
     name: 🔒 Security Scan
     runs-on: ubuntu-latest
     needs: [build]
+    # Run security scan on all PRs and main branch pushes
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     
     steps:
@@ -207,12 +217,13 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-  # Notification (optional)
+  # Notification (only for deployments)
   notify:
     name: 📢 Notify
     runs-on: ubuntu-latest
     needs: [deploy, environment]
-    if: always()
+    # Only notify on deployment attempts (not PRs), and always run regardless of deploy success/failure
+    if: always() && github.event_name != 'pull_request'
     
     steps:
       - name: 📢 Deployment notification
