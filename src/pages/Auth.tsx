@@ -35,6 +35,16 @@ const Auth = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Show hello from cursor alert
+  useEffect(() => {
+    if (!pageLoading) {
+      toast({
+        title: "Hello from Cursor!",
+        description: "Welcome to TelAgri Bank Dashboard",
+      });
+    }
+  }, [pageLoading]);
+
 
   
   // Check if this is a recovery/password setup flow
