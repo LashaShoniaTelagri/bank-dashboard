@@ -1,0 +1,4 @@
+project_id = "imncjxfppzikerifyukk"
+
+[functions.invite-bank-viewer]
+verify_jwt = false

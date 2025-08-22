@@ -1,0 +1,387 @@
+# TelAgri Bank Dashboard - Cursor Rules
+# AgriTech Banking Platform for Farmer Financial Management
+
+## 🏗️ PROJECT OVERVIEW
+You are working on TelAgri's bank dashboard - a secure financial platform for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. This is a production-grade application handling sensitive financial data.
+
+**Tech Stack:**
+- Frontend: React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
+- Backend: Supabase (PostgreSQL + Auth + Storage + Edge Functions)
+- Email: SendGrid integration
+- Deployment: AWS (planned)
+- Security: 2FA, RLS, JWT tokens, rate limiting
+
+## 🎯 CORE PRINCIPLES
+
+### Security First (Banking-Grade)
+- ALWAYS implement proper authentication & authorization
+- NEVER expose sensitive data in logs or client-side
+- ALWAYS use Row Level Security (RLS) for database access
+- ALWAYS validate inputs and sanitize outputs
+- ALWAYS implement rate limiting for sensitive operations
+- ALWAYS use HTTPS and secure headers
+- NEVER hardcode credentials or secrets
+
+### Performance & Scalability
+- Optimize for mobile-first responsive design
+- Implement proper loading states and error boundaries
+- Use TanStack Query for efficient data fetching
+- Lazy load components and routes where appropriate
+- Optimize images and assets for web delivery
+
+### User Experience
+- Provide clear feedback for all user actions
+- Implement proper error messages with actionable guidance
+- Follow accessibility best practices (WCAG 2.1)
+- Ensure smooth transitions and animations
+- Progressive enhancement approach
+
+## 📁 PROJECT STRUCTURE
+
+```
+src/
+├── components/           # Reusable UI components
+│   ├── ui/              # shadcn/ui base components
+│   ├── *Modal.tsx       # Feature-specific modals
+│   ├── *Table.tsx       # Data tables with filtering
+│   └── *Management.tsx  # CRUD management components
+├── pages/               # Route-based page components
+├── hooks/               # Custom React hooks
+├── integrations/        # External service integrations
+│   └── supabase/        # Supabase client & types
+├── lib/                 # Utility functions
+└── main.tsx             # Application entry point
+
+supabase/
+├── migrations/          # Database schema versions
+├── functions/           # Edge Functions for serverless logic
+└── config.toml          # Supabase configuration
+```
+
+## 🔧 DEVELOPMENT PATTERNS
+
+### Component Architecture
+- Use functional components with TypeScript interfaces
+- Implement proper prop validation with TypeScript
+- Follow compound component pattern for complex UI
+- Use React.forwardRef for component library consistency
+- Implement proper error boundaries
+
+### State Management
+- Use React hooks for local state
+- TanStack Query for server state management
+- Context API for global app state (auth, theme)
+- useState for simple component state
+- useReducer for complex state logic
+
+### Database Patterns
+```typescript
+// Always use typed Supabase client
+const { data, error } = await supabase
+  .from('table_name')
+  .select('*')
+  .eq('user_id', userId);
+
+// Always handle errors gracefully
+if (error) {
+  console.error('Database error:', error);
+  toast({ title: "Error", description: error.message, variant: "destructive" });
+  return;
+}
+```
+
+### Error Handling
+```typescript
+// Standard error handling pattern
+try {
+  const result = await someOperation();
+  toast({ title: "Success", description: "Operation completed" });
+} catch (error: any) {
+  console.error('Operation failed:', error);
+  toast({
+    title: "Error",
+    description: error.message || "Something went wrong",
+    variant: "destructive"
+  });
+}
+```
+
+## 🔐 SECURITY REQUIREMENTS
+
+### Authentication & Authorization
+- Implement 2FA for all user types (admin, bank viewers)
+- Use Supabase Auth with custom claims for role management
+- Validate user permissions on both client and server
+- Implement session management and automatic logout
+- Use secure password requirements and validation
+
+### Data Protection
+- Encrypt sensitive data at rest and in transit
+- Implement proper CORS policies
+- Use environment variables for all secrets
+- Sanitize all user inputs
+- Implement audit logging for critical operations
+
+### Database Security
+```sql
+-- Always implement RLS policies
+CREATE POLICY "Users can only see their own data" ON table_name
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Always validate permissions in Edge Functions
+CREATE OR REPLACE FUNCTION check_user_role(required_role text)
+RETURNS boolean AS $$
+DECLARE
+  user_role text;
+BEGIN
+  SELECT role INTO user_role FROM profiles WHERE id = auth.uid();
+  RETURN user_role = required_role OR user_role = 'Administrator';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+## 🎨 UI/UX STANDARDS
+
+### Component Library (shadcn/ui)
+- Always use provided UI components as base
+- Extend components with proper className patterns
+- Maintain consistent spacing using Tailwind classes
+- Follow the established design system
+
+### Responsive Design
+```typescript
+// Mobile-first approach
+className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+
+// Consistent breakpoints
+- sm: 640px (mobile)
+- md: 768px (tablet) 
+- lg: 1024px (desktop)
+- xl: 1280px (large desktop)
+```
+
+### Form Patterns
+```typescript
+// Use React Hook Form + Zod validation
+const form = useForm<FormType>({
+  resolver: zodResolver(formSchema),
+  defaultValues: {...}
+});
+
+// Consistent form layout
+<Form {...form}>
+  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <FormField control={form.control} name="field" render={...} />
+    <Button type="submit" disabled={isLoading}>
+      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+      Submit
+    </Button>
+  </form>
+</Form>
+```
+
+## 📊 DATA MANAGEMENT
+
+### Database Schema (Key Tables)
+```sql
+-- Core entities
+profiles          # User profiles with roles
+banks            # Bank information and partnerships  
+farmers          # Farmer data and loan information
+f100             # F-100 financial reports
+invitations      # Bank user invitation system
+two_factor_codes # 2FA verification codes
+
+-- Always include audit fields
+created_at TIMESTAMPTZ DEFAULT NOW()
+updated_at TIMESTAMPTZ DEFAULT NOW()
+created_by UUID REFERENCES auth.users(id)
+```
+
+### API Patterns
+```typescript
+// Edge Function pattern
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Always validate request data
+const { email, userRole } = await req.json();
+if (!email || !userRole) {
+  return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+    status: 400,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+```
+
+## 🚀 DEPLOYMENT (AWS Strategy)
+
+### Infrastructure as Code
+- Use AWS CDK or Terraform for infrastructure
+- Separate environments: dev, staging, production
+- Implement proper CI/CD pipelines with GitHub Actions
+- Use AWS CloudFront for static asset delivery
+
+### Service Architecture
+```
+Frontend (React SPA):
+├── AWS S3 + CloudFront
+├── Route 53 for custom domain
+└── AWS Certificate Manager for SSL
+
+Backend (Supabase):
+├── Supabase Cloud for database & auth
+├── AWS Lambda for Edge Functions (if migrating)
+├── AWS SES/SendGrid for email delivery
+└── AWS CloudWatch for monitoring
+
+Storage:
+├── Supabase Storage for F-100 PDFs
+└── AWS S3 backup for critical data
+```
+
+### Environment Configuration
+```bash
+# Production environment variables
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SENDGRID_API_KEY=your-sendgrid-key
+NODE_ENV=production
+VITE_APP_URL=https://your-domain.com
+```
+
+## 🧪 TESTING STRATEGY
+
+### Testing Pyramid
+```typescript
+// Unit Tests (Jest + React Testing Library)
+test('should render farmer table', () => {
+  render(<FarmersTable data={mockData} />);
+  expect(screen.getByText('Farmer Name')).toBeInTheDocument();
+});
+
+// Integration Tests (Cypress)
+cy.get('[data-testid="login-form"]').should('be.visible');
+cy.get('input[name="email"]').type('admin@telagri.com');
+
+// E2E Tests (Playwright)
+await page.goto('/admin');
+await page.click('text=Invite Bank Viewer');
+await expect(page.locator('.toast')).toContainText('Invitation sent');
+```
+
+### Database Testing
+```sql
+-- Always test RLS policies
+SET ROLE authenticated;
+SET request.jwt.claims TO '{"sub": "test-user-id", "role": "authenticated"}';
+SELECT * FROM farmers; -- Should only return user's farmers
+```
+
+## 🔍 DEBUGGING & MONITORING
+
+### Logging Patterns
+```typescript
+// Structured logging
+console.log('🔐 2FA verification attempt:', { 
+  email: email.replace(/(.{2}).*@/, '$1***@'), // Partially mask email
+  timestamp: new Date().toISOString(),
+  userAgent: req.headers.get('user-agent')
+});
+
+// Error tracking
+console.error('❌ Database operation failed:', {
+  operation: 'insert_farmer',
+  error: error.message,
+  stack: error.stack
+});
+```
+
+### Performance Monitoring
+- Implement React DevTools Profiler for performance analysis
+- Use Supabase Dashboard for database query analysis
+- Monitor Edge Function execution times
+- Track Core Web Vitals for user experience
+
+## 🔄 MAINTENANCE WORKFLOWS
+
+### Code Quality
+```bash
+# Pre-commit hooks
+npm run lint        # ESLint + Prettier
+npm run type-check  # TypeScript validation
+npm run test        # Unit test suite
+npm run build       # Production build test
+```
+
+### Database Maintenance
+```sql
+-- Regular maintenance tasks
+ANALYZE; -- Update table statistics
+REINDEX; -- Rebuild indexes if needed
+VACUUM; -- Reclaim storage space
+
+-- Monitor slow queries
+SELECT query, mean_exec_time, calls 
+FROM pg_stat_statements 
+ORDER BY mean_exec_time DESC 
+LIMIT 10;
+```
+
+### Security Audits
+- Monthly dependency vulnerability scans
+- Quarterly security penetration testing
+- Regular review of RLS policies and permissions
+- Monitor authentication logs for suspicious activity
+
+## 📋 COMMON TASKS
+
+### Adding New Features
+1. Create feature branch: `feature/description`
+2. Update database schema if needed (migration)
+3. Implement UI components with TypeScript
+4. Add proper error handling and validation
+5. Write tests for critical paths
+6. Update documentation
+7. Create PR with detailed description
+
+### Bug Fixes
+1. Reproduce the issue in development
+2. Add debugging logs to understand root cause
+3. Write failing test case
+4. Implement fix with proper error handling
+5. Verify fix doesn't break existing functionality
+6. Update relevant documentation
+
+### Performance Optimization
+1. Profile component rendering with React DevTools
+2. Analyze database query performance
+3. Optimize images and assets
+4. Implement code splitting if needed
+5. Monitor Core Web Vitals after deployment
+
+## ⚠️ CRITICAL CONSIDERATIONS
+
+### Financial Data Handling
+- Never log sensitive financial information
+- Implement proper data retention policies
+- Ensure GDPR compliance for EU farmers
+- Regular security audits for PCI compliance consideration
+
+### Agricultural Domain Knowledge
+- Understand F-100 report requirements and regulations
+- Consider seasonal patterns in farmer loan cycles
+- Implement proper validation for agricultural data
+- Consider mobile accessibility for field usage
+
+### Scalability Planning
+- Design for 10,000+ farmers per bank
+- Plan for multiple countries/currencies
+- Consider offline functionality for rural areas
+- Implement proper caching strategies
+
+---
+
+**Remember: This is a financial platform for farmers' livelihoods. Every line of code impacts real people's access to credit and agricultural success. Code with responsibility and precision.** 

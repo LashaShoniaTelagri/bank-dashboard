@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="90" fill="#10b981"/>
+  
+  <!-- Agricultural wheat/grain symbol -->
+  <path d="M75 60 L75 140 M65 70 Q75 65 85 70 M65 80 Q75 75 85 80 M65 90 Q75 85 85 90 M65 100 Q75 95 85 100 M65 110 Q75 105 85 110 M65 120 Q75 115 85 120 M65 130 Q75 125 85 130" 
+        stroke="white" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Financial chart/growth arrow -->
+  <path d="M110 130 L120 120 L130 110 L140 90 L150 70" 
+        stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Arrow head -->
+  <path d="M145 75 L150 70 L150 85 M135 75 L150 70" 
+        stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Data points -->
+  <circle cx="110" cy="130" r="3" fill="white"/>
+  <circle cx="120" cy="120" r="3" fill="white"/>
+  <circle cx="130" cy="110" r="3" fill="white"/>
+  <circle cx="140" cy="90" r="3" fill="white"/>
+  
+  <!-- Company initial "T" integrated into design -->
+  <text x="100" y="180" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">T</text>
+</svg> 
