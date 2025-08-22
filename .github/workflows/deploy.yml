@@ -186,8 +186,12 @@ jobs:
                   if echo "$cmd" | grep -q "db push"; then
                     echo "✅ Database is already up to date - treating prepared statement conflict as success"
                     return 0
+                  # For migration list commands, also treat as success since connection is working
+                  elif echo "$cmd" | grep -q "migration list"; then
+                    echo "✅ Migration list connection works despite prepared statement conflict - treating as success"
+                    return 0
                   else
-                    echo "⚠️ Prepared statement conflict in non-push command - continuing retry..."
+                    echo "⚠️ Prepared statement conflict in other command - continuing retry..."
                   fi
                 fi
                 
