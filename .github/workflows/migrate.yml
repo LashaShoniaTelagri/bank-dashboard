@@ -149,7 +149,32 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "📋 Current migration status:"
-          supabase migration list --db-url "$DB_URL"
+          
+          # Retry function for database operations
+          retry_command() {
+            local cmd="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $cmd"
+              if eval "$cmd"; then
+                echo "✅ Command succeeded on attempt $attempt"
+                return 0
+              else
+                echo "❌ Command failed on attempt $attempt"
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "🚨 All attempts failed"
+                  return 1
+                fi
+                echo "⏳ Waiting 5 seconds before retry..."
+                sleep 5
+                attempt=$((attempt + 1))
+              fi
+            done
+          }
+          
+          retry_command "supabase migration list --db-url '$DB_URL'"
 
       - name: 🗄️ Apply migrations (push)
         if: github.event.inputs.migration_action == 'push'
@@ -158,15 +183,36 @@ jobs:
         run: |
           echo "🗄️ Applying new migrations..."
           
+          # Retry function for database operations
+          retry_command() {
+            local cmd="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $cmd"
+              if eval "$cmd"; then
+                echo "✅ Command succeeded on attempt $attempt"
+                return 0
+              else
+                echo "❌ Command failed on attempt $attempt"
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "🚨 All attempts failed"
+                  return 1
+                fi
+                echo "⏳ Waiting 5 seconds before retry..."
+                sleep 5
+                attempt=$((attempt + 1))
+              fi
+            done
+          }
+          
           # Verify connection before trying to push
           echo "Verifying Supabase connection..."
-          if ! supabase migration list --db-url "$DB_URL"; then
-            echo "❌ Failed to connect to Supabase. Check your credentials."
-            exit 1
-          fi
+          retry_command "supabase migration list --db-url '$DB_URL'"
           
           echo "✅ Connection verified. Applying migrations..."
-          supabase db push --db-url "$DB_URL"
+          retry_command "supabase db push --db-url '$DB_URL'"
           echo "✅ Migrations applied successfully"
 
       - name: 🚨 Reset database (DESTRUCTIVE)
@@ -175,7 +221,32 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "🚨 RESETTING DATABASE - THIS WILL DELETE ALL DATA!"
-          supabase db reset --db-url "$DB_URL"
+          
+          # Retry function for database operations
+          retry_command() {
+            local cmd="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $cmd"
+              if eval "$cmd"; then
+                echo "✅ Command succeeded on attempt $attempt"
+                return 0
+              else
+                echo "❌ Command failed on attempt $attempt"
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "🚨 All attempts failed"
+                  return 1
+                fi
+                echo "⏳ Waiting 5 seconds before retry..."
+                sleep 5
+                attempt=$((attempt + 1))
+              fi
+            done
+          }
+          
+          retry_command "supabase db reset --db-url '$DB_URL'"
           echo "✅ Database reset completed"
 
       - name: 🔧 Repair migration state
@@ -184,7 +255,32 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "🔧 Repairing migration state..."
-          supabase migration repair --db-url "$DB_URL" --status applied --version $(ls supabase/migrations/ | tail -1 | cut -d'_' -f1)
+          
+          # Retry function for database operations
+          retry_command() {
+            local cmd="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $cmd"
+              if eval "$cmd"; then
+                echo "✅ Command succeeded on attempt $attempt"
+                return 0
+              else
+                echo "❌ Command failed on attempt $attempt"
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "🚨 All attempts failed"
+                  return 1
+                fi
+                echo "⏳ Waiting 5 seconds before retry..."
+                sleep 5
+                attempt=$((attempt + 1))
+              fi
+            done
+          }
+          
+          retry_command "supabase migration repair --db-url '$DB_URL' --status applied --version $(ls supabase/migrations/ | tail -1 | cut -d'_' -f1)"
           echo "✅ Migration state repaired"
 
       - name: 📊 Final migration status
@@ -192,10 +288,35 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "📊 Final migration status:"
-          supabase migration list --db-url "$DB_URL"
+          
+          # Retry function for database operations
+          retry_command() {
+            local cmd="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $cmd"
+              if eval "$cmd"; then
+                echo "✅ Command succeeded on attempt $attempt"
+                return 0
+              else
+                echo "❌ Command failed on attempt $attempt"
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "🚨 All attempts failed"
+                  return 1
+                fi
+                echo "⏳ Waiting 5 seconds before retry..."
+                sleep 5
+                attempt=$((attempt + 1))
+              fi
+            done
+          }
+          
+          retry_command "supabase migration list --db-url '$DB_URL'"
           echo ""
           echo "🗄️ Database schema info:"
-          supabase db diff --db-url "$DB_URL" || echo "No schema differences detected"
+          retry_command "supabase db diff --db-url '$DB_URL'" || echo "No schema differences detected"
 
   # Notification
   notify:
