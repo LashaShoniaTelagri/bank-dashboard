@@ -126,25 +126,27 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ needs.environment.outputs.project_id }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔐 Linking to Supabase project (${{ needs.environment.outputs.env }})..."
           echo "Project ID: $SUPABASE_PROJECT_ID"
           echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
-          echo "DB Password: ${SUPABASE_DB_PASSWORD:+Set}${SUPABASE_DB_PASSWORD:-Not Set}"
+          echo "DB Password: ${PGPASSWORD:+Set}${PGPASSWORD:-Not Set}"
           
-          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+          if [ -z "$PGPASSWORD" ]; then
             echo "❌ SUPABASE_DB_PASSWORD is not set!"
             echo "Please add SUPABASE_DB_PASSWORD to GitHub repository secrets"
             exit 1
           fi
           
-          supabase link --project-ref $SUPABASE_PROJECT_ID --password "$SUPABASE_DB_PASSWORD"
+          echo "Attempting to link using environment variable method..."
+          supabase link --project-ref $SUPABASE_PROJECT_ID
           echo "✅ Successfully linked to Supabase project"
 
       - name: 📋 List current migration status
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "📋 Current migration status:"
           supabase migration list
@@ -153,6 +155,7 @@ jobs:
         if: github.event.inputs.migration_action == 'push'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🗄️ Applying new migrations..."
           
@@ -171,6 +174,7 @@ jobs:
         if: github.event.inputs.migration_action == 'reset'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🚨 RESETTING DATABASE - THIS WILL DELETE ALL DATA!"
           supabase db reset --linked
@@ -180,6 +184,7 @@ jobs:
         if: github.event.inputs.migration_action == 'repair'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔧 Repairing migration state..."
           supabase migration repair --status applied --version $(ls supabase/migrations/ | tail -1 | cut -d'_' -f1)
@@ -188,6 +193,7 @@ jobs:
       - name: 📊 Final migration status
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "📊 Final migration status:"
           supabase migration list
