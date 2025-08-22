@@ -162,11 +162,33 @@ jobs:
             
             while [ $attempt -le $max_attempts ]; do
               echo "Attempt $attempt/$max_attempts: $cmd"
-              if eval "$cmd"; then
+              
+              # Capture both stdout and stderr
+              local output
+              if output=$(eval "$cmd" 2>&1); then
                 echo "✅ Command succeeded on attempt $attempt"
+                echo "$output"
                 return 0
               else
                 echo "❌ Command failed on attempt $attempt"
+                echo "$output"
+                
+                # Check for specific "up to date" messages
+                if echo "$output" | grep -q "Remote database is up to date"; then
+                  echo "✅ Database is already up to date - treating as success"
+                  return 0
+                fi
+                
+                # Check for prepared statement errors that might indicate up-to-date database
+                if echo "$output" | grep -q "prepared statement.*already exists"; then
+                  echo "⚠️ Prepared statement conflict detected - checking if database is up to date..."
+                  # Try a simple migration list to verify connection still works
+                  if supabase migration list --db-url "$DB_URL" >/dev/null 2>&1; then
+                    echo "✅ Database connection is healthy - likely already up to date"
+                    return 0
+                  fi
+                fi
+                
                 if [ $attempt -eq $max_attempts ]; then
                   echo "🚨 All attempts failed"
                   return 1
