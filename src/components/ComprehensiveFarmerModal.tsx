@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Upload, X, Plus, Trash2 } from "lucide-react";
@@ -92,7 +93,7 @@ const HARVEST_UNITS = [
 ];
 
 export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: ComprehensiveFarmerModalProps) => {
-  const [formData, setFormData] = useState<ComprehensiveFarmer>({
+    const [formData, setFormData] = useState<ComprehensiveFarmer>({
     bank_id: '',
     type: 'person',
     name: '',
@@ -119,6 +120,9 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
     equipment_list: '',
     lab_analysis_path: '',
   });
+  const [initialFormData, setInitialFormData] = useState<ComprehensiveFarmer | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
 
   const [newBankName, setNewBankName] = useState('');
   const [isCreatingBank, setIsCreatingBank] = useState(false);
@@ -192,8 +196,9 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
   useEffect(() => {
     if (farmer) {
       setFormData(farmer);
+      setInitialFormData(farmer);
     } else {
-      setFormData({
+      const emptyForm = {
         bank_id: '',
         type: 'person',
         name: '',
@@ -219,13 +224,17 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
         irrigation_system_schema_path: '',
         equipment_list: '',
         lab_analysis_path: '',
-      });
+      };
+      setFormData(emptyForm);
+      setInitialFormData(emptyForm);
     }
+    setHasUnsavedChanges(false);
   }, [farmer, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate required fields
     if (!formData.bank_id) {
       toast({
         title: "გთხოვთ აირჩიოთ ბანკი",
@@ -234,7 +243,48 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
       return;
     }
 
-    farmerMutation.mutate(formData);
+    if (!formData.id_number?.trim()) {
+      toast({
+        title: "პირადი ნომერი სავალდებულოა",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.type === 'company' && !formData.company_name?.trim()) {
+      toast({
+        title: "შპს დასახელება სავალდებულოა",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.type === 'person' && (!formData.first_name?.trim() || !formData.last_name?.trim())) {
+      toast({
+        title: "სახელი და გვარი სავალდებულოა",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate email format if provided
+    if (formData.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contact_email)) {
+      toast({
+        title: "არასწორი ელ-ფოსტის ფორმატი",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set the name field based on type
+    const updatedFormData = {
+      ...formData,
+      name: formData.type === 'company' 
+        ? formData.company_name 
+        : `${formData.first_name} ${formData.last_name}`.trim()
+    };
+
+    farmerMutation.mutate(updatedFormData);
   };
 
   const handleNewBank = () => {
@@ -243,8 +293,29 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
     }
   };
 
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      setShowUnsavedChangesDialog(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleConfirmClose = () => {
+    setShowUnsavedChangesDialog(false);
+    setHasUnsavedChanges(false);
+    onClose();
+  };
+
   const updateFormData = (field: keyof ComprehensiveFarmer, value: string | number | boolean | CropVariety[] | ReservoirVolume[]) => {
-    setFormData({ ...formData, [field]: value });
+    const newFormData = { ...formData, [field]: value };
+    setFormData(newFormData);
+    
+    // Check if there are unsaved changes
+    if (initialFormData) {
+      const hasChanges = JSON.stringify(newFormData) !== JSON.stringify(initialFormData);
+      setHasUnsavedChanges(hasChanges);
+    }
   };
 
   const addCropVariety = () => {
@@ -306,6 +377,30 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
   const handleFileUpload = async (file: File, type: 'schema' | 'labAnalysis') => {
     if (!file) return;
 
+    // Validate file type
+    const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      toast({
+        title: "არასწორი ფაილის ფორმატი",
+        description: "დაშვებულია მხოლოდ: PDF, JPG, PNG, DOC, DOCX",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      toast({
+        title: "ფაილი ძალიან დიდია",
+        description: "მაქსიმალური ზომა: 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
     const filePath = `bank/${formData.bank_id}/${type}/${fileName}`;
@@ -344,7 +439,7 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
@@ -894,7 +989,7 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
             <Button 
               type="button" 
               variant="outline" 
-              onClick={onClose}
+              onClick={handleClose}
               className="border-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-800 transform transition-all duration-200 hover:scale-[1.02] shadow-md"
             >
               გაუქმება
@@ -902,6 +997,23 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
           </div>
         </form>
       </DialogContent>
+
+      <AlertDialog open={showUnsavedChangesDialog} onOpenChange={setShowUnsavedChangesDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>არ შენახული ცვლილებები</AlertDialogTitle>
+            <AlertDialogDescription>
+              თქვენ გაქვთ არ შენახული ცვლილებები. ნამდვილად გსურთ გამოსვლა?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>გაუქმება</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmClose}>
+              გამოსვლა
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
