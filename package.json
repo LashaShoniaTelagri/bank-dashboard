@@ -12,6 +12,7 @@
     "pwa:icons": "./scripts/generate-pwa-icons.sh",
     "setup:cdk": "./scripts/setup-cdk.sh",
     "setup:github": "./scripts/setup-github-role.sh",
+    "setup:keys": "./scripts/create-deployment-user.sh",
     "validate:aws": "./scripts/validate-aws-setup.sh"
   },
   "dependencies": {
