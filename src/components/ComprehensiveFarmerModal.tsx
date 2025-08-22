@@ -243,7 +243,7 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
     }
   };
 
-  const updateFormData = (field: keyof ComprehensiveFarmer, value: any) => {
+  const updateFormData = (field: keyof ComprehensiveFarmer, value: string | number | boolean | CropVariety[] | ReservoirVolume[]) => {
     setFormData({ ...formData, [field]: value });
   };
 
@@ -260,7 +260,7 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
     });
   };
 
-  const updateCropVariety = (id: string, field: keyof CropVariety, value: any) => {
+  const updateCropVariety = (id: string, field: keyof CropVariety, value: string | number) => {
     setFormData({
       ...formData,
       crop_varieties: formData.crop_varieties?.map(v => 
@@ -327,10 +327,11 @@ export const ComprehensiveFarmerModal = ({ isOpen, onClose, farmer }: Comprehens
       updateFormData(field as keyof ComprehensiveFarmer, filePath);
 
       toast({ title: "ფაილი წარმატებით ატვირთულია" });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         title: "ფაილის ატვირთვის შეცდომა",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
