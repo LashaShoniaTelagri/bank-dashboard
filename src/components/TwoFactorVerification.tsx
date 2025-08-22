@@ -2,9 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Shield, RefreshCw, Mail } from "lucide-react";
+import { Loader2, Shield, RefreshCw, Mail, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { generateDeviceFingerprint, getDeviceInfo, getDeviceDescription, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
 
 interface TwoFactorVerificationProps {
   email: string;
@@ -25,7 +27,32 @@ export const TwoFactorVerification = ({
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [canResend, setCanResend] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [deviceFingerprint, setDeviceFingerprint] = useState<string>("");
+  const [deviceDescription, setDeviceDescription] = useState<string>("");
+  const [deviceFingerprintSupported, setDeviceFingerprintSupported] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Initialize device fingerprinting
+  useEffect(() => {
+    const initDeviceFingerprint = async () => {
+      const supported = isDeviceFingerprintingSupported();
+      setDeviceFingerprintSupported(supported);
+      
+      if (supported) {
+        try {
+          const fingerprint = await generateDeviceFingerprint();
+          const description = getDeviceDescription();
+          setDeviceFingerprint(fingerprint);
+          setDeviceDescription(description);
+        } catch (error) {
+          console.error('Failed to generate device fingerprint:', error);
+        }
+      }
+    };
+    
+    initDeviceFingerprint();
+  }, []);
 
   // Countdown timer
   useEffect(() => {
@@ -180,8 +207,18 @@ export const TwoFactorVerification = ({
     setAttempts(prev => prev + 1);
 
     try {
+      const requestBody: any = { email, code: verificationCode };
+      
+      // Add device trust information if remember device is enabled
+      if (rememberDevice && deviceFingerprint && deviceFingerprintSupported) {
+        const deviceInfo = await getDeviceInfo();
+        requestBody.rememberDevice = true;
+        requestBody.deviceFingerprint = deviceFingerprint;
+        requestBody.deviceInfo = deviceInfo;
+      }
+
       const { data, error } = await supabase.functions.invoke('verify-2fa-code', {
-        body: { email, code: verificationCode }
+        body: requestBody
       });
 
       if (error) throw error;
@@ -189,7 +226,9 @@ export const TwoFactorVerification = ({
       if (data.verified) {
         toast({
           title: "Verification successful!",
-          description: "You will be redirected to your dashboard",
+          description: rememberDevice 
+            ? "Device trusted for 30 days. You will be redirected to your dashboard"
+            : "You will be redirected to your dashboard",
         });
         onVerificationSuccess();
       } else {
@@ -350,6 +389,31 @@ export const TwoFactorVerification = ({
               <p className="text-sm text-muted-foreground">
                 Code expires in <span className="font-medium text-orange-600">{formatTime(timeLeft)}</span>
               </p>
+            </div>
+          )}
+
+          {/* Remember Device Option */}
+          {deviceFingerprintSupported && (
+            <div className="bg-gradient-to-r from-emerald-50/80 to-teal-50/80 backdrop-blur-sm border border-emerald-200/50 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="remember-device"
+                  checked={rememberDevice}
+                  onCheckedChange={setRememberDevice}
+                  className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                />
+                <div className="flex-1">
+                  <label htmlFor="remember-device" className="text-sm font-medium text-slate-700 cursor-pointer">
+                    Remember this device for 30 days
+                  </label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Smartphone className="h-3 w-3 text-slate-500" />
+                    <p className="text-xs text-slate-500">
+                      {deviceDescription} - You won't need 2FA on this device for 30 days
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

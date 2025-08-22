@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TwoFactorVerification } from "@/components/TwoFactorVerification";
+import { generateDeviceFingerprint, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -236,8 +237,49 @@ const Auth = () => {
 
       const userRole = profile?.role || 'user';
 
+      // Check if device is trusted before requiring 2FA
+      let deviceIsTrusted = false;
+      try {
+        if (isDeviceFingerprintingSupported()) {
+          const deviceFingerprint = await generateDeviceFingerprint();
+          
+          const { data: trustedDevice, error: trustError } = await supabase
+            .rpc('is_device_trusted', {
+              p_user_email: email,
+              p_device_fingerprint: deviceFingerprint
+            });
+          
+          if (!trustError && trustedDevice) {
+            deviceIsTrusted = true;
+            console.log('🔐 Device is trusted, skipping 2FA');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking device trust:', error);
+        // Continue with 2FA if trust check fails
+      }
+
+      if (deviceIsTrusted) {
+        // Complete sign-in immediately for trusted device
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) {
+          throw signInError;
+        }
+
+        toast({
+          title: "Welcome back!",
+          description: "Trusted device recognized - signed in automatically",
+        });
+
+        // Will redirect via useAuth hook
+        return;
+      }
       
-      // Set up 2FA verification
+      // Set up 2FA verification for non-trusted devices
       const pendingData = { 
         email, 
         userRole: userRole === 'admin' ? 'Administrator' : 'Bank Viewer'
