@@ -198,6 +198,10 @@ jobs:
     needs: [build]
     # Run security scan on all PRs and main branch pushes
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     
     steps:
       - name: 📥 Checkout repository
@@ -208,14 +212,20 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: 'table'
+          output: 'trivy-results.txt'
 
-      - name: 📊 Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+      - name: 📊 Display security scan results
         if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+        run: |
+          echo "🔒 Security Scan Results:"
+          echo "========================"
+          if [ -f trivy-results.txt ]; then
+            cat trivy-results.txt
+          else
+            echo "✅ No vulnerabilities detected or scan output not generated"
+          fi
+          echo "========================"
 
   # Notification (only for deployments)
   notify:

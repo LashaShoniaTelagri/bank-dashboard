@@ -35,17 +35,6 @@ const Auth = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Show hello from cursor alert
-  useEffect(() => {
-    if (!pageLoading) {
-      toast({
-        title: "Hello from Cursor!",
-        description: "Welcome to TelAgri Bank Dashboard",
-      });
-    }
-  }, [pageLoading]);
-
-
   
   // Check if this is a recovery/password setup flow
   const isRecovery = searchParams.get('type') === 'recovery';
@@ -88,14 +77,14 @@ const Auth = () => {
     // Handle auth session from recovery link
     const handleAuthStateChange = () => {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
+        // Auth state change tracked silently in production
         
         if (session?.user?.email) {
           setEmail(session.user.email);
           
           // If user is signed in via recovery but hasn't set password yet, stay on setup form
           if (event === 'SIGNED_IN' && isRecovery) {
-            console.log('User signed in via recovery link - showing password setup');
+            // User signed in via recovery link - password setup required
           }
         }
       });
