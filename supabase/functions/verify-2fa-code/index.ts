@@ -27,7 +27,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
-    const { email, code } = await req.json()
+    const { email, code, rememberDevice = false, deviceFingerprint, deviceInfo } = await req.json()
 
     if (!email || !code) {
       throw new Error('Email and verification code are required')
@@ -102,6 +102,32 @@ serve(async (req) => {
     }
 
     console.log(`✅ 2FA code verified successfully for ${email}`)
+
+    // Handle trusted device registration
+    let trustedDeviceId = null;
+    if (rememberDevice && deviceFingerprint) {
+      try {
+        console.log(`🔐 Registering trusted device for ${email}`);
+        
+        const { data: trustedDevice, error: deviceError } = await supabaseClient
+          .rpc('add_trusted_device', {
+            p_user_email: email,
+            p_device_fingerprint: deviceFingerprint,
+            p_device_info: deviceInfo || {}
+          });
+        
+        if (deviceError) {
+          console.error('Failed to register trusted device:', deviceError);
+          // Don't fail the verification, just log the error
+        } else {
+          trustedDeviceId = trustedDevice;
+          console.log(`✅ Trusted device registered with ID: ${trustedDeviceId}`);
+        }
+      } catch (deviceError) {
+        console.error('Error registering trusted device:', deviceError);
+        // Don't fail the verification, just log the error
+      }
+    }
 
     // Clean up any other expired codes for this email
     await supabaseClient
