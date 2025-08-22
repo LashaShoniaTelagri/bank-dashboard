@@ -1,0 +1,213 @@
+name: 🗄️ Database Migrations
+
+# This workflow runs database migrations independently of the main deployment
+# Use this for:
+# - Emergency database fixes
+# - Testing migrations in specific environments
+# - Manual migration runs outside normal deployment cycle
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run migrations against'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      migration_action:
+        description: 'Migration action to perform'
+        required: true
+        default: 'push'
+        type: choice
+        options:
+          - push    # Apply new migrations
+          - reset   # Reset database (DANGEROUS - removes all data)
+          - repair  # Repair migration state
+          - list    # List migration status only
+      confirm_destructive:
+        description: 'Type "CONFIRM" to allow destructive operations (reset)'
+        required: false
+        type: string
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Determine environment settings
+  environment:
+    name: 🎯 Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.env.outputs.env }}
+      project_id: ${{ steps.env.outputs.project_id }}
+    
+    steps:
+      - name: 🎯 Set environment configuration
+        id: env
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          echo "env=${ENV}" >> $GITHUB_OUTPUT
+          
+          # Set project ID based on environment
+          case ${ENV} in
+            prod)
+              echo "project_id=${{ secrets.SUPABASE_PROJECT_ID_PROD || secrets.SUPABASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "project_id=${{ secrets.SUPABASE_PROJECT_ID_STAGING || secrets.SUPABASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
+              ;;
+            dev)
+              echo "project_id=${{ secrets.SUPABASE_PROJECT_ID_DEV || secrets.SUPABASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+          
+          echo "🎯 Target environment: ${ENV}"
+
+  # Validation for destructive operations
+  validate:
+    name: 🔍 Validate Operation
+    runs-on: ubuntu-latest
+    needs: [environment]
+    if: github.event.inputs.migration_action == 'reset'
+    
+    steps:
+      - name: 🚨 Validate destructive operation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destructive }}" != "CONFIRM" ]; then
+            echo "❌ Destructive operation requires confirmation"
+            echo "Please type 'CONFIRM' in the confirm_destructive field"
+            exit 1
+          fi
+          
+          if [ "${{ needs.environment.outputs.env }}" == "prod" ]; then
+            echo "🚨 WARNING: You are about to reset the PRODUCTION database!"
+            echo "This will DELETE ALL DATA in the production environment"
+            echo "Proceeding in 10 seconds... Cancel now if this is not intended"
+            sleep 10
+          fi
+          
+          echo "✅ Destructive operation confirmed"
+
+  # Run database migrations
+  migrate:
+    name: 🗄️ Run Migrations
+    runs-on: ubuntu-latest
+    needs: [environment]
+    # Skip validation job dependency for non-destructive operations
+    # For destructive operations, validation must pass
+    if: |
+      github.event.inputs.migration_action != 'reset' || 
+      (github.event.inputs.migration_action == 'reset' && needs.validate.result == 'success')
+    environment: ${{ needs.environment.outputs.env }}
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔧 Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: 🔐 Authenticate with Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ needs.environment.outputs.project_id }}
+        run: |
+          echo "🔐 Linking to Supabase project (${{ needs.environment.outputs.env }})..."
+          supabase link --project-ref $SUPABASE_PROJECT_ID
+
+      - name: 📋 List current migration status
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "📋 Current migration status:"
+          supabase migration list --linked
+
+      - name: 🗄️ Apply migrations (push)
+        if: github.event.inputs.migration_action == 'push'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "🗄️ Applying new migrations..."
+          supabase db push
+          echo "✅ Migrations applied successfully"
+
+      - name: 🚨 Reset database (DESTRUCTIVE)
+        if: github.event.inputs.migration_action == 'reset'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "🚨 RESETTING DATABASE - THIS WILL DELETE ALL DATA!"
+          supabase db reset --linked
+          echo "✅ Database reset completed"
+
+      - name: 🔧 Repair migration state
+        if: github.event.inputs.migration_action == 'repair'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "🔧 Repairing migration state..."
+          supabase migration repair --status applied --version $(ls supabase/migrations/ | tail -1 | cut -d'_' -f1)
+          echo "✅ Migration state repaired"
+
+      - name: 📊 Final migration status
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "📊 Final migration status:"
+          supabase migration list --linked
+          echo ""
+          echo "🗄️ Database schema info:"
+          supabase db diff --linked || echo "No schema differences detected"
+
+  # Notification
+  notify:
+    name: 📢 Notify
+    runs-on: ubuntu-latest
+    needs: [environment, migrate]
+    if: always()
+    
+    steps:
+      - name: 📢 Migration notification
+        run: |
+          echo "📊 Migration Summary:"
+          echo "===================="
+          echo "🎯 Environment: ${{ needs.environment.outputs.env }}"
+          echo "🔧 Action: ${{ github.event.inputs.migration_action }}"
+          echo "📋 Status: ${{ needs.migrate.result }}"
+          echo ""
+          
+          if [ "${{ needs.migrate.result }}" == "success" ]; then
+            echo "✅ Database migration completed successfully!"
+            case "${{ github.event.inputs.migration_action }}" in
+              push)
+                echo "🗄️ New migrations have been applied"
+                ;;
+              reset)
+                echo "🚨 Database has been reset (all data removed)"
+                ;;
+              repair)
+                echo "🔧 Migration state has been repaired"
+                ;;
+              list)
+                echo "📋 Migration status retrieved"
+                ;;
+            esac
+          else
+            echo "❌ Migration operation failed!"
+            echo "📋 Check the logs for details"
+          fi 
