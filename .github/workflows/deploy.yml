@@ -130,18 +130,18 @@ jobs:
         with:
           version: latest
 
-      - name: 🔐 Authenticate with Supabase
+      - name: 🔐 Link to Supabase project
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔐 Linking to Supabase project..."
-          supabase link --project-ref $SUPABASE_PROJECT_ID
+          supabase link --project-ref $SUPABASE_PROJECT_ID --password "$SUPABASE_DB_PASSWORD"
 
       - name: 🗄️ Run database migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
           echo "🗄️ Running database migrations..."
           supabase db push
@@ -150,10 +150,9 @@ jobs:
       - name: 🔍 Verify migration status
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
           echo "🔍 Checking migration status..."
-          supabase migration list --linked
+          supabase migration list
 
   # Deploy infrastructure with CDK
   deploy:
