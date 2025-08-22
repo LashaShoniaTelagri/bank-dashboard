@@ -130,52 +130,38 @@ jobs:
         with:
           version: latest
 
-      - name: 🔐 Link to Supabase project
+      - name: 🗄️ Run database migrations (Direct URL method)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          echo "🔐 Linking to Supabase project..."
+          echo "🗄️ Running database migrations using direct URL method..."
           echo "Project ID: $SUPABASE_PROJECT_ID"
           echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
-          echo "DB Password: ${PGPASSWORD:+Set}${PGPASSWORD:-Not Set}"
+          echo "DB Password: ${SUPABASE_DB_PASSWORD:+Set}${SUPABASE_DB_PASSWORD:-Not Set}"
           
-          if [ -z "$PGPASSWORD" ]; then
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "❌ SUPABASE_DB_PASSWORD is not set!"
             echo "Please add SUPABASE_DB_PASSWORD to GitHub repository secrets"
             exit 1
           fi
           
-          echo "Attempting to link using environment variable method..."
-          supabase link --project-ref $SUPABASE_PROJECT_ID
-          echo "✅ Successfully linked to Supabase project"
-
-      - name: 🗄️ Run database migrations
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: |
-          echo "🗄️ Running database migrations..."
+          # Construct database URL
+          DB_URL="postgresql://postgres.$(echo $SUPABASE_PROJECT_ID):${SUPABASE_DB_PASSWORD}@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
+          echo "🔗 Using direct database URL connection..."
           
-          # Verify we're linked before trying to push
-          echo "Verifying Supabase connection..."
-          if ! supabase migration list; then
-            echo "❌ Failed to connect to Supabase. Link may have failed."
-            exit 1
-          fi
+          # Run migrations using direct URL
+          echo "📋 Checking current migration status..."
+          supabase migration list --db-url "$DB_URL"
           
-          echo "✅ Connection verified. Applying migrations..."
-          supabase db push
-          echo "✅ Migrations completed successfully"
-
-      - name: 🔍 Verify migration status
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: |
-          echo "🔍 Checking migration status..."
-          supabase migration list
+          echo "🚀 Applying new migrations..."
+          supabase db push --db-url "$DB_URL"
+          
+          echo "✅ Migrations completed successfully!"
+          
+          echo "📊 Final migration status:"
+          supabase migration list --db-url "$DB_URL"
 
   # Deploy infrastructure with CDK
   deploy:
