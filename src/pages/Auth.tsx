@@ -614,7 +614,15 @@ const Auth = () => {
           pageLoading ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'
         }`}>
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl font-semibold text-slate-700">Sign In</CardTitle>
+            <CardTitle className="text-xl font-semibold text-slate-700">Welcome to TelAgri</CardTitle>
+            <div className="mt-2 space-y-2">
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Your secure gateway to agricultural financial management
+              </p>
+              <p className="text-xs text-slate-500">
+                Manage farmer loans, F-100 reports, and bank partnerships with confidence
+              </p>
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignIn} className="space-y-4">
