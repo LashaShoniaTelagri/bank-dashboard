@@ -110,7 +110,12 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
 
       if (editMode) {
         // Update existing F100 record
-        const updateData: any = {
+        const updateData: {
+          issue_date: string;
+          score: number;
+          file_path?: string;
+          upload_date?: string;
+        } = {
           issue_date: formData.issue_date,
           score: score,
         };

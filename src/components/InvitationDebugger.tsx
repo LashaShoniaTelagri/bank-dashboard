@@ -61,11 +61,11 @@ export const InvitationDebugger = () => {
         status: 'success',
         message: "Successfully connected to Supabase database"
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       addResult({
         test: "Database Connection",
         status: 'error',
-        message: `Database error: ${error.message}`
+        message: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
 
@@ -87,11 +87,11 @@ export const InvitationDebugger = () => {
           message: "No banks found. You'll need to create banks before sending invitations."
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       addResult({
         test: "Banks Data",
         status: 'error',
-        message: `Banks query error: ${error.message}`
+        message: `Banks query error: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
 
@@ -107,8 +107,8 @@ export const InvitationDebugger = () => {
         status: 'success',
         message: "invite-bank-viewer function is deployed and accessible"
       });
-    } catch (error: any) {
-      if (error.message?.includes('not found')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message?.includes('not found')) {
         addResult({
           test: "Edge Function",
           status: 'error',
@@ -118,7 +118,7 @@ export const InvitationDebugger = () => {
         addResult({
           test: "Edge Function",
           status: 'warning',
-          message: `Function exists but may have configuration issues: ${error.message}`
+          message: `Function exists but may have configuration issues: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
       }
     }
@@ -153,11 +153,11 @@ export const InvitationDebugger = () => {
           message: "No authenticated user"
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       addResult({
         test: "User Profile",
         status: 'error',
-        message: `Profile error: ${error.message}`
+        message: `Profile error: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
 
@@ -255,16 +255,16 @@ export const InvitationDebugger = () => {
         description: `Check ${testEmail} for the invitation email (including spam folder)`,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       addResult({
         test: "Invitation Test",
         status: 'error',
-        message: `❌ Invitation failed: ${error.message}`
+        message: `❌ Invitation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
 
       toast({
         title: "Test invitation failed",
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Unknown error',
         variant: "destructive"
       });
     }

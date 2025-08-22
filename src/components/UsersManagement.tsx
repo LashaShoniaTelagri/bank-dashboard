@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, UseMutationResult } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,7 +179,7 @@ export const UsersManagement = () => {
 
   const syncStatusesMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc('sync_invitation_statuses' as any);
+      const { error } = await supabase.rpc('sync_invitation_statuses');
       if (error) throw error;
     },
     onSuccess: () => {
@@ -331,8 +331,8 @@ export const UsersManagement = () => {
 };
 
 interface RecentInvitationsProps {
-  cancelInvitationMutation: any;
-  deleteInvitationMutation: any;
+  cancelInvitationMutation: UseMutationResult<unknown, Error, string, unknown>;
+  deleteInvitationMutation: UseMutationResult<unknown, Error, string, unknown>;
 }
 
 const RecentInvitations = ({ cancelInvitationMutation, deleteInvitationMutation }: RecentInvitationsProps) => {

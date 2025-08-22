@@ -103,7 +103,7 @@ const Auth = () => {
       
       return handleAuthStateChange();
     }
-  }, [isRecovery, recoveryEmail, isExpiredLink, searchParams]);
+  }, [isRecovery, recoveryEmail, isExpiredLink, searchParams, email]);
 
   // Cleanup effect
   useEffect(() => {
@@ -115,7 +115,7 @@ const Auth = () => {
         localStorage.removeItem('telagri_temp_pwd');
       }
     };
-  }, []);
+  }, [showTwoFactor]);
 
   const handle2FASuccess = async () => {
     if (!pendingUserData) return;
@@ -419,7 +419,7 @@ const Auth = () => {
         window.location.href = '/';
       }, 1000);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password setup error:', error);
       
       let title = "Password setup failed";

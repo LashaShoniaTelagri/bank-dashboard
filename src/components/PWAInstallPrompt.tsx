@@ -15,8 +15,8 @@ export const PWAInstallPrompt = () => {
   useEffect(() => {
     // Check if app is already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    const isInStandaloneMode = (navigator as any).standalone || isStandalone;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
+    const isInStandaloneMode = (navigator as unknown as { standalone?: boolean }).standalone || isStandalone;
     
     if (isInStandaloneMode) {
       setIsInstalled(true);
