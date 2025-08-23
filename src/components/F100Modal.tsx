@@ -114,6 +114,8 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
           issue_date: string;
           score: number;
           file_path?: string;
+          file_mime?: string;
+          file_size_bytes?: number;
           upload_date?: string;
         } = {
           issue_date: formData.issue_date,

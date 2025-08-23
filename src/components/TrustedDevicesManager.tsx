@@ -53,7 +53,7 @@ export const TrustedDevicesManager = () => {
         .order('last_used_at', { ascending: false });
       
       if (error) throw error;
-      return data as TrustedDevice[];
+      return data;
     },
   });
 
@@ -83,7 +83,7 @@ export const TrustedDevicesManager = () => {
     },
   });
 
-  const handleRemoveDevice = (deviceId: string, deviceInfo: DeviceInfo | Record<string, unknown>) => {
+  const handleRemoveDevice = (deviceId: string, deviceInfo: Record<string, unknown>) => {
     const description = getDeviceDescriptionFromInfo(deviceInfo);
     setConfirmDialog({
       open: true,
@@ -99,10 +99,11 @@ export const TrustedDevicesManager = () => {
     }
   };
 
-  const getDeviceDescriptionFromInfo = (deviceInfo: DeviceInfo | Record<string, unknown> | null): string => {
+  const getDeviceDescriptionFromInfo = (deviceInfo: Record<string, unknown> | null): string => {
     if (!deviceInfo) return 'Unknown Device';
     
-    const { userAgent = '', platform = '' } = deviceInfo;
+    const userAgent = String(deviceInfo.userAgent || '');
+    const platform = String(deviceInfo.platform || '');
     
     let browser = 'Unknown Browser';
     let os = 'Unknown OS';
@@ -184,7 +185,7 @@ export const TrustedDevicesManager = () => {
               {trustedDevices.map((device) => {
                 const isCurrentDevice = device.device_fingerprint === currentDeviceFingerprint;
                 const daysLeft = getDaysUntilExpiry(device.expires_at);
-                const deviceDescription = getDeviceDescriptionFromInfo(device.device_info);
+                const deviceDescription = getDeviceDescriptionFromInfo(device.device_info as Record<string, unknown>);
                 
                 return (
                   <div
@@ -230,7 +231,7 @@ export const TrustedDevicesManager = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRemoveDevice(device.id, device.device_info)}
+                      onClick={() => handleRemoveDevice(device.id, device.device_info as Record<string, unknown>)}
                       disabled={removeDeviceMutation.isPending}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
@@ -245,7 +246,7 @@ export const TrustedDevicesManager = () => {
       </Card>
 
       <ConfirmDialog
-        open={confirmDialog.open}
+        isOpen={confirmDialog.open}
         onClose={() => setConfirmDialog({ open: false })}
         onConfirm={confirmRemoveDevice}
         title="Remove Trusted Device"
