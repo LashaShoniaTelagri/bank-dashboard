@@ -7,8 +7,7 @@ A production-grade banking dashboard that enables financial institutions to mana
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- npm or bun
+- **Bun 1.x** (recommended) or Node.js 20+
 - Supabase CLI
 - Git
 
@@ -18,31 +17,46 @@ A production-grade banking dashboard that enables financial institutions to mana
 git clone <repository-url>
 cd telagri-bank-dashboard
 
-# Install dependencies
-npm install
+# Install dependencies (using Bun for performance)
+bun install
 
 # Setup environment variables
 cp .env.example .env.local
 # Edit .env.local with your Supabase credentials
 
 # Start development server
-npm run dev
+bun run dev
 
 # Start Supabase (in separate terminal)
 supabase start
 supabase functions serve
 ```
 
-Visit `http://localhost:8080` to access the dashboard.
+Visit `http://localhost:8081` (or the port shown in terminal) to access the dashboard.
+
+> 🚀 **Bun Benefits**: ~3x faster dependency installation and improved development experience
 
 ## 🏗️ Architecture
 
 ### **Frontend Stack**
-- **React 18** with TypeScript for type safety
+- **React 19** with TypeScript for type safety and latest features
+- **Bun** as high-performance JavaScript runtime and package manager
 - **Vite** for fast development and optimized builds
 - **shadcn/ui** component library with Tailwind CSS
 - **TanStack Query** for efficient data fetching
 - **React Hook Form + Zod** for form management
+
+## 📚 **Documentation**
+
+### **Complete Documentation Suite**
+All project documentation is organized in the [`docs/`](docs/) directory:
+
+- 📖 **[Documentation Index](docs/README.md)** - Complete documentation overview
+- 🏗️ **[Setup Guides](docs/setup/)** - Initial configuration and setup
+- 🚀 **[Deployment](docs/deployment/)** - AWS infrastructure and deployment
+- ⭐ **[Features](docs/features/)** - Feature-specific guides and documentation
+- 🔧 **[Development](docs/development/)** - Development workflows and migration guides
+- 🎯 **[Prompts](docs/prompts/)** - AI prompt library for development workflows
 
 ### **Backend & Services**
 - **Supabase** (PostgreSQL + Auth + Storage + Edge Functions)
@@ -104,12 +118,17 @@ supabase/
 
 ### **Available Scripts**
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production  
-npm run preview      # Preview production build
-npm run lint         # Run ESLint
-npm run type-check   # TypeScript checking
-npm test            # Run test suite
+# Primary commands (using Bun for performance)
+bun run dev          # Start development server
+bun run build        # Build for production  
+bun run preview      # Preview production build
+bun run lint         # Run ESLint
+bun run type-check   # TypeScript checking
+bun test            # Run test suite
+
+# Bun-optimized workflows
+bun run fresh        # Clean + install + dev server
+bun install         # Install dependencies (~3x faster than npm)
 ```
 
 ### **Database Management**
