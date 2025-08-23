@@ -1,0 +1,6 @@
+project_id = "yhactmhcdspkdpplklge"
+
+[functions.invite-bank-viewer]
+verify_jwt = false
+
+supabase db push --db-url "postgresql://postgres:eLEuYteMQveiwYdu@db.yhactmhcdspkdpplklge.supabase.co:5432/postgres"

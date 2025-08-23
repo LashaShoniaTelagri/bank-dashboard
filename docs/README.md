@@ -39,6 +39,7 @@
 | Document | Description | Last Updated |
 |----------|-------------|--------------|
 | [Bun Migration Guide](development/BUN_MIGRATION_GUIDE.md) | Migration from npm to Bun package manager | Current |
+| [Multi-Environment Setup](development/MULTI_ENVIRONMENT_SETUP.md) | Dev/staging/prod Supabase projects with Edge Function secrets | Current |
 | [Project Prompts](development/PROJECT_PROMPT.md) | Development context and prompts | Current |
 | [Cursor Rules](../.cursorrules) | AI assistant development guidelines | Current |
 

@@ -12,12 +12,32 @@ A production-grade banking dashboard that enables financial institutions to mana
 - Git
 
 ### Local Development
+
+**Option 1: Quick Setup with Development Environment Script (Recommended)**
 ```bash
 # Clone repository
 git clone <repository-url>
 cd telagri-bank-dashboard
 
 # Install dependencies (using Bun for performance)
+bun install
+
+# Setup separate development Supabase project
+bun run setup:dev
+# This script will:
+# - Configure your development Supabase project
+# - Apply database migrations
+# - Set up Edge Function environment variables
+# - Deploy functions to development environment
+
+# Update .env.local with development project details (as instructed by setup script)
+# Then start development server
+bun run dev
+```
+
+**Option 2: Manual Setup**
+```bash
+# Install dependencies
 bun install
 
 # Setup environment variables
@@ -35,6 +55,7 @@ supabase functions serve
 Visit `http://localhost:8081` (or the port shown in terminal) to access the dashboard.
 
 > 🚀 **Bun Benefits**: ~3x faster dependency installation and improved development experience
+> 🏗️ **Multi-Environment**: Separate dev/staging/prod Supabase projects for safe development
 
 ## 🏗️ Architecture
 

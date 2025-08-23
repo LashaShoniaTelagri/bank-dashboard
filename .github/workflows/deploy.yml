@@ -259,9 +259,38 @@ jobs:
             done
           }
           
+          # Determine environment for Edge Function secrets
+          ENV="prod"  # Default to production
+          if [[ "$GITHUB_REF" == "refs/heads/develop" ]]; then
+            ENV="dev"
+          elif [[ "$GITHUB_REF" == "refs/heads/staging" ]]; then
+            ENV="staging"  
+          fi
+          echo "🎯 Deploying Edge Functions for environment: $ENV"
+          
           # Link to Supabase project for Edge Functions deployment
           echo "🔗 Linking to Supabase project for Edge Functions..."
           retry_function_command "supabase link --project-ref '$SUPABASE_PROJECT_ID' --password '$SUPABASE_DB_PASSWORD'"
+          
+          # Set environment-specific secrets for Edge Functions
+          echo "🔐 Setting environment-specific secrets for Edge Functions..."
+          case $ENV in
+            dev)
+              retry_function_command "supabase secrets set SENDGRID_API_KEY='${{ secrets.EDGE_SENDGRID_API_KEY_DEV }}'" || echo "Dev SENDGRID_API_KEY not set"
+              retry_function_command "supabase secrets set SENDGRID_FROM_EMAIL='${{ secrets.EDGE_SENDGRID_FROM_EMAIL_DEV }}'" || echo "Dev SENDGRID_FROM_EMAIL not set"
+              retry_function_command "supabase secrets set SITE_URL='${{ secrets.EDGE_SITE_URL_DEV }}'" || echo "Dev SITE_URL not set"
+              ;;
+            staging)
+              retry_function_command "supabase secrets set SENDGRID_API_KEY='${{ secrets.EDGE_SENDGRID_API_KEY_STAGING }}'" || echo "Staging SENDGRID_API_KEY not set"
+              retry_function_command "supabase secrets set SENDGRID_FROM_EMAIL='${{ secrets.EDGE_SENDGRID_FROM_EMAIL_STAGING }}'" || echo "Staging SENDGRID_FROM_EMAIL not set"
+              retry_function_command "supabase secrets set SITE_URL='${{ secrets.EDGE_SITE_URL_STAGING }}'" || echo "Staging SITE_URL not set"
+              ;;
+            prod)
+              retry_function_command "supabase secrets set SENDGRID_API_KEY='${{ secrets.EDGE_SENDGRID_API_KEY_PROD }}'" || echo "Prod SENDGRID_API_KEY not set"
+              retry_function_command "supabase secrets set SENDGRID_FROM_EMAIL='${{ secrets.EDGE_SENDGRID_FROM_EMAIL_PROD }}'" || echo "Prod SENDGRID_FROM_EMAIL not set"
+              retry_function_command "supabase secrets set SITE_URL='${{ secrets.EDGE_SITE_URL_PROD }}'" || echo "Prod SITE_URL not set"
+              ;;
+          esac
           
           # Check existing Edge Functions
           echo "📋 Checking existing Edge Functions..."

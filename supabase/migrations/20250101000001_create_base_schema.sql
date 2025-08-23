@@ -15,7 +15,12 @@ create table public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   role text not null check (role in ('admin','bank_viewer')),
   bank_id uuid references public.banks(id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Invitation tracking fields
+  invited_by text,
+  invited_at timestamptz,
+  invitation_accepted_at timestamptz,
+  invitation_status text default 'accepted' check (invitation_status in ('pending', 'accepted', 'expired', 'cancelled'))
 );
 
 -- FARMERS
@@ -143,7 +148,8 @@ using (exists(select 1 from public.profiles p where p.user_id = auth.uid() and p
 with check (exists(select 1 from public.profiles p where p.user_id = auth.uid() and p.role='admin'));
 
 -- STORAGE BUCKET
-insert into storage.buckets (id, name, public) values ('f100', 'f100', false);
+insert into storage.buckets (id, name, public) values ('f100', 'f100', false)
+on conflict (id) do nothing;
 
 -- STORAGE POLICIES
 -- READ: Admin can read all; viewer only within their bank path
@@ -224,3 +230,30 @@ as $$
   from base b
   left join latest l on l.farmer_id = b.id;
 $$;
+
+-- RLS POLICIES FOR INVITATION MANAGEMENT
+create policy "profiles.read.admin"
+on public.profiles for select
+to authenticated
+using (
+  exists(select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'admin')
+);
+
+-- CREATE VIEW FOR RECENT INVITATIONS
+create or replace view public.v_recent_invitations as
+select 
+  p.user_id,
+  p.role,
+  p.bank_id,
+  b.name as bank_name,
+  p.invited_by,
+  p.invited_at,
+  p.invitation_accepted_at,
+  p.invitation_status,
+  p.created_at,
+  au.email
+from public.profiles p
+left join public.banks b on p.bank_id = b.id  
+left join auth.users au on p.user_id = au.id
+where p.invited_at is not null
+order by p.invited_at desc;
