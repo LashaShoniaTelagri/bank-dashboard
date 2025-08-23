@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Shield, RefreshCw, Mail, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { generateDeviceFingerprint, getDeviceInfo, getDeviceDescription, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
+import { generateDeviceFingerprint, getDeviceInfo, getDeviceDescription, isDeviceFingerprintingSupported, type DeviceInfo } from "@/lib/deviceFingerprint";
 
 interface TwoFactorVerificationProps {
   email: string;
@@ -207,7 +207,16 @@ export const TwoFactorVerification = ({
     setAttempts(prev => prev + 1);
 
     try {
-      const requestBody: any = { email, code: verificationCode };
+      // TypeScript interface for 2FA verification request
+      interface VerifyCodeRequest {
+        email: string;
+        code: string;
+        rememberDevice?: boolean;
+        deviceFingerprint?: string;
+        deviceInfo?: DeviceInfo;
+      }
+
+      const requestBody: VerifyCodeRequest = { email, code: verificationCode };
       
       // Add device trust information if remember device is enabled
       if (rememberDevice && deviceFingerprint && deviceFingerprintSupported) {
@@ -342,7 +351,9 @@ export const TwoFactorVerification = ({
               {codeDigits.map((digit, index) => (
                 <Input
                   key={index}
-                  ref={el => inputRefs.current[index] = el}
+                  ref={(el) => {
+                    inputRefs.current[index] = el;
+                  }}
                   type="text"
                   inputMode="numeric"
                   maxLength={1}
@@ -399,7 +410,7 @@ export const TwoFactorVerification = ({
                 <Checkbox
                   id="remember-device"
                   checked={rememberDevice}
-                  onCheckedChange={setRememberDevice}
+                  onCheckedChange={(checked) => setRememberDevice(checked === true)}
                   className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
                 />
                 <div className="flex-1">

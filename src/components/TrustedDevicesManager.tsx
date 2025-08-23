@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Smartphone, Trash2, Shield, Clock, MapPin, Loader2 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { generateDeviceFingerprint, getDeviceDescription } from '@/lib/deviceFingerprint';
+import { generateDeviceFingerprint, getDeviceDescription, type DeviceInfo } from '@/lib/deviceFingerprint';
 
 interface TrustedDevice {
   id: string;
@@ -83,7 +83,7 @@ export const TrustedDevicesManager = () => {
     },
   });
 
-  const handleRemoveDevice = (deviceId: string, deviceInfo: any) => {
+  const handleRemoveDevice = (deviceId: string, deviceInfo: DeviceInfo | Record<string, unknown>) => {
     const description = getDeviceDescriptionFromInfo(deviceInfo);
     setConfirmDialog({
       open: true,
@@ -99,7 +99,7 @@ export const TrustedDevicesManager = () => {
     }
   };
 
-  const getDeviceDescriptionFromInfo = (deviceInfo: any): string => {
+  const getDeviceDescriptionFromInfo = (deviceInfo: DeviceInfo | Record<string, unknown> | null): string => {
     if (!deviceInfo) return 'Unknown Device';
     
     const { userAgent = '', platform = '' } = deviceInfo;

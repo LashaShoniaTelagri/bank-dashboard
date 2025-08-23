@@ -3,6 +3,7 @@
  * Generates a unique identifier for the current device/browser
  */
 
+// TypeScript interfaces for device information
 export interface DeviceInfo {
   userAgent: string;
   platform: string;
@@ -11,7 +12,7 @@ export interface DeviceInfo {
   screenResolution: string;
   colorDepth: number;
   hardwareConcurrency: number;
-  deviceMemory?: number;
+  deviceMemory?: number; // Optional as not supported by all browsers
   cookieEnabled: boolean;
   localStorage: boolean;
   sessionStorage: boolean;
@@ -19,19 +20,25 @@ export interface DeviceInfo {
   browserFingerprint: string;
 }
 
+// Extended Navigator interface for deviceMemory
+interface ExtendedNavigator extends Navigator {
+  deviceMemory?: number;
+}
+
 /**
- * Generates a stable device fingerprint based on browser characteristics
+ * Generates a unique device fingerprint based on browser and device characteristics
  */
 export const generateDeviceFingerprint = async (): Promise<string> => {
   const components: string[] = [];
-
+  
   // Basic browser info
   components.push(navigator.userAgent || '');
-  components.push(navigator.platform || '');
   components.push(navigator.language || '');
+  components.push(navigator.platform || '');
   
   // Screen characteristics
   components.push(`${screen.width}x${screen.height}`);
+  components.push(`${screen.availWidth}x${screen.availHeight}`);
   components.push(`${screen.colorDepth}`);
   components.push(`${screen.pixelDepth || ''}`);
   
@@ -40,7 +47,7 @@ export const generateDeviceFingerprint = async (): Promise<string> => {
   
   // Hardware info
   components.push(`${navigator.hardwareConcurrency || 0}`);
-  components.push(`${(navigator as any).deviceMemory || 0}`);
+  components.push(`${(navigator as ExtendedNavigator).deviceMemory || 0}`);
   
   // Browser capabilities
   components.push(`${navigator.cookieEnabled}`);
@@ -96,7 +103,7 @@ export const getDeviceInfo = async (): Promise<DeviceInfo> => {
     screenResolution: `${screen.width}x${screen.height}`,
     colorDepth: screen.colorDepth || 0,
     hardwareConcurrency: navigator.hardwareConcurrency || 0,
-    deviceMemory: (navigator as any).deviceMemory,
+    deviceMemory: (navigator as ExtendedNavigator).deviceMemory,
     cookieEnabled: navigator.cookieEnabled,
     localStorage: typeof(Storage) !== 'undefined',
     sessionStorage: typeof(sessionStorage) !== 'undefined',
