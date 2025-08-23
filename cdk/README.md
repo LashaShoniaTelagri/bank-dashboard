@@ -80,12 +80,12 @@ export ENVIRONMENT="prod"
 ### 2. Install Dependencies
 ```bash
 cd cdk
-npm install
+bun install  # ~50% faster than npm
 ```
 
 ### 3. Build CDK
 ```bash
-npm run build
+bun run build
 ```
 
 ### 4. Bootstrap CDK (First Time Only)
@@ -96,13 +96,16 @@ cdk bootstrap aws://${AWS_ACCOUNT_ID}/${AWS_REGION}
 ### 5. Deploy Stack
 ```bash
 # Review changes
-npm run diff
+bun run diff
 
 # Deploy infrastructure
-npm run deploy
+bun run deploy
 
 # Or deploy with confirmation
 cdk deploy --require-approval never
+
+# Bun-optimized workflows
+bun run fresh      # Clean + install + build
 ```
 
 ## 🔧 Configuration
@@ -200,17 +203,17 @@ After deployment, the stack provides:
 
 ### Test CDK Synthesis
 ```bash
-npm run synth
+bun run synth
 ```
 
 ### Watch for Changes
 ```bash
-npm run watch
+bun run watch
 ```
 
 ### Run Tests
 ```bash
-npm test
+bun run test
 ```
 
 ## 🗑️ Cleanup

@@ -26,6 +26,7 @@ logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+bun-debug.log*
 
 # Runtime data
 pids
@@ -42,8 +43,16 @@ jspm_packages/
 # TypeScript cache
 *.tsbuildinfo
 
-# Optional npm cache directory
+# Package manager caches (exclude npm/yarn since we use Bun)
 .npm
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.yarn/
+.pnp.*
+
+# Bun runtime cache
+.bun/
 
 # Optional eslint cache
 .eslintcache

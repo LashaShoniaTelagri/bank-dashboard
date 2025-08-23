@@ -11,7 +11,15 @@
     "deploy": "cdk deploy --require-approval never",
     "diff": "cdk diff",
     "synth": "cdk synth",
-    "destroy": "cdk destroy"
+    "destroy": "cdk destroy",
+    "bun:install": "bun install",
+    "bun:build": "bun run build",
+    "bun:deploy": "bun run deploy",
+    "bun:diff": "bun run diff",
+    "bun:synth": "bun run synth",
+    "bun:test": "bun run test",
+    "clean": "rm -rf node_modules lib/*.js lib/*.d.ts lib/*.map cdk.out",
+    "fresh": "bun run clean && bun install && bun run build"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
