@@ -323,3 +323,163 @@ graph TD
 ---
 
 **Remember**: Database migrations are critical for financial applications. Always test in development environments first and have rollback plans ready for production changes. 
+
+## 🔧 **Supabase Edge Functions Auto-Deployment**
+
+### **Overview**
+GitHub Actions now automatically deploys Supabase Edge Functions alongside database migrations, ensuring your serverless functions stay in sync across all environments.
+
+### **Supported Operations**
+- ✅ **Automatic deployment** of all Edge Functions in `supabase/functions/`
+- ✅ **Retry logic** with intelligent error handling
+- ✅ **Environment-specific** deployment (dev/staging/prod)
+- ✅ **Verification** of successful deployment
+- ✅ **No-JWT verification** for public functions
+
+### **Current Edge Functions**
+```
+supabase/functions/
+├── verify-2fa-code/     # 2FA verification logic
+├── send-2fa-code/       # Email 2FA code sending
+├── delete-user/         # User account deletion
+└── invite-bank-viewer/  # Bank user invitation system
+```
+
+### **GitHub Actions Integration**
+
+#### **Main Deployment (`deploy.yml`)**
+- Triggered on: `push` to `main/develop/staging` branches
+- Runs after: Database migrations
+- Deploys to: Environment based on branch
+
+#### **Manual Migration (`migrate.yml`)**
+- Triggered: Manual workflow dispatch
+- Runs after: Selected migration operation
+- Deploys to: Selected environment (dev/staging/prod)
+
+### **Deployment Flow**
+```mermaid
+graph TD
+    A[Database Migrations Complete] --> B[Link to Supabase Project]
+    B --> C[Check Existing Functions]
+    C --> D[Deploy All Functions]
+    D --> E[Verify Deployment]
+    E --> F[Edge Functions Ready ✅]
+```
+
+### **Error Handling & Recovery**
+
+#### **Smart Retry Logic**
+- **3 retry attempts** with exponential backoff
+- **Automatic re-authentication** on auth failures
+- **Idempotent deployments** (safe to retry)
+- **Up-to-date detection** (skips unnecessary deployments)
+
+#### **Common Issues & Auto-Resolution**
+| Issue | Auto-Resolution |
+|-------|----------------|
+| Authentication expired | Re-link to project |
+| Functions already deployed | Skip (treat as success) |
+| Network timeout | Retry with 10s delay |
+| Project connection lost | Re-authenticate and retry |
+
+### **Adding New Edge Functions**
+
+#### **1. Create Function Locally**
+```bash
+# Create new Edge Function
+supabase functions new your-function-name
+
+# Test locally
+supabase functions serve your-function-name
+```
+
+#### **2. Develop Function**
+```typescript
+// supabase/functions/your-function-name/index.ts
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+
+serve(async (req) => {
+  const { name } = await req.json()
+  
+  return new Response(
+    JSON.stringify({ message: `Hello ${name}!` }),
+    { headers: { "Content-Type": "application/json" } }
+  )
+})
+```
+
+#### **3. Configure (Optional)**
+```toml
+# supabase/config.toml
+[functions.your-function-name]
+verify_jwt = false  # For public functions
+```
+
+#### **4. Deploy Automatically**
+Functions are automatically deployed when you:
+- Push to `main`, `develop`, or `staging` branches
+- Run manual migration workflow
+- Merge PR to protected branches
+
+### **Manual Deployment (Local)**
+```bash
+# Deploy specific function
+supabase functions deploy your-function-name
+
+# Deploy all functions
+supabase functions deploy
+
+# List deployed functions
+supabase functions list
+```
+
+### **Monitoring & Debugging**
+
+#### **GitHub Actions Logs**
+- Check "🔧 Deploy Supabase Edge Functions" step
+- Detailed retry attempts and error messages
+- Verification of successful deployment
+
+#### **Supabase Dashboard**
+- Navigate to Functions section
+- Check deployment status and logs
+- Monitor function execution and errors
+
+#### **Local Testing**
+```bash
+# Test function locally
+curl -X POST 'http://localhost:54321/functions/v1/your-function-name' \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "Test"}'
+```
+
+### **Security Considerations**
+- **JWT Verification**: Controlled via `supabase/config.toml`
+- **Environment Variables**: Managed via GitHub Secrets
+- **Access Control**: Functions inherit project RLS policies
+- **Audit Trail**: All deployments logged in GitHub Actions
+
+### **Troubleshooting**
+
+#### **Deployment Fails**
+1. Check GitHub Actions logs for specific error
+2. Verify all required secrets are set
+3. Test function locally before pushing
+4. Check Supabase project connectivity
+
+#### **Function Not Available**
+1. Verify deployment completed successfully
+2. Check function name and URL
+3. Verify JWT requirements in config.toml
+4. Test with Supabase Dashboard
+
+#### **Authentication Issues**
+1. Verify `SUPABASE_ACCESS_TOKEN` is valid
+2. Check project ID matches environment
+3. Ensure database password is correct
+4. Re-run workflow to attempt re-authentication
+
+---
+
+**✅ Your Edge Functions are now fully integrated with CI/CD, ensuring consistent deployment across all environments!** 

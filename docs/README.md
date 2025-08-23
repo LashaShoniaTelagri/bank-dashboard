@@ -15,7 +15,7 @@
 | Document | Description | Last Updated |
 |----------|-------------|--------------|
 | [GitHub Setup](setup/GITHUB_SETUP.md) | Repository configuration, secrets, and CI/CD setup | Current |
-| [Supabase Migrations](setup/SUPABASE_MIGRATIONS_SETUP.md) | Database setup and migration workflows | Current |
+| [Supabase Migrations](setup/SUPABASE_MIGRATIONS_SETUP.md) | Database setup, migration workflows, and Edge Functions deployment | Current |
 
 ---
 

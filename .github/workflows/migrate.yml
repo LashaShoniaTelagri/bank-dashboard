@@ -370,6 +370,74 @@ jobs:
           echo "🗄️ Database schema info:"
           retry_command "supabase db diff --db-url '$DB_URL'" || echo "No schema differences detected"
 
+      - name: 🔧 Deploy Supabase Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ needs.environment.outputs.project_id }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          echo ""
+          echo "🔧 Deploying Supabase Edge Functions..."
+          
+          # Enhanced retry function for Edge Functions with specific error handling
+          retry_function_command() {
+            local cmd="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: $cmd"
+              
+              if output=$(eval "$cmd" 2>&1); then
+                echo "✅ Edge Functions command succeeded on attempt $attempt"
+                echo "$output"
+                return 0
+              else
+                echo "❌ Edge Functions command failed on attempt $attempt"
+                echo "$output"
+                
+                # Check for specific Edge Function error patterns
+                if echo "$output" | grep -q "already exists\|up to date\|no changes"; then
+                  echo "✅ Edge Functions are already up to date - treating as success"
+                  return 0
+                fi
+                
+                # Check for authentication/project issues
+                if echo "$output" | grep -q "authentication\|project not found\|invalid project"; then
+                  echo "🔐 Re-authenticating and retrying..."
+                  supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD" 2>/dev/null || true
+                fi
+                
+                if [ $attempt -eq $max_attempts ]; then
+                  echo "🚨 All Edge Functions deployment attempts failed"
+                  return 1
+                fi
+                
+                echo "⏳ Waiting 10 seconds before retry..."
+                sleep 10
+                attempt=$((attempt + 1))
+              fi
+            done
+          }
+          
+          # Link to Supabase project for Edge Functions deployment
+          echo "🔗 Linking to Supabase project for Edge Functions..."
+          retry_function_command "supabase link --project-ref '$SUPABASE_PROJECT_ID' --password '$SUPABASE_DB_PASSWORD'"
+          
+          # Check existing Edge Functions
+          echo "📋 Checking existing Edge Functions..."
+          retry_function_command "supabase functions list" || echo "No existing functions or list command failed"
+          
+          # Deploy all Edge Functions
+          echo "🚀 Deploying all Edge Functions..."
+          retry_function_command "supabase functions deploy --verify-jwt=false"
+          
+          # Verify deployment
+          echo "✅ Verifying Edge Functions deployment..."
+          retry_function_command "supabase functions list"
+          
+          echo "✅ Edge Functions deployment completed successfully!"
+
   # Notification
   notify:
     name: 📢 Notify
