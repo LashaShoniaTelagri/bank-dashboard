@@ -563,7 +563,7 @@ const Auth = () => {
               </div>
               <Button 
                 type="submit" 
-                className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]" 
+                className="w-full h-12 text-base bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]" 
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -682,7 +682,7 @@ const Auth = () => {
               </div>
               <Button 
                 type="submit" 
-                className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]" 
+                className="w-full h-12 text-base bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]" 
                 disabled={isLoading}
               >
                 {isLoading ? (
