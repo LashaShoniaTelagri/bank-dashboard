@@ -236,6 +236,10 @@ export type Database = {
           created_at: string
         }[]
       }
+      sync_invitation_statuses: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       farmer_type: "person" | "company"

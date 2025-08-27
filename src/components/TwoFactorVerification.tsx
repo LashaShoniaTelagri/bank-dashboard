@@ -207,7 +207,7 @@ export const TwoFactorVerification = ({
     setAttempts(prev => prev + 1);
 
     try {
-      const requestBody: any = { email, code: verificationCode };
+      const requestBody = { email, code: verificationCode };
       
       // Add device trust information if remember device is enabled
       if (rememberDevice && deviceFingerprint && deviceFingerprintSupported) {
