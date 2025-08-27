@@ -83,7 +83,7 @@ export const TrustedDevicesManager = () => {
     },
   });
 
-  const handleRemoveDevice = (deviceId: string, deviceInfo: any) => {
+  const handleRemoveDevice = (deviceId: string, deviceInfo: unknown) => {
     const description = getDeviceDescriptionFromInfo(deviceInfo);
     setConfirmDialog({
       open: true,
@@ -99,7 +99,7 @@ export const TrustedDevicesManager = () => {
     }
   };
 
-  const getDeviceDescriptionFromInfo = (deviceInfo: any): string => {
+  const getDeviceDescriptionFromInfo = (deviceInfo: unknown): string => {
     if (!deviceInfo) return 'Unknown Device';
     
     const { userAgent = '', platform = '' } = deviceInfo;

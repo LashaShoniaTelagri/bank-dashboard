@@ -97,7 +97,7 @@ export const InvitationDebugger = () => {
 
     // Test 4: Edge Function Availability
     try {
-      const { data, error } = await supabase.functions.invoke('invite-bank-viewer', {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
         body: { test: true }
       });
       
@@ -105,14 +105,14 @@ export const InvitationDebugger = () => {
       addResult({
         test: "Edge Function",
         status: 'success',
-        message: "invite-bank-viewer function is deployed and accessible"
+        message: "invite-user function is deployed and accessible"
       });
     } catch (error: unknown) {
       if (error instanceof Error && error.message?.includes('not found')) {
         addResult({
           test: "Edge Function",
           status: 'error',
-          message: "invite-bank-viewer function not deployed. Run: supabase functions deploy invite-bank-viewer"
+          message: "invite-user function not deployed. Run: supabase functions deploy invite-user"
         });
       } else {
         addResult({
@@ -203,9 +203,10 @@ export const InvitationDebugger = () => {
         message: `Sending test invitation to ${testEmail}...`
       });
 
-      const { data, error } = await supabase.functions.invoke('invite-bank-viewer', {
+      const { data, error } = await supabase.functions.invoke('invite-user', {
         body: {
           email: testEmail,
+          role: 'bank_viewer',
           bankId: banks[0].id,
           inviterEmail: user?.email,
         }
