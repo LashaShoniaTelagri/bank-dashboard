@@ -30,10 +30,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Next.js (should not exist in this Vite project)
-.next/
-next-env.d.ts
-
 # Supabase
 .branches
 .temp
