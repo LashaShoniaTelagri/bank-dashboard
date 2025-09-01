@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Upload, Eye, Edit, FileText } from "lucide-react";
+import { Upload, Eye, Edit, FileText, Trash2 } from "lucide-react";
 
 interface F100ModalProps {
   isOpen: boolean;
@@ -20,6 +20,8 @@ interface F100ModalProps {
   farmerId: string;
   farmerName: string;
   editMode?: boolean;
+  deleteMode?: boolean;
+  isAdmin?: boolean;
   phaseData?: {
     phase: number;
     issue_date: string;
@@ -28,7 +30,7 @@ interface F100ModalProps {
   };
 }
 
-export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = false, phaseData }: F100ModalProps) => {
+export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = false, deleteMode = false, isAdmin = false, phaseData }: F100ModalProps) => {
   const [formData, setFormData] = useState({
     phase: '',
     issue_date: '',
@@ -114,6 +116,8 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
           issue_date: string;
           score: number;
           file_path?: string;
+          file_mime?: string;
+          file_size_bytes?: number;
           upload_date?: string;
         } = {
           issue_date: formData.issue_date,
@@ -169,6 +173,53 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!phaseData) throw new Error('No phase data to delete');
+      
+      // Security check: Only admins can delete F-100 reports
+      if (!isAdmin) {
+        throw new Error('Unauthorized: Only administrators can delete F-100 reports');
+      }
+
+      // Delete the PDF file from storage first
+      if (phaseData.file_path) {
+        const { error: storageError } = await supabase.storage
+          .from('f100')
+          .remove([phaseData.file_path]);
+        
+        if (storageError) {
+          console.warn('Error deleting file from storage:', storageError);
+          // Continue with database deletion even if storage deletion fails
+        }
+      }
+
+      // Delete the database record
+      const { error: deleteError } = await supabase
+        .from('f100')
+        .delete()
+        .eq('farmer_id', farmerId)
+        .eq('phase', phaseData.phase);
+
+      if (deleteError) throw deleteError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['farmers'] });
+      toast({ 
+        title: "F-100 report deleted successfully",
+        description: `Phase ${phaseData?.phase} report has been removed.`
+      });
+      onClose();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error deleting F-100 report",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     uploadMutation.mutate();
@@ -203,8 +254,8 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
 
   const phases = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  // Check if this is view-only mode (editMode false with existing data)
-  const isViewOnly = !editMode && phaseData;
+  // Check if this is view-only mode (editMode false with existing data, and not admin delete mode)
+  const isViewOnly = !editMode && !(deleteMode && isAdmin) && phaseData;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -215,6 +266,11 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
               <>
                 <Eye className="h-5 w-5 text-emerald-600" />
                 View F-100 Report - Phase {phaseData?.phase}
+              </>
+            ) : deleteMode ? (
+              <>
+                <Trash2 className="h-5 w-5 text-red-600" />
+                Delete F-100 Report - Phase {phaseData?.phase}
               </>
             ) : editMode ? (
               <>
@@ -234,7 +290,61 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
           </p>
         </DialogHeader>
 
-        {isViewOnly ? (
+        {deleteMode && isAdmin ? (
+          // Delete confirmation view
+          <div className="space-y-4">
+            <div className="text-center space-y-4">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <Trash2 className="mx-auto h-12 w-12 text-red-500 mb-3" />
+                <h3 className="text-lg font-semibold text-red-900 mb-2">
+                  Delete F-100 Report
+                </h3>
+                <p className="text-sm text-red-700">
+                  Are you sure you want to delete Phase {phaseData?.phase} report for farmer {farmerName}?
+                </p>
+                <p className="text-xs text-red-600 mt-2">
+                  This action cannot be undone. The PDF file and all report data will be permanently removed.
+                </p>
+              </div>
+
+              <div className="space-y-2 text-left bg-gray-50 p-3 rounded-md">
+                <div className="text-sm">
+                  <span className="font-medium">Phase:</span> {phaseData?.phase}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">Issue Date:</span> {phaseData?.issue_date ? new Date(phaseData.issue_date).toLocaleDateString() : 'Not set'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">Score:</span> {phaseData?.score || 'Not set'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">File:</span> {phaseData?.file_path ? 'PDF attached' : 'No file'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button 
+                type="button"
+                variant="destructive"
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="flex-1 bg-red-600 hover:bg-red-700 shadow-lg transform transition-all duration-200 hover:scale-[1.02]"
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete Report'}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose}
+                disabled={deleteMutation.isPending}
+                className="border-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-800 transform transition-all duration-200 hover:scale-[1.02] shadow-md"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : isViewOnly ? (
           // Read-only view for bank viewers
           <div className="space-y-4">
             <div>

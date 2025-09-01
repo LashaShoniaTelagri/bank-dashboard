@@ -50,6 +50,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     farmerId?: string; 
     farmerName?: string; 
     editMode?: boolean; 
+    deleteMode?: boolean;
     phaseData?: { 
       phase: number; 
       issue_date: string; 
@@ -223,40 +224,88 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                 <div className="text-xs text-muted-foreground">
                                   {new Date(phaseData.issue_date).toLocaleDateString()}
                                 </div>
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  className={`h-8 w-20 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg ${
-                                    isAdmin 
-                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white' 
-                                      : 'bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white'
-                                  }`}
-                                  onClick={() => setF100Modal({
-                                    open: true,
-                                    farmerId: farmer.farmer_id,
-                                    farmerName: farmer.name,
-                                    editMode: isAdmin, // Only admins can edit
-                                    phaseData: {
-                                      phase: phase,
-                                      issue_date: phaseData.issue_date,
-                                      score: phaseData.score,
-                                      file_path: phaseData.file_path
-                                    }
-                                  })}
-                                  title={isAdmin ? "Edit F-100 Report" : "View F-100 Report"}
-                                >
-                                  {isAdmin ? (
-                                    <>
+                                {isAdmin ? (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
+                                      onClick={() => setF100Modal({
+                                        open: true,
+                                        farmerId: farmer.farmer_id,
+                                        farmerName: farmer.name,
+                                        editMode: true,
+                                        deleteMode: false,
+                                        phaseData: {
+                                          phase: phase,
+                                          issue_date: phaseData.issue_date,
+                                          score: phaseData.score,
+                                          file_path: phaseData.file_path
+                                        }
+                                      })}
+                                      title="Edit F-100 Report"
+                                    >
                                       <Edit className="h-3 w-3" />
-                                      F-100
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Eye className="h-3 w-3" />
-                                      F-100
-                                    </>
-                                  )}
-                                </Button>
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-red-500 hover:bg-red-600 text-white"
+                                      onClick={() => {
+                                        // Double-check admin status before allowing delete mode
+                                        if (!isAdmin) {
+                                          toast({
+                                            title: "Access Denied",
+                                            description: "Only administrators can delete F-100 reports.",
+                                            variant: "destructive",
+                                          });
+                                          return;
+                                        }
+                                        setF100Modal({
+                                          open: true,
+                                          farmerId: farmer.farmer_id,
+                                          farmerName: farmer.name,
+                                          editMode: false,
+                                          deleteMode: true,
+                                          phaseData: {
+                                            phase: phase,
+                                            issue_date: phaseData.issue_date,
+                                            score: phaseData.score,
+                                            file_path: phaseData.file_path
+                                          }
+                                        });
+                                      }}
+                                      title="Delete F-100 Report"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      Del
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="h-8 w-20 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white"
+                                    onClick={() => setF100Modal({
+                                      open: true,
+                                      farmerId: farmer.farmer_id,
+                                      farmerName: farmer.name,
+                                      editMode: false,
+                                      deleteMode: false,
+                                      phaseData: {
+                                        phase: phase,
+                                        issue_date: phaseData.issue_date,
+                                        score: phaseData.score,
+                                        file_path: phaseData.file_path
+                                      }
+                                    })}
+                                    title="View F-100 Report"
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                    View
+                                  </Button>
+                                )}
                               </>
                             ) : (
                               <>
@@ -334,6 +383,8 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         farmerId={f100Modal.farmerId || ''}
         farmerName={f100Modal.farmerName || ''}
         editMode={f100Modal.editMode}
+        deleteMode={f100Modal.deleteMode}
+        isAdmin={isAdmin}
         phaseData={f100Modal.phaseData}
       />
 
