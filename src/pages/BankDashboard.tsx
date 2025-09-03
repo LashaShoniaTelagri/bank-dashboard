@@ -20,6 +20,7 @@ const BankDashboard = () => {
     search: "",
     fromDate: "",
     toDate: "",
+    bankId: "", // Will be set when profile loads
   });
 
 
@@ -27,6 +28,9 @@ const BankDashboard = () => {
   useEffect(() => {
     const fetchBank = async () => {
       if (profile?.bank_id) {
+        // Set the bank filter for bank users to only see their own farmers
+        console.log('🏦 Setting bank filter for bank user:', profile.bank_id);
+        setFilters(prev => ({ ...prev, bankId: profile.bank_id }));
   
         const { data } = await supabase
           .from('banks')
@@ -35,7 +39,6 @@ const BankDashboard = () => {
           .maybeSingle();
         
         if (data) {
-
           setBank(data);
         }
       }
@@ -83,6 +86,11 @@ const BankDashboard = () => {
     await signOut();
   };
 
+  // Wrapper function to handle filter updates while preserving bankId
+  const handleFiltersChange = (newFilters: { search: string; fromDate: string; toDate: string }) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Futuristic Agri-Finance Background - Same as Login */}
@@ -128,7 +136,10 @@ const BankDashboard = () => {
 
       <div className="relative z-10 container mx-auto px-4 py-6">
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-lg shadow-xl p-6 space-y-6">
-          <BankFilters filters={filters} onFiltersChange={setFilters} />
+          <BankFilters 
+            filters={{ search: filters.search, fromDate: filters.fromDate, toDate: filters.toDate }} 
+            onFiltersChange={handleFiltersChange} 
+          />
           <FarmersTable filters={filters} isAdmin={false} />
         </div>
       </div>

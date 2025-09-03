@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Upload, Eye, FileText } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, Eye, FileText, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { FarmerModal } from "@/components/FarmerModal";
 import { F100Modal } from "@/components/F100Modal";
+import { FarmerProfileModal } from "@/components/FarmerProfileModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface FarmerWithF100 {
@@ -45,6 +46,11 @@ interface FarmersTableProps {
 
 export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   const [farmerModal, setFarmerModal] = useState<{ open: boolean; farmer?: Farmer }>({ open: false });
+  const [farmerProfileModal, setFarmerProfileModal] = useState<{ 
+    open: boolean; 
+    farmerId?: string; 
+    farmerName?: string; 
+  }>({ open: false });
   const [f100Modal, setF100Modal] = useState<{ 
     open: boolean; 
     farmerId?: string; 
@@ -152,6 +158,14 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     }
   };
 
+  const handleViewFarmerProfile = (farmerId: string, farmerName: string) => {
+    setFarmerProfileModal({
+      open: true,
+      farmerId,
+      farmerName,
+    });
+  };
+
   const phases = Array.from({ length: 12 }, (_, i) => i + 1);
 
   if (isLoading) {
@@ -168,27 +182,37 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Farmers & F-100 Reports</h2>
-        {isAdmin && (
-          <Button 
-            onClick={() => setFarmerModal({ open: true })}
-            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Farmer
-          </Button>
-        )}
+        <Button 
+          onClick={() => setFarmerModal({ open: true })}
+          className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Farmer
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Farmers List ({farmers.length})</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Farmers List ({farmers.length})</span>
+            <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+              <Eye className="h-4 w-4" />
+              <span>Click names to view profiles</span>
+            </div>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="sticky left-0 bg-background p-2 text-left font-medium z-10 border-r min-w-[200px]">Name</th>
+                  <th className="sticky left-0 bg-background p-2 text-left font-medium z-10 border-r min-w-[200px]" title="Click on farmer names to view their profiles">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-emerald-600" />
+                      <span>Name</span>
+                      <span className="text-xs text-emerald-600 font-normal">(clickable)</span>
+                    </div>
+                  </th>
                   <th className="sticky left-[200px] bg-background p-2 text-left font-medium z-10 border-r">ID Number</th>
                   {phases.map((phase) => (
                     <th key={phase} className="p-2 text-center font-medium min-w-[120px] border-r">
@@ -203,8 +227,17 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
               <tbody>
                 {farmers.map((farmer) => (
                   <tr key={farmer.farmer_id} className="border-b hover:bg-muted/50">
-                    <td className="sticky left-0 bg-background p-2 font-medium z-10 border-r min-w-[200px] max-w-[200px]" title={farmer.name}>
-                      <div className="truncate">{farmer.name}</div>
+                    <td className="sticky left-0 bg-background p-2 font-medium z-10 border-r min-w-[200px] max-w-[200px]" title={`Click to view ${farmer.name}'s profile`}>
+                      <button
+                        onClick={() => handleViewFarmerProfile(farmer.farmer_id, farmer.name)}
+                        className="group flex items-center gap-2 text-left w-full p-2 -m-2 rounded-md hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 cursor-pointer border border-transparent hover:border-emerald-200 hover:shadow-sm active:scale-95"
+                      >
+                        <User className="h-4 w-4 text-emerald-600 opacity-70 group-hover:opacity-100 transition-opacity" />
+                        <span className="truncate font-medium group-hover:underline">
+                          {farmer.name}
+                        </span>
+                        <Eye className="h-3 w-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0" />
+                      </button>
                     </td>
                     <td className="sticky left-[200px] bg-background p-2 z-10 border-r">
                       {farmer.id_number}
@@ -375,6 +408,13 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         isOpen={farmerModal.open}
         onClose={() => setFarmerModal({ open: false })}
         farmer={farmerModal.farmer}
+      />
+
+      <FarmerProfileModal
+        isOpen={farmerProfileModal.open}
+        onClose={() => setFarmerProfileModal({ open: false })}
+        farmerId={farmerProfileModal.farmerId || ''}
+        farmerName={farmerProfileModal.farmerName || ''}
       />
 
       <F100Modal

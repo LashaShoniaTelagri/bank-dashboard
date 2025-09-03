@@ -89,39 +89,144 @@ export type Database = {
           },
         ]
       }
+      farmer_documents: {
+        Row: {
+          bank_id: string
+          created_at: string
+          document_type: string
+          farmer_id: string
+          file_mime: string
+          file_name: string
+          file_path: string
+          file_size_bytes: number
+          id: string
+          uploaded_at: string
+        }
+        Insert: {
+          bank_id: string
+          created_at?: string
+          document_type: string
+          farmer_id: string
+          file_mime: string
+          file_name: string
+          file_path: string
+          file_size_bytes: number
+          id?: string
+          uploaded_at?: string
+        }
+        Update: {
+          bank_id?: string
+          created_at?: string
+          document_type?: string
+          farmer_id?: string
+          file_mime?: string
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number
+          id?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "farmer_documents_bank_id_fkey"
+            columns: ["bank_id"]
+            isOneToOne: false
+            referencedRelation: "banks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "farmer_documents_farmer_id_fkey"
+            columns: ["farmer_id"]
+            isOneToOne: false
+            referencedRelation: "farmers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       farmers: {
         Row: {
+          area: number | null
           bank_id: string
           contact_address: string | null
           contact_email: string | null
           contact_phone: string | null
           created_at: string
+          crop: string | null
+          equipment_list: string | null
+          farmer_location: string | null
+          full_name: string | null
+          has_reservoir: boolean | null
           id: string
           id_number: string
+          irrigation_sectors_count: number | null
+          irrigation_type: string | null
+          last_year_harvest_amount: number | null
+          ltd_name: string | null
+          mobile: string | null
           name: string
+          reservoir_amount: number | null
+          reservoir_capacity: number | null
           type: Database["public"]["Enums"]["farmer_type"]
+          variety: string | null
+          variety_cultivation_area: number | null
+          variety_cultivation_year: number | null
+          water_source: string | null
         }
         Insert: {
+          area?: number | null
           bank_id: string
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
+          crop?: string | null
+          equipment_list?: string | null
+          farmer_location?: string | null
+          full_name?: string | null
+          has_reservoir?: boolean | null
           id?: string
           id_number: string
+          irrigation_sectors_count?: number | null
+          irrigation_type?: string | null
+          last_year_harvest_amount?: number | null
+          ltd_name?: string | null
+          mobile?: string | null
           name: string
+          reservoir_amount?: number | null
+          reservoir_capacity?: number | null
           type: Database["public"]["Enums"]["farmer_type"]
+          variety?: string | null
+          variety_cultivation_area?: number | null
+          variety_cultivation_year?: number | null
+          water_source?: string | null
         }
         Update: {
+          area?: number | null
           bank_id?: string
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
+          crop?: string | null
+          equipment_list?: string | null
+          farmer_location?: string | null
+          full_name?: string | null
+          has_reservoir?: boolean | null
           id?: string
           id_number?: string
+          irrigation_sectors_count?: number | null
+          irrigation_type?: string | null
+          last_year_harvest_amount?: number | null
+          ltd_name?: string | null
+          mobile?: string | null
           name?: string
+          reservoir_amount?: number | null
+          reservoir_capacity?: number | null
           type?: Database["public"]["Enums"]["farmer_type"]
+          variety?: string | null
+          variety_cultivation_area?: number | null
+          variety_cultivation_year?: number | null
+          water_source?: string | null
         }
         Relationships: [
           {
@@ -137,32 +242,32 @@ export type Database = {
         Row: {
           bank_id: string | null
           created_at: string
-          role: string
-          user_id: string
-          invited_by: string | null
-          invited_at: string | null
           invitation_accepted_at: string | null
           invitation_status: string | null
+          invited_at: string | null
+          invited_by: string | null
+          role: string
+          user_id: string
         }
         Insert: {
           bank_id?: string | null
           created_at?: string
-          role: string
-          user_id: string
-          invited_by?: string | null
-          invited_at?: string | null
           invitation_accepted_at?: string | null
           invitation_status?: string | null
+          invited_at?: string | null
+          invited_by?: string | null
+          role: string
+          user_id: string
         }
         Update: {
           bank_id?: string | null
           created_at?: string
-          role?: string
-          user_id?: string
-          invited_by?: string | null
-          invited_at?: string | null
           invitation_accepted_at?: string | null
           invitation_status?: string | null
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -173,6 +278,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trusted_devices: {
+        Row: {
+          created_at: string
+          device_fingerprint: string
+          device_info: Json
+          expires_at: string
+          id: string
+          last_used_at: string | null
+          user_email: string
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint: string
+          device_info?: Json
+          expires_at: string
+          id?: string
+          last_used_at?: string | null
+          user_email: string
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string
+          device_info?: Json
+          expires_at?: string
+          id?: string
+          last_used_at?: string | null
+          user_email?: string
+        }
+        Relationships: []
+      }
+      two_factor_codes: {
+        Row: {
+          attempts: number | null
+          code_hash: string
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          user_role: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          code_hash: string
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          user_role?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          code_hash?: string
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          user_role?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -206,6 +371,49 @@ export type Database = {
       }
     }
     Functions: {
+      add_trusted_device: {
+        Args: {
+          p_device_fingerprint: string
+          p_device_info?: Json
+          p_user_email: string
+        }
+        Returns: string
+      }
+      check_existing_invitation: {
+        Args: { target_bank_id: string; user_email: string }
+        Returns: {
+          invitation_exists: boolean
+          invited_date: string
+          status: string
+        }[]
+      }
+      cleanup_expired_2fa_codes: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_expired_trusted_devices: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      get_invitation_details: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          bank_id: string
+          bank_name: string
+          created_at: string
+          email: string
+          invitation_accepted_at: string
+          invitation_status: string
+          invited_at: string
+          invited_by: string
+          role: string
+          user_id: string
+        }[]
+      }
+      is_device_trusted: {
+        Args: { p_device_fingerprint: string; p_user_email: string }
+        Returns: boolean
+      }
       list_farmers_with_latest_f100: {
         Args: {
           filter_bank_id?: string
@@ -219,21 +427,6 @@ export type Database = {
           id_number: string
           latest: Json
           name: string
-        }[]
-      }
-      get_invitation_details: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          user_id: string
-          email: string
-          role: string
-          bank_id: string
-          bank_name: string
-          invited_by: string
-          invited_at: string
-          invitation_accepted_at: string
-          invitation_status: string
-          created_at: string
         }[]
       }
       sync_invitation_statuses: {
