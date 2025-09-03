@@ -305,7 +305,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     }
 
     // Mobile number validation (basic)
-    if (formData.mobile && !/^\+?[\d\s\-\(\)]+$/.test(formData.mobile)) {
+    if (formData.mobile && !/^\+?[\d\s\-()]+$/.test(formData.mobile)) {
       errors.push("Please enter a valid mobile number");
     }
 

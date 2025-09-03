@@ -40,7 +40,7 @@ export const generateDeviceFingerprint = async (): Promise<string> => {
   
   // Hardware info
   components.push(`${navigator.hardwareConcurrency || 0}`);
-  components.push(`${(navigator as any).deviceMemory || 0}`);
+  components.push(`${(navigator as Navigator & { deviceMemory?: number }).deviceMemory || 0}`);
   
   // Browser capabilities
   components.push(`${navigator.cookieEnabled}`);
@@ -96,7 +96,7 @@ export const getDeviceInfo = async (): Promise<DeviceInfo> => {
     screenResolution: `${screen.width}x${screen.height}`,
     colorDepth: screen.colorDepth || 0,
     hardwareConcurrency: navigator.hardwareConcurrency || 0,
-    deviceMemory: (navigator as any).deviceMemory,
+    deviceMemory: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
     cookieEnabled: navigator.cookieEnabled,
     localStorage: typeof(Storage) !== 'undefined',
     sessionStorage: typeof(sessionStorage) !== 'undefined',

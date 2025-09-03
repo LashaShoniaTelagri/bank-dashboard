@@ -29,5 +29,12 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-function-type": "off",
       "@typescript-eslint/no-wrapper-object-types": "off",
     },
+  },
+  // Suppress react-refresh warnings for UI components (shadcn/ui)
+  {
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
   }
 );
