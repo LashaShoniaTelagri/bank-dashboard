@@ -9,12 +9,12 @@ on:
   push:
     branches:
       - main
-      - develop 
+      - dev
       - staging
   pull_request:
     branches:
       - main
-      - develop
+      - dev
       - staging
   workflow_dispatch:
     inputs:
@@ -82,6 +82,8 @@ jobs:
             ENV="prod"
           elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
             ENV="staging"
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            ENV="dev"
           else
             ENV="dev"
           fi
@@ -93,10 +95,10 @@ jobs:
               echo "domain=dashboard.telagri.com" >> $GITHUB_OUTPUT
               ;;
             staging)
-              echo "domain=bank-staging.telagri.com" >> $GITHUB_OUTPUT
+              echo "domain=dashboard-dev.telagri.com" >> $GITHUB_OUTPUT
               ;;
             dev)
-              echo "domain=bank-dev.telagri.com" >> $GITHUB_OUTPUT
+              echo "domain=dashboard-stg.telagri.com" >> $GITHUB_OUTPUT
               ;;
           esac
           
