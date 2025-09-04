@@ -17,7 +17,7 @@ export const useCrops = () => {
     queryKey: ['crops'],
     queryFn: async (): Promise<Crop[]> => {
       try {
-        const response = await fetch('https://api-gateway.telagri.dev/crops/v1/list/');
+        const response = await fetch('https://api-gateway.telagri.com/crops/v1/list/');
         
         if (!response.ok) {
           console.error('Failed to fetch crops:', response.status, response.statusText);

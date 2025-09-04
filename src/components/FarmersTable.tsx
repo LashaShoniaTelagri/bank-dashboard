@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Upload, Eye, FileText, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { FarmerModal } from "@/components/FarmerModal";
 import { F100Modal } from "@/components/F100Modal";
 import { FarmerProfileModal } from "@/components/FarmerProfileModal";
@@ -45,6 +46,7 @@ interface FarmersTableProps {
 }
 
 export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
+  const { profile } = useAuth();
   const [farmerModal, setFarmerModal] = useState<{ open: boolean; farmer?: Farmer }>({ open: false });
   const [farmerProfileModal, setFarmerProfileModal] = useState<{ 
     open: boolean; 
@@ -67,6 +69,11 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; type?: 'farmer' | 'f100'; id?: string; title?: string; description?: string }>({ open: false });
 
   const queryClient = useQueryClient();
+
+  // Determine if current user can edit farmers
+  const canEditFarmers = isAdmin || profile?.role === 'bank_viewer';
+  // Only admins can delete farmers (based on RLS policies)
+  const canDeleteFarmers = isAdmin;
 
   const { data: farmers = [], isLoading, refetch } = useQuery({
     queryKey: ['farmers', filters],
@@ -219,7 +226,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                       Phase {phase}
                     </th>
                   ))}
-                  {isAdmin && (
+                  {canEditFarmers && (
                     <th className="sticky right-0 bg-background p-2 text-center font-medium z-10 border-l">Actions</th>
                   )}
                 </tr>
@@ -257,7 +264,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                 <div className="text-xs text-muted-foreground">
                                   {new Date(phaseData.issue_date).toLocaleDateString()}
                                 </div>
-                                {isAdmin ? (
+                                {canEditFarmers ? (
                                   <div className="flex gap-1">
                                     <Button
                                       variant="default"
@@ -287,7 +294,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                       className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-red-500 hover:bg-red-600 text-white"
                                       onClick={() => {
                                         // Double-check admin status before allowing delete mode
-                                        if (!isAdmin) {
+                                        if (!canDeleteFarmers) {
                                           toast({
                                             title: "Access Denied",
                                             description: "Only administrators can delete F-100 reports.",
@@ -346,7 +353,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                   <div className="text-muted-foreground text-xs">No data</div>
                                 </div>
                                 <div className="h-4"></div>
-                                {isAdmin ? (
+                                {canEditFarmers ? (
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -370,23 +377,27 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                         </td>
                       );
                     })}
-                    {isAdmin && (
+                    {canEditFarmers && (
                       <td className="sticky right-0 bg-background p-2 z-10 border-l">
                         <div className="flex gap-1 justify-center">
                           <Button 
                             variant="ghost" 
                             size="sm"
                             onClick={() => handleEditFarmer(farmer.farmer_id)}
+                            title="Edit farmer"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeleteFarmer(farmer.farmer_id, farmer.name)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {canDeleteFarmers && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDeleteFarmer(farmer.farmer_id, farmer.name)}
+                              title="Delete farmer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     )}
@@ -397,7 +408,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
             
             {farmers.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No farmers found. {isAdmin && "Click 'Add Farmer' to create your first farmer."}
+                No farmers found. {canEditFarmers && "Click 'Add Farmer' to create your first farmer."}
               </div>
             )}
           </div>
