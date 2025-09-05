@@ -282,28 +282,28 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="sticky left-0 bg-background p-2 text-left font-medium z-10 border-r min-w-[200px]" title="Click on farmer names to view their profiles">
+                  <th className="md:sticky md:left-0 bg-background p-2 text-left font-medium md:z-10 border-r min-w-[200px]" title="Click on farmer names to view their profiles">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-emerald-600" />
                       <span>Name</span>
                       <span className="text-xs text-emerald-600 font-normal">(clickable)</span>
                     </div>
                   </th>
-                  <th className="sticky left-[200px] bg-background p-2 text-left font-medium z-10 border-r">ID Number</th>
+                  <th className="md:sticky md:left-[200px] bg-background p-2 text-left font-medium md:z-10 border-r">ID Number</th>
                   {phases.map((phase) => (
                     <th key={phase} className="p-2 text-center font-medium min-w-[120px] border-r">
                       Phase {phase}
                     </th>
                   ))}
                   {canEditFarmers && (
-                    <th className="sticky right-0 bg-background p-2 text-center font-medium z-10 border-l">Actions</th>
+                    <th className="md:sticky md:right-0 bg-background p-2 text-center font-medium md:z-10 border-l">Actions</th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {farmers.map((farmer) => (
                   <tr key={farmer.farmer_id} className="border-b hover:bg-muted/50">
-                    <td className="sticky left-0 bg-background p-2 font-medium z-10 border-r min-w-[200px] max-w-[200px]" title={`Click to view ${farmer.name}'s profile`}>
+                    <td className="md:sticky md:left-0 bg-background p-2 font-medium md:z-10 border-r min-w-[200px] max-w-[200px]" title={`Click to view ${farmer.name}'s profile`}>
                       <button
                         onClick={() => handleViewFarmerProfile(farmer.farmer_id, farmer.name)}
                         className="group flex items-center gap-2 text-left w-full p-2 -m-2 rounded-md hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 cursor-pointer border border-transparent hover:border-emerald-200 hover:shadow-sm active:scale-95"
@@ -315,7 +315,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                         <Eye className="h-3 w-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0" />
                       </button>
                     </td>
-                    <td className="sticky left-[200px] bg-background p-2 z-10 border-r">
+                    <td className="md:sticky md:left-[200px] bg-background p-2 md:z-10 border-r">
                       {farmer.id_number}
                     </td>
                     {phases.map((phase) => {
@@ -434,7 +434,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                       );
                     })}
                     {canEditFarmers && (
-                      <td className="sticky right-0 bg-background p-2 z-10 border-l">
+                      <td className="md:sticky md:right-0 bg-background p-2 md:z-10 border-l">
                         <div className="flex gap-1 justify-center">
                           <Button 
                             variant="ghost" 
