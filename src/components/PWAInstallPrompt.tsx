@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Download, Smartphone } from 'lucide-react';
+import { X, Download, Smartphone, Share, Plus } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -15,7 +15,6 @@ export const PWAInstallPrompt = () => {
   useEffect(() => {
     // Check if app is already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
     const isInStandaloneMode = (navigator as unknown as { standalone?: boolean }).standalone || isStandalone;
     
     if (isInStandaloneMode) {
@@ -23,22 +22,42 @@ export const PWAInstallPrompt = () => {
       return;
     }
 
+    // Check if user has already dismissed permanently
+    const permanentlyDismissed = localStorage.getItem('pwa-permanently-dismissed') === 'true';
+    if (permanentlyDismissed) {
+      return;
+    }
+
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('🔔 PWA Install prompt available');
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
       // Stash the event so it can be triggered later
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Show install prompt after a delay
-      setTimeout(() => setShowPrompt(true), 3000);
+      // Show install prompt after a delay (shorter for better UX)
+      setTimeout(() => {
+        console.log('📱 Showing PWA install prompt');
+        setShowPrompt(true);
+      }, 2000);
     };
 
     // Listen for app installed event
     const handleAppInstalled = () => {
+      console.log('✅ PWA installed successfully');
       setIsInstalled(true);
       setShowPrompt(false);
       setDeferredPrompt(null);
     };
+
+    // For iOS Safari, show manual install instructions
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
+    if (isIOS && !isInStandaloneMode) {
+      setTimeout(() => {
+        console.log('🍎 iOS detected, showing manual install prompt');
+        setShowPrompt(true);
+      }, 3000);
+    }
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
@@ -69,14 +88,22 @@ export const PWAInstallPrompt = () => {
     setShowPrompt(false);
   };
 
-  const handleDismiss = () => {
+  const handleDismiss = (permanent = false) => {
     setShowPrompt(false);
-    // Don't show again for this session
-    sessionStorage.setItem('pwa-prompt-dismissed', 'true');
+    if (permanent) {
+      localStorage.setItem('pwa-permanently-dismissed', 'true');
+    } else {
+      sessionStorage.setItem('pwa-prompt-dismissed', 'true');
+    }
   };
 
-  // Don't show if already installed, dismissed, or no prompt available
-  if (isInstalled || !showPrompt || !deferredPrompt) {
+  // Don't show if already installed
+  if (isInstalled) {
+    return null;
+  }
+
+  // Don't show if no prompt available (except for iOS)
+  if (!showPrompt) {
     return null;
   }
 
@@ -84,6 +111,8 @@ export const PWAInstallPrompt = () => {
   if (sessionStorage.getItem('pwa-prompt-dismissed') === 'true') {
     return null;
   }
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:max-w-sm">
@@ -97,26 +126,53 @@ export const PWAInstallPrompt = () => {
             <h3 className="font-semibold text-slate-800 text-sm mb-1">
               Install TelAgri App
             </h3>
-            <p className="text-xs text-slate-600 mb-3">
-              Get quick access to your agricultural finance dashboard. Install for a better mobile experience.
-            </p>
+            
+            {isIOS && !deferredPrompt ? (
+              <div className="text-xs text-slate-600 mb-3">
+                <p className="mb-2">Install this app on your iPhone:</p>
+                <div className="flex items-center gap-1 mb-1">
+                  <span>1. Tap</span>
+                  <Share className="h-3 w-3 mx-1 text-blue-500" />
+                  <span>Share button</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span>2. Select</span>
+                  <Plus className="h-3 w-3 mx-1 text-blue-500" />
+                  <span>"Add to Home Screen"</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600 mb-3">
+                Get quick access to your agricultural finance dashboard. Install for a better mobile experience.
+              </p>
+            )}
             
             <div className="flex gap-2">
+              {deferredPrompt && (
+                <Button
+                  onClick={handleInstallClick}
+                  size="sm"
+                  className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs h-8"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Install
+                </Button>
+              )}
               <Button
-                onClick={handleInstallClick}
-                size="sm"
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs h-8"
-              >
-                <Download className="h-3 w-3 mr-1" />
-                Install
-              </Button>
-              <Button
-                onClick={handleDismiss}
+                onClick={() => handleDismiss(false)}
                 variant="ghost"
                 size="sm"
                 className="text-slate-500 hover:text-slate-700 h-8 px-2"
               >
                 <X className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={() => handleDismiss(true)}
+                variant="ghost"
+                size="sm"
+                className="text-slate-400 hover:text-slate-600 h-8 px-1 text-xs"
+              >
+                Don't ask
               </Button>
             </div>
           </div>
