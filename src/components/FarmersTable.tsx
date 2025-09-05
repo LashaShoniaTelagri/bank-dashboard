@@ -3,7 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Upload, Eye, FileText, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Edit, Trash2, Upload, Eye, FileText, User, MoreVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -116,14 +122,77 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
 
   const openFileInNewTab = async (filePath: string) => {
     try {
-      const { data } = await supabase.storage.from('f100').createSignedUrl(filePath, 3600);
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
+      console.log('🔍 Attempting to open file:', filePath);
+      console.log('👤 Current user profile:', profile);
+      
+      // First, let's check if the file exists by listing objects
+      console.log('🔍 Checking if file exists in storage...');
+      const { data: listData, error: listError } = await supabase.storage
+        .from('f100')
+        .list('', { search: filePath.split('/').pop() });
+      
+      if (listError) {
+        console.error('❌ List error:', listError);
+      } else {
+        console.log('📁 Storage list result:', listData);
       }
-    } catch (error) {
+      
+      // Check the bank path specifically
+      const bankPath = filePath.split('/').slice(0, 2).join('/'); // e.g., "bank/f3c3b674-637e-49eb-8866-cebeba4fd2d1"
+      console.log('🏦 Checking bank path:', bankPath);
+      
+      const { data: bankListData, error: bankListError } = await supabase.storage
+        .from('f100')
+        .list(bankPath);
+      
+      if (bankListError) {
+        console.error('❌ Bank list error:', bankListError);
+      } else {
+        console.log('🏦 Bank path contents:', bankListData);
+      }
+      
+      // Now try to create signed URL
+      const { data, error } = await supabase.storage.from('f100').createSignedUrl(filePath, 3600);
+      
+      if (error) {
+        console.error('❌ Storage error:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        
+        // Try alternative approach - check if we can access the file directly
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('f100')
+          .download(filePath);
+          
+        if (downloadError) {
+          console.error('❌ Download error:', downloadError);
+        } else {
+          console.log('✅ File exists and is accessible via download');
+        }
+        
+        toast({
+          title: "Access Error",
+          description: `Storage error: ${error.message}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (data?.signedUrl) {
+        console.log('✅ Successfully generated signed URL');
+        window.open(data.signedUrl, '_blank');
+      } else {
+        console.error('❌ No signed URL returned');
+        toast({
+          title: "Error opening file",
+          description: "Could not generate file URL",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Unexpected error:', error);
       toast({
         title: "Error opening file",
-        description: "Could not generate file URL",
+        description: error.message || "Could not generate file URL",
         variant: "destructive",
       });
     }
@@ -252,8 +321,66 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     {phases.map((phase) => {
                       const phaseData = farmer.latest[phase.toString()];
                       return (
-                        <td key={phase} className="p-2 text-center border-r">
+                        <td key={phase} className="p-2 text-center border-r relative">
                           <div className="flex flex-col items-center justify-center h-16 space-y-1">
+                            {/* Admin-only dropdown menu - positioned at top-right of cell */}
+                            {isAdmin && phaseData && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute top-1 right-1 h-5 w-5 p-0 hover:bg-slate-100 transition-colors z-10"
+                                    title="Admin actions"
+                                  >
+                                    <MoreVertical className="h-3 w-3 text-slate-600" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem
+                                    onClick={() => setF100Modal({
+                                      open: true,
+                                      farmerId: farmer.farmer_id,
+                                      farmerName: farmer.name,
+                                      editMode: true,
+                                      deleteMode: false,
+                                      phaseData: {
+                                        phase: phase,
+                                        issue_date: phaseData.issue_date,
+                                        score: phaseData.score,
+                                        file_path: phaseData.file_path
+                                      }
+                                    })}
+                                    className="cursor-pointer"
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit F-100 Report
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setF100Modal({
+                                        open: true,
+                                        farmerId: farmer.farmer_id,
+                                        farmerName: farmer.name,
+                                        editMode: false,
+                                        deleteMode: true,
+                                        phaseData: {
+                                          phase: phase,
+                                          issue_date: phaseData.issue_date,
+                                          score: phaseData.score,
+                                          file_path: phaseData.file_path
+                                        }
+                                      });
+                                    }}
+                                    className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete F-100 Report
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                            
                             {phaseData ? (
                               <>
                                 <Badge 
@@ -264,88 +391,17 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                 <div className="text-xs text-muted-foreground">
                                   {new Date(phaseData.issue_date).toLocaleDateString()}
                                 </div>
-                                {canEditFarmers ? (
-                                  <div className="flex gap-1">
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
-                                      onClick={() => setF100Modal({
-                                        open: true,
-                                        farmerId: farmer.farmer_id,
-                                        farmerName: farmer.name,
-                                        editMode: true,
-                                        deleteMode: false,
-                                        phaseData: {
-                                          phase: phase,
-                                          issue_date: phaseData.issue_date,
-                                          score: phaseData.score,
-                                          file_path: phaseData.file_path
-                                        }
-                                      })}
-                                      title="Edit F-100 Report"
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-red-500 hover:bg-red-600 text-white"
-                                      onClick={() => {
-                                        // Double-check admin status before allowing delete mode
-                                        if (!canDeleteFarmers) {
-                                          toast({
-                                            title: "Access Denied",
-                                            description: "Only administrators can delete F-100 reports.",
-                                            variant: "destructive",
-                                          });
-                                          return;
-                                        }
-                                        setF100Modal({
-                                          open: true,
-                                          farmerId: farmer.farmer_id,
-                                          farmerName: farmer.name,
-                                          editMode: false,
-                                          deleteMode: true,
-                                          phaseData: {
-                                            phase: phase,
-                                            issue_date: phaseData.issue_date,
-                                            score: phaseData.score,
-                                            file_path: phaseData.file_path
-                                          }
-                                        });
-                                      }}
-                                      title="Delete F-100 Report"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                      Del
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    className="h-8 w-20 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white"
-                                    onClick={() => setF100Modal({
-                                      open: true,
-                                      farmerId: farmer.farmer_id,
-                                      farmerName: farmer.name,
-                                      editMode: false,
-                                      deleteMode: false,
-                                      phaseData: {
-                                        phase: phase,
-                                        issue_date: phaseData.issue_date,
-                                        score: phaseData.score,
-                                        file_path: phaseData.file_path
-                                      }
-                                    })}
-                                    title="View F-100 Report"
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                    View
-                                  </Button>
-                                )}
+                                {/* View/Download button - visible for all users */}
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                                  onClick={() => openFileInNewTab(phaseData.file_path)}
+                                  title="Download F-100 Report PDF"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  F-100
+                                </Button>
                               </>
                             ) : (
                               <>
