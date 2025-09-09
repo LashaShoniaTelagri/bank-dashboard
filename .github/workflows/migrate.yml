@@ -141,7 +141,7 @@ jobs:
           
           # Construct and save database URL for subsequent steps
           # Use direct connection (port 5432) instead of pooler (port 6543) to avoid prepared statement conflicts
-          DB_URL="postgresql://postgres.$(echo $SUPABASE_PROJECT_ID):${SUPABASE_DB_PASSWORD}@aws-1-us-east-2.connect.supabase.com:5432/postgres"
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.com:5432/postgres"
           echo "DB_URL=$DB_URL" >> $GITHUB_ENV
           echo "✅ Database connection configured (using direct connection)"
 
