@@ -1,5 +1,9 @@
 -- ENUMS
-create type public.farmer_type as enum ('person','company');
+DO $$ BEGIN
+    CREATE TYPE public.farmer_type AS ENUM ('person','company');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- BANKS
 create table public.banks (
@@ -143,7 +147,8 @@ using (exists(select 1 from public.profiles p where p.user_id = auth.uid() and p
 with check (exists(select 1 from public.profiles p where p.user_id = auth.uid() and p.role='admin'));
 
 -- STORAGE BUCKET
-insert into storage.buckets (id, name, public) values ('f100', 'f100', false);
+insert into storage.buckets (id, name, public) values ('f100', 'f100', false)
+ON CONFLICT (id) DO NOTHING;
 
 -- STORAGE POLICIES
 -- READ: Admin can read all; viewer only within their bank path

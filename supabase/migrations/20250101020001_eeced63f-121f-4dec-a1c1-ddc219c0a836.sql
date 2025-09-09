@@ -1,8 +1,6 @@
--- Create admin profile for the user
-INSERT INTO public.profiles (user_id, role, bank_id)
-VALUES ('5581d521-26a8-4cd1-92b8-1369a650c5e9', 'admin', NULL)
-ON CONFLICT (user_id) 
-DO UPDATE SET role = 'admin', bank_id = NULL;
+-- Note: Admin profile creation is handled by the application
+-- This migration only sets up the schema and sample data
+-- Admin users should be created through the application's user management system
 
 -- Create some sample banks for testing
 INSERT INTO public.banks (name, logo_url) VALUES

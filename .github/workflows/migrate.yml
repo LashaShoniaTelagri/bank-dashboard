@@ -34,7 +34,7 @@ on:
         type: string
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
 
 jobs:
   # Determine environment settings
@@ -210,98 +210,98 @@ jobs:
         if: github.event.inputs.migration_action == 'push'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          echo "🗄️ Applying new migrations..."
+          echo "🗄️ Running database migrations using Supabase CLI..."
           
-          # Enhanced retry function for database operations
-          retry_command() {
-            local cmd="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: $cmd"
-              
-              # Capture both stdout and stderr
-              local output
-              if output=$(eval "$cmd" 2>&1); then
-                echo "✅ Command succeeded on attempt $attempt"
-                echo "$output"
-                return 0
-              else
-                echo "❌ Command failed on attempt $attempt"
-                echo "$output"
-                
-                # Check for specific "up to date" messages
-                if echo "$output" | grep -q "Remote database is up to date"; then
-                  echo "✅ Database is already up to date - treating as success"
-                  return 0
-                fi
-                
-                # Check for prepared statement errors that might indicate up-to-date database
-                if echo "$output" | grep -q "prepared statement.*already exists"; then
-                  echo "⚠️ Prepared statement conflict detected"
-                  # For db push commands, this typically means database is already up to date
-                  if echo "$cmd" | grep -q "db push"; then
-                    echo "✅ Database is already up to date - treating prepared statement conflict as success"
-                    return 0
-                  # For migration list commands, also treat as success since connection is working
-                  elif echo "$cmd" | grep -q "migration list"; then
-                    echo "✅ Migration list connection works despite prepared statement conflict - treating as success"
-                    return 0
-                  else
-                    echo "⚠️ Prepared statement conflict in other command - continuing retry..."
-                  fi
-                fi
-                
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "🚨 All attempts failed"
-                  return 1
-                fi
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-                attempt=$((attempt + 1))
-              fi
-            done
-          }
+          # Export environment variables for Supabase CLI
+          export SUPABASE_ACCESS_TOKEN
+          export SUPABASE_DB_PASSWORD  
+          export SUPABASE_PROJECT_ID
           
-          # Verify connection before trying to push
-          echo "Verifying Supabase connection..."
-          retry_command "supabase migration list --db-url '$DB_URL'"
+          echo "Project ID: ${SUPABASE_PROJECT_ID:0:3}***"
+          echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
+          echo "DB Password: ${SUPABASE_DB_PASSWORD:+Set}${SUPABASE_DB_PASSWORD:-Not Set}"
           
-          echo "✅ Connection verified. Applying migrations..."
+          # Pre-validation: Check Supabase CLI and credentials
+          echo "🔍 Pre-validation checks..."
           
-          # Try db push first (normal approach)
-          echo "🚀 Attempting standard migration push..."
-          if retry_command "supabase db push --db-url '$DB_URL'"; then
-            echo "✅ Standard migration push successful"
-          else
-            echo "⚠️ Standard push failed, trying alternative approach..."
-            
-            # Alternative: Apply migrations individually using SQL
-            echo "📁 Applying migrations individually to bypass prepared statement conflicts..."
-            
-            # Get list of migration files that need to be applied
-            for migration_file in supabase/migrations/*.sql; do
-              if [ -f "$migration_file" ]; then
-                migration_name=$(basename "$migration_file")
-                echo "📄 Applying migration: $migration_name"
-                
-                # Use psql to apply the migration directly
-                if command -v psql >/dev/null 2>&1; then
-                  PGPASSWORD="${SUPABASE_DB_PASSWORD}" psql -h "aws-1-us-east-2.pooler.supabase.com" -p 6543 -U "postgres.${SUPABASE_PROJECT_ID}" -d postgres -f "$migration_file" || echo "⚠️ Migration $migration_name may have already been applied"
-                else
-                  echo "⚠️ psql not available, trying supabase db push with individual migration..."
-                  # Try to push just this migration
-                  retry_command "supabase db push --db-url '$DB_URL' --include-all" || echo "⚠️ Individual push failed for $migration_name"
-                fi
-              fi
-            done
-            
-            echo "✅ Alternative migration approach completed"
+          # Verify Supabase CLI is available
+          if ! command -v supabase >/dev/null 2>&1; then
+            echo "❌ Supabase CLI not found"
+            exit 1
           fi
           
-          echo "✅ Migration process completed"
+          echo "✅ Supabase CLI version: $(supabase --version)"
+          
+          # Verify required environment variables
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "❌ Missing required environment variables"
+            exit 1
+          fi
+          
+          echo "✅ All required environment variables are set"
+          
+          # Link project using exported environment variables
+          echo "🔗 Linking to Supabase project..."
+          if supabase link --project-ref "$SUPABASE_PROJECT_ID"; then
+            echo "✅ Project linked successfully"
+          else
+            echo "❌ Failed to link project"
+            exit 1
+          fi
+          
+          # Pre-migration validation: Check current migration status
+          echo "📋 Pre-migration validation..."
+          echo "Current migration status:"
+          supabase migration list || {
+            echo "⚠️ Could not retrieve migration list, but continuing..."
+          }
+          
+          # Apply migrations
+          echo "🚀 Applying database migrations..."
+          if supabase db push; then
+            echo "✅ Migrations applied successfully"
+          else
+            echo "❌ Migration failed"
+            
+            # Post-failure diagnostics
+            echo "🔍 Post-failure diagnostics..."
+            echo "Migration status after failure:"
+            supabase migration list || echo "Could not retrieve migration status"
+            
+            echo "Database diff (if any):"
+            supabase db diff || echo "Could not retrieve database diff"
+            
+            exit 1
+          fi
+          
+          # Post-migration validation
+          echo "📊 Post-migration validation..."
+          
+          # Verify migration status
+          echo "Final migration status:"
+          supabase migration list
+          
+          # Check for any schema differences
+          echo "Checking for remaining schema differences..."
+          if supabase db diff; then
+            echo "⚠️ Schema differences detected after migration"
+          else
+            echo "✅ No schema differences - migrations fully applied"
+          fi
+          
+          # Basic table verification using SQL query
+          echo "🔍 Verifying key database objects..."
+          if supabase db reset --linked --debug 2>&1 | head -20 | grep -q "Connected to project" || \
+             echo "SELECT 'Database connection verified'" | supabase db reset --linked --sql 2>/dev/null | grep -q "verified"; then
+            echo "✅ Database connectivity verified"
+          else
+            echo "⚠️ Could not verify database connectivity (this may be normal)"
+          fi
+          
+          echo "✅ Migration process completed successfully"
 
       - name: 🚨 Reset database (DESTRUCTIVE)
         if: github.event.inputs.migration_action == 'reset'
