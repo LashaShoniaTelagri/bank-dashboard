@@ -150,7 +150,7 @@ jobs:
           fi
           
           # Construct database URL
-          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.com:5432/postgres"
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
           echo "🔗 Using direct database URL connection..."
           
           # Run migrations using direct URL with retry logic
