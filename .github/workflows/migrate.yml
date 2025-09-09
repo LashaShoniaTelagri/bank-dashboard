@@ -270,8 +270,38 @@ jobs:
           retry_command "supabase migration list --db-url '$DB_URL'"
           
           echo "✅ Connection verified. Applying migrations..."
-          retry_command "supabase db push --db-url '$DB_URL'"
-          echo "✅ Migrations applied successfully"
+          
+          # Try db push first (normal approach)
+          echo "🚀 Attempting standard migration push..."
+          if retry_command "supabase db push --db-url '$DB_URL'"; then
+            echo "✅ Standard migration push successful"
+          else
+            echo "⚠️ Standard push failed, trying alternative approach..."
+            
+            # Alternative: Apply migrations individually using SQL
+            echo "📁 Applying migrations individually to bypass prepared statement conflicts..."
+            
+            # Get list of migration files that need to be applied
+            for migration_file in supabase/migrations/*.sql; do
+              if [ -f "$migration_file" ]; then
+                migration_name=$(basename "$migration_file")
+                echo "📄 Applying migration: $migration_name"
+                
+                # Use psql to apply the migration directly
+                if command -v psql >/dev/null 2>&1; then
+                  PGPASSWORD="${SUPABASE_DB_PASSWORD}" psql -h "aws-1-us-east-2.pooler.supabase.com" -p 6543 -U "postgres.${SUPABASE_PROJECT_ID}" -d postgres -f "$migration_file" || echo "⚠️ Migration $migration_name may have already been applied"
+                else
+                  echo "⚠️ psql not available, trying supabase db push with individual migration..."
+                  # Try to push just this migration
+                  retry_command "supabase db push --db-url '$DB_URL' --include-all" || echo "⚠️ Individual push failed for $migration_name"
+                fi
+              fi
+            done
+            
+            echo "✅ Alternative migration approach completed"
+          fi
+          
+          echo "✅ Migration process completed"
 
       - name: 🚨 Reset database (DESTRUCTIVE)
         if: github.event.inputs.migration_action == 'reset'

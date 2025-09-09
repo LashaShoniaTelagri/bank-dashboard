@@ -95,10 +95,10 @@ jobs:
               echo "domain=dashboard.telagri.com" >> $GITHUB_OUTPUT
               ;;
             staging)
-              echo "domain=dashboard-dev.telagri.com" >> $GITHUB_OUTPUT
+              echo "domain=dashboard-stg.telagri.com" >> $GITHUB_OUTPUT
               ;;
             dev)
-              echo "domain=dashboard-stg.telagri.com" >> $GITHUB_OUTPUT
+              echo "domain=dashboard-dev.telagri.com" >> $GITHUB_OUTPUT
               ;;
           esac
           
