@@ -119,7 +119,7 @@ export class TelAgriStack extends cdk.Stack {
       responseHeadersPolicyName: `TelAgri-Security-Headers-${environment}`,
       securityHeadersBehavior: {
         contentSecurityPolicy: {
-          contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co https://cdn.telagri.com; style-src 'self' 'unsafe-inline' https://cdn.telagri.com; img-src 'self' data: https: https://cdn.telagri.com; font-src 'self' data: https://cdn.telagri.com; connect-src 'self' *.supabase.co wss://*.supabase.co https://cdn.telagri.com; worker-src 'self' blob:; manifest-src 'self';",
+          contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co https://*.telagri.com; style-src 'self' 'unsafe-inline' https://*.telagri.com; img-src 'self' data: https: https://*.telagri.com; font-src 'self' data: https://*.telagri.com; connect-src 'self' *.supabase.co wss://*.supabase.co https://*.telagri.com; worker-src 'self' blob:; manifest-src 'self';",
           override: true,
         },
         contentTypeOptions: { override: true },

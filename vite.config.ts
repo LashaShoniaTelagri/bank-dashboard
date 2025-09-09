@@ -17,7 +17,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/cdn\.telagri\.com\/.*/i,
+            urlPattern: /^https:\/\/.*\.telagri\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'telagri-assets',
@@ -44,7 +44,12 @@ export default defineConfig({
           }
         ]
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: [
+        'favicon.ico', 
+        'apple-touch-icon.png', 
+        'masked-icon.svg',
+        'pwa-icons/**/*.png'
+      ],
       manifest: {
         name: 'TelAgri Bank Dashboard',
         short_name: 'TelAgri Bank',
@@ -59,22 +64,102 @@ export default defineConfig({
         lang: 'en',
         dir: 'ltr',
         icons: [
+          // Android Icons (High Quality)
           {
-            src: 'pwa-192x192.png',
+            src: 'pwa-icons/android/android-launchericon-192-192.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-icons/android/android-launchericon-192-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          {
+            src: 'pwa-icons/android/android-launchericon-512-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
+          {
+            src: 'pwa-icons/android/android-launchericon-512-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          
+          // iOS Icons (High Quality)
+          {
+            src: 'pwa-icons/ios/180.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/ios/192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/ios/256.png',
+            sizes: '256x256',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/ios/512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/ios/1024.png',
+            sizes: '1024x1024',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          
+          // Windows Icons (High Quality)
+          {
+            src: 'pwa-icons/windows11/Square150x150Logo.scale-200.png',
+            sizes: '300x300',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/windows11/Square150x150Logo.scale-400.png',
+            sizes: '600x600',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/windows11/LargeTile.scale-200.png',
+            sizes: '620x620',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-icons/windows11/Square44x44Logo.targetsize-256.png',
+            sizes: '256x256',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          
+          // Fallback Icons
           {
             src: 'apple-touch-icon.png',
             sizes: '180x180',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'favicon.ico',
+            sizes: '48x48',
+            type: 'image/x-icon',
+            purpose: 'any'
           }
         ]
       }
