@@ -149,9 +149,10 @@ jobs:
             exit 1
           fi
           
-          # Construct database URL
-          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
-          echo "🔗 Using direct database URL connection..."
+          # Construct database URL - using pooled connection for better CI/CD compatibility
+          # Direct connection (db.*.supabase.co:5432) has IPv6 connectivity issues in GitHub Actions
+          DB_URL="postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
+          echo "🔗 Using pooled database URL connection for CI/CD compatibility..."
           
           # Run migrations using direct URL with retry logic
           echo "📋 Checking current migration status..."

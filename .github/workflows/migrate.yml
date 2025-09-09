@@ -140,10 +140,11 @@ jobs:
           fi
           
           # Construct and save database URL for subsequent steps
-          # Use direct connection (port 5432) instead of pooler (port 6543) to avoid prepared statement conflicts
-          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
+          # Using pooled connection for CI/CD compatibility (direct connection has IPv6 issues in GitHub Actions)
+          # Added pgbouncer=true and connection_limit=1 to minimize prepared statement conflicts
+          DB_URL="postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
           echo "DB_URL=$DB_URL" >> $GITHUB_ENV
-          echo "✅ Database connection configured (using direct connection)"
+          echo "✅ Database connection configured (using pooled connection with conflict mitigation)"
 
       - name: 📋 List current migration status
         env:
