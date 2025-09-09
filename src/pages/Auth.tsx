@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Search } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TwoFactorVerification } from "@/components/TwoFactorVerification";
 import { generateDeviceFingerprint, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
@@ -648,35 +648,7 @@ const Auth = () => {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <div className="flex items-center justify-center space-x-0.5">
-              {['M', 'N', 'I', 'T', 'O', 'R', 'I', 'N', 'G'].map((letter, index) => (
-                <span
-                  key={index}
-                  className={`text-slate-600 text-sm font-medium ${
-                    pageLoading ? 'opacity-0' : 'opacity-100'
-                  }`}
-                  style={{
-                    animationDelay: `${index * 80 + 200}ms`,
-                    animation: pageLoading ? 'none' : 'letterSlideIn 0.6s ease-out forwards'
-                  }}
-                >
-                  {letter === 'O' ? (
-                    <span className="relative inline-block">
-                      <div className="absolute inset-0 w-6 h-6 bg-emerald-100/30 rounded-full animate-pulse"></div>
-                      <Search 
-                        className="relative w-4 h-4 text-emerald-500 animate-lens-glow inline-block" 
-                        style={{
-                          animationDelay: `${index * 80 + 200}ms`,
-                          animation: pageLoading ? 'none' : 'fadeInScale 0.8s ease-out forwards, lensGlow 3s ease-in-out infinite 1.2s'
-                        }}
-                      />
-                    </span>
-                  ) : (
-                    letter
-                  )}
-                </span>
-              ))}
-            </div>
+            <p className="text-slate-600 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
           </div>
         </div>
 
