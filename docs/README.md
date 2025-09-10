@@ -1,6 +1,6 @@
-# TelAgri Bank Dashboard - Documentation
+# TelAgri Monitoring - Documentation
 
-> **Comprehensive documentation for the AgriTech banking platform**
+> **Comprehensive documentation for the agricultural finance management platform**
 
 ## 🚀 Quick Access
 

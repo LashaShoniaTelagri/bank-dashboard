@@ -1,5 +1,5 @@
-# TelAgri Bank Dashboard - Advanced Cursor Rules
-# AgriTech Banking Platform for Farmer Financial Management
+# TelAgri Monitoring - Advanced Cursor Rules
+# Agricultural Finance Management Platform
 # Secure Financial Platform Serving Real Farmers' Livelihoods
 
 ## 🎯 AI ASSISTANT BEHAVIOR & RESPONSE PATTERNS
@@ -34,7 +34,7 @@ When the user asks about:
 ---
 
 ## 🏗️ PROJECT OVERVIEW
-You are working on TelAgri's bank dashboard - a secure financial platform for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. This is a production-grade application handling sensitive financial data affecting farmers' livelihoods.
+You are working on TelAgri Monitoring - a secure financial platform for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. This is a production-grade application handling sensitive financial data affecting farmers' livelihoods.
 
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
@@ -73,7 +73,7 @@ You are working on TelAgri's bank dashboard - a secure financial platform for ma
 **CRITICAL: Always maintain clean, structured file organization. Follow this structure religiously:**
 
 ```
-telagri-bank-dashboard/
+telagri-monitoring/
 ├── src/                          # Frontend source code
 │   ├── components/               # React components
 │   │   ├── ui/                   # shadcn/ui base components

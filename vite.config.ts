@@ -51,9 +51,9 @@ export default defineConfig({
         'pwa-icons/**/*.png'
       ],
       manifest: {
-        name: 'TelAgri Bank Dashboard',
-        short_name: 'TelAgri Bank',
-        description: 'AgriTech Banking Platform for Farmer Financial Management',
+        name: 'TelAgri Monitoring',
+        short_name: 'TelAgri Monitoring',
+        description: 'Agricultural Finance Management Platform',
         theme_color: '#10b981',
         background_color: '#f0fdf4',
         display: 'standalone',

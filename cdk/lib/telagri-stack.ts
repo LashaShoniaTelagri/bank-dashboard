@@ -319,7 +319,7 @@ export class TelAgriStack extends cdk.Stack {
 
     // KMS Key for Parameter Store encryption
     const parameterStoreKmsKey = new kms.Key(this, 'ParameterStoreKMSKey', {
-      description: `TelAgri Bank Dashboard Parameter Store encryption key for ${environment}`,
+      description: `TelAgri Monitoring Parameter Store encryption key for ${environment}`,
       enableKeyRotation: true,
       policy: new iam.PolicyDocument({
         statements: [
@@ -376,7 +376,7 @@ export class TelAgriStack extends cdk.Stack {
     // GitHub Actions IAM Role (if it doesn't exist)
     const githubActionsRole = new iam.Role(this, 'GitHubActionsRole', {
       roleName: `telagri-github-actions-role-${environment}`,
-      description: `GitHub Actions role for TelAgri Bank Dashboard ${environment}`,
+      description: `GitHub Actions role for TelAgri Monitoring ${environment}`,
       assumedBy: new iam.WebIdentityPrincipal(
         `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`,
         {
@@ -466,7 +466,7 @@ export class TelAgriStack extends cdk.Stack {
     });
 
     // Tags
-    cdk.Tags.of(this).add('Project', 'TelAgri-Bank-Dashboard');
+    cdk.Tags.of(this).add('Project', 'TelAgri-Monitoring');
     cdk.Tags.of(this).add('Environment', environment);
     cdk.Tags.of(this).add('Owner', 'TelAgri-Tech-Team');
     cdk.Tags.of(this).add('CostCenter', 'AgriTech');

@@ -1,6 +1,6 @@
-# TelAgri Bank Dashboard
+# TelAgri Monitoring
 
-> **Secure AgriTech Banking Platform for Farmer Financial Management**
+> **Agricultural Finance Management Platform**
 
 A production-grade financial platform designed specifically for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. Built with security, scalability, and user experience as core principles.
 
@@ -9,7 +9,7 @@ A production-grade financial platform designed specifically for managing farmer 
 ```bash
 # Clone and install dependencies
 git clone <repository-url>
-cd telagri-bank-dashboard
+cd telagri-monitoring
 npm install
 
 # Set up environment
