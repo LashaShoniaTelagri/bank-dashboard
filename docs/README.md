@@ -2,6 +2,10 @@
 
 > **Comprehensive documentation for the AgriTech banking platform**
 
+## 🚀 Quick Access
+
+- [**Quick Reference Guide**](QUICK_REFERENCE.md) - Fast access to common commands and troubleshooting
+
 ## 📋 Documentation Index
 
 ### 🛠️ Setup & Configuration
