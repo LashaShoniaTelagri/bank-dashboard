@@ -56,6 +56,23 @@ supabase/
 ├── migrations/          # Database schema versions
 ├── functions/           # Edge Functions for serverless logic
 └── config.toml          # Supabase configuration
+
+docs/                    # Organized documentation
+├── setup/               # Initial setup and configuration
+├── security/            # Security guides and best practices
+├── deployment/          # Deployment and infrastructure
+├── development/         # Development guides and templates
+└── api/                 # API documentation
+
+cdk/                     # AWS CDK infrastructure
+├── lib/                 # CDK stack definitions
+├── bin/                 # CDK app entry point
+└── package.json         # CDK dependencies
+
+scripts/                 # Automation and utility scripts
+├── setup-*.sh           # Environment setup scripts
+├── *-env-*.sh           # Environment management
+└── validate-*.sh        # Validation and testing scripts
 ```
 
 ## 🔧 DEVELOPMENT PATTERNS
@@ -243,14 +260,28 @@ Storage:
 ```
 
 ### Environment Configuration
+- **ALWAYS** use AWS Parameter Store for environment variables
+- **NEVER** commit real environment values to repository
+- **ALWAYS** separate frontend (VITE_*) and backend variables
+- **ALWAYS** use KMS encryption for sensitive parameters
+
 ```bash
-# Production environment variables
+# Frontend variables (public, safe in builds)
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-SENDGRID_API_KEY=your-sendgrid-key
-NODE_ENV=production
 VITE_APP_URL=https://your-domain.com
+
+# Backend variables (sensitive, server-side only)
+SENDGRID_API_KEY=your-sendgrid-key  # NEVER in frontend builds
+SUPABASE_DB_PASSWORD=your-password  # NEVER in frontend builds
 ```
+
+### Infrastructure Management
+- **ALWAYS** use AWS CDK for infrastructure as code
+- **NEVER** create AWS resources manually in console
+- **ALWAYS** version control infrastructure changes
+- **ALWAYS** use separate environments (dev, staging, prod)
+- **ALWAYS** implement proper IAM least privilege access
 
 ## 🧪 TESTING STRATEGY
 
@@ -336,6 +367,40 @@ LIMIT 10;
 - Regular review of RLS policies and permissions
 - Monitor authentication logs for suspicious activity
 
+## 📚 DOCUMENTATION STANDARDS
+
+### Documentation Organization
+- **ALWAYS** place documentation in `docs/` folder with proper categorization
+- **NEVER** create documentation files in project root (except README.md)
+- **ALWAYS** update `docs/README.md` index when adding new documentation
+- **ALWAYS** use relative links between documentation files
+
+### Documentation Structure
+```
+docs/
+├── README.md                    # Documentation index
+├── setup/                       # Initial setup and configuration
+├── security/                    # Security guides and best practices
+├── deployment/                  # Deployment and infrastructure
+├── development/                 # Development guides and templates
+└── api/                        # API documentation
+```
+
+### Writing Standards
+- Use clear, concise language with step-by-step instructions
+- Include code examples with proper syntax highlighting
+- Add troubleshooting sections for complex procedures
+- Keep security considerations prominent
+- Update documentation immediately when making changes
+- Test all instructions and code examples before committing
+
+### Documentation Requirements
+- **New Features**: Must include documentation in appropriate `docs/` subfolder
+- **API Changes**: Must update API documentation
+- **Security Changes**: Must update security documentation
+- **Deployment Changes**: Must update deployment guides
+- **Breaking Changes**: Must update all affected documentation
+
 ## 📋 COMMON TASKS
 
 ### Adding New Features
@@ -344,8 +409,9 @@ LIMIT 10;
 3. Implement UI components with TypeScript
 4. Add proper error handling and validation
 5. Write tests for critical paths
-6. Update documentation
-7. Create PR with detailed description
+6. **Create/update documentation in `docs/` folder**
+7. **Update `docs/README.md` index if needed**
+8. Create PR with detailed description
 
 ### Bug Fixes
 1. Reproduce the issue in development
@@ -353,7 +419,7 @@ LIMIT 10;
 3. Write failing test case
 4. Implement fix with proper error handling
 5. Verify fix doesn't break existing functionality
-6. Update relevant documentation
+6. **Update relevant documentation in `docs/` folder**
 
 ### Performance Optimization
 1. Profile component rendering with React DevTools
@@ -361,6 +427,7 @@ LIMIT 10;
 3. Optimize images and assets
 4. Implement code splitting if needed
 5. Monitor Core Web Vitals after deployment
+6. **Document performance improvements in `docs/development/`**
 
 ## ⚠️ CRITICAL CONSIDERATIONS
 

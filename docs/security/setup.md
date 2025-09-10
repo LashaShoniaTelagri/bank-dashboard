@@ -112,6 +112,6 @@ JWT_SECRET=your-jwt-secret        # 🚨 SENSITIVE
 
 ## 🔗 Related Documentation
 
-- [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) - Setup instructions
+- [Environment Setup](../setup/environment.md) - Setup instructions
 - [AWS Parameter Store Best Practices](https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-best-practices.html)
 - [GitHub OIDC Security](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
