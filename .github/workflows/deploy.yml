@@ -3,7 +3,7 @@ name: 🌾 Deploy TelAgri Bank Dashboard
 # This workflow:
 # - On PULL REQUEST: Only runs build, lint, test, and security scan (no deployment)
 # - On PUSH (merge): Runs full pipeline including deployment to AWS  
-# - On MANUAL: Allows manual deployment to any environment
+# - On MANUAL: Allows manual deployment to any environment (dev, staging, prod)
 
 on:
   push:
