@@ -37,6 +37,10 @@ jobs:
   build:
     name: 🏗️ Build PWA
     runs-on: ubuntu-latest
+    needs: [environment]
+    permissions:
+      id-token: write
+      contents: read
     
     steps:
       - name: 📥 Checkout repository
@@ -48,14 +52,57 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          role-session-name: telagri-build-session
+          aws-region: ${{ needs.environment.outputs.region }}
+
       - name: 📥 Install dependencies
         run: npm ci
 
       - name: 🔍 Lint code
         run: npm run lint
 
+      - name: 🔧 Fetch Environment Configuration from AWS
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
+        run: |
+          echo "🔧 Fetching environment configuration from AWS Parameter Store"
+          echo "Environment: $ENVIRONMENT"
+          echo "Region: $AWS_REGION"
+          echo "Parameter Path: /telagri/monitoring/$ENVIRONMENT/frontend/env"
+          
+          # Make the script executable
+          chmod +x scripts/fetch-env-from-aws.sh
+          
+          # Fetch frontend environment configuration from AWS Parameter Store
+          ./scripts/fetch-env-from-aws.sh "$ENVIRONMENT" "$AWS_REGION"
+          
+          # Validate that .env file was created and contains VITE_ variables
+          if [ ! -f ".env" ]; then
+            echo "❌ .env file was not created"
+            exit 1
+          fi
+          
+          # Check if .env contains frontend variables
+          VITE_COUNT=$(grep -c '^VITE_' .env || echo "0")
+          if [ "$VITE_COUNT" -eq 0 ]; then
+            echo "⚠️ Warning: No VITE_ variables found in .env file"
+            echo "📋 .env file contents:"
+            cat .env
+          else
+            echo "✅ Found $VITE_COUNT frontend variables in .env file"
+          fi
+
       - name: 🏗️ Build PWA
-        run: npm run build
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+        run: |
+          echo "🏗️ Building PWA for environment: $ENVIRONMENT"
+          npm run build
 
       - name: 📊 Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -169,11 +216,11 @@ jobs:
           
           # Pre-migration check
           echo "📋 Pre-migration validation..."
-          supabase migration list || echo "⚠️ Could not retrieve migration list"
+          supabase migration list --linked || echo "⚠️ Could not retrieve migration list"
           
           # Apply migrations
           echo "🚀 Applying database migrations..."
-          if supabase db push; then
+          if supabase db push --linked; then
             echo "✅ Migrations applied successfully"
           else
             echo "❌ Migration failed"
@@ -185,9 +232,9 @@ jobs:
           
           # Post-migration validation
           echo "📊 Post-migration validation..."
-          supabase migration list
+          supabase migration list --linked
           
-          if supabase db diff; then
+          if supabase db diff --linked; then
             echo "⚠️ Schema differences detected after migration"
           else
             echo "✅ No schema differences - migrations fully applied"
@@ -250,9 +297,25 @@ jobs:
           DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
         run: |
           echo "🔍 Showing infrastructure changes..."
+          # Ensure bootstrap before diff to avoid warnings
+          npx cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION --force > /dev/null 2>&1 || true
           npm run diff || true
+
+      - name: 🔧 Ensure CDK Bootstrap
+        working-directory: cdk
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+        run: |
+          echo "🔧 Ensuring CDK bootstrap is up to date..."
+          # Update CDK bootstrap to latest version to fix role assumption warnings
+          echo "📦 Updating CDK bootstrap for account $AWS_ACCOUNT_ID in region $AWS_REGION..."
+          npx cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION --force
+          echo "✅ CDK bootstrap updated successfully"
 
       - name: 🚀 Deploy CDK Stack
         working-directory: cdk

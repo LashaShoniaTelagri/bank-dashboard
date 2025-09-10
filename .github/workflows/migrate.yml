@@ -255,13 +255,13 @@ jobs:
           # Pre-migration validation: Check current migration status
           echo "📋 Pre-migration validation..."
           echo "Current migration status:"
-          supabase migration list || {
+          supabase migration list --linked || {
             echo "⚠️ Could not retrieve migration list, but continuing..."
           }
           
           # Apply migrations
           echo "🚀 Applying database migrations..."
-          if supabase db push; then
+          if supabase db push --linked; then
             echo "✅ Migrations applied successfully"
           else
             echo "❌ Migration failed"
@@ -282,11 +282,11 @@ jobs:
           
           # Verify migration status
           echo "Final migration status:"
-          supabase migration list
+          supabase migration list --linked
           
           # Check for any schema differences
           echo "Checking for remaining schema differences..."
-          if supabase db diff; then
+          if supabase db diff --linked; then
             echo "⚠️ Schema differences detected after migration"
           else
             echo "✅ No schema differences - migrations fully applied"
