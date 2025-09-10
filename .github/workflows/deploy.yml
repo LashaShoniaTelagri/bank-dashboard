@@ -316,8 +316,10 @@ jobs:
         working-directory: cdk
         env:
           ENVIRONMENT: ${{ needs.environment.outputs.env }}
-          AWS_REGION: ${{ needs.environment.outputs.region }}
+          DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
+          CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
         run: |
           echo "🔧 Ensuring CDK bootstrap is up to date..."
           # Update CDK bootstrap to latest version to fix role assumption warnings
@@ -332,6 +334,7 @@ jobs:
           DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
         run: |
           echo "🚀 Deploying TelAgri Bank Dashboard to ${{ needs.environment.outputs.env }}..."
           npm run deploy
