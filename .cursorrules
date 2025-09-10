@@ -425,11 +425,11 @@ function FarmerManagement() {
         description: `Loan of $${loanAmount} approved for farmer ${farmerId}` 
       });
     } else {
-      toast({
+  toast({
         title: "Loan Approval Failed",
         description: result.error.userFriendlyMessage,
-        variant: "destructive"
-      });
+    variant: "destructive"
+  });
       
       // Additional handling for compliance errors
       if (result.error instanceof ComplianceError) {
