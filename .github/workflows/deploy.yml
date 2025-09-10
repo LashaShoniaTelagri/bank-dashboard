@@ -118,6 +118,7 @@ jobs:
     outputs:
       env: ${{ steps.env.outputs.env }}
       domain: ${{ steps.env.outputs.domain }}
+      region: ${{ steps.env.outputs.region }}
     
     steps:
       - name: 🎯 Set environment
@@ -149,8 +150,12 @@ jobs:
               ;;
           esac
           
+          # Set AWS region (us-east-1 for all environments)
+          echo "region=us-east-1" >> $GITHUB_OUTPUT
+          
           echo "🎯 Deploying to: ${ENV}"
           echo "🌐 Domain: $(cat $GITHUB_OUTPUT | grep domain | cut -d= -f2)"
+          echo "🌍 Region: us-east-1"
 
   # Run database migrations
   migrate:
