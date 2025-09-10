@@ -356,23 +356,19 @@ export class TelAgriStack extends cdk.Stack {
     });
 
     // Frontend Environment Parameter (with placeholder values)
-    const frontendParameter = new ssm.CfnParameter(this, 'FrontendEnvironmentParameter', {
-      name: `/telagri/monitoring/${environment}/frontend/env`,
+    const frontendParameter = new ssm.StringParameter(this, 'FrontendEnvironmentParameter', {
+      parameterName: `/telagri/monitoring/${environment}/frontend/env`,
       description: `Frontend environment configuration for ${environment}`,
-      value: this.getFrontendEnvironmentTemplate(environment),
-      type: 'String',
-      tier: 'Standard',
-      keyId: parameterStoreKmsKey.keyId,
+      stringValue: this.getFrontendEnvironmentTemplate(environment),
+      type: ssm.ParameterType.STRING,
     });
 
     // Backend Environment Parameter (with placeholder values)
-    const backendParameter = new ssm.CfnParameter(this, 'BackendEnvironmentParameter', {
-      name: `/telagri/monitoring/${environment}/backend/env`,
+    const backendParameter = new ssm.StringParameter(this, 'BackendEnvironmentParameter', {
+      parameterName: `/telagri/monitoring/${environment}/backend/env`,
       description: `Backend environment configuration for ${environment}`,
-      value: this.getBackendEnvironmentTemplate(environment),
-      type: 'String',
-      tier: 'Standard',
-      keyId: parameterStoreKmsKey.keyId,
+      stringValue: this.getBackendEnvironmentTemplate(environment),
+      type: ssm.ParameterType.STRING,
     });
 
     // GitHub Actions IAM Role (if it doesn't exist)
@@ -456,13 +452,13 @@ export class TelAgriStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'FrontendParameterName', {
-      value: frontendParameter.name!,
+      value: frontendParameter.parameterName,
       description: 'Frontend environment parameter name',
       exportName: `TelAgri-${environment}-Frontend-ParameterName`,
     });
 
     new cdk.CfnOutput(this, 'BackendParameterName', {
-      value: backendParameter.name!,
+      value: backendParameter.parameterName,
       description: 'Backend environment parameter name',
       exportName: `TelAgri-${environment}-Backend-ParameterName`,
     });
