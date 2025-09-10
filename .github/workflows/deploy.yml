@@ -55,7 +55,7 @@ jobs:
       - name: ⚙️ Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/telagri-github-actions-role-${{ needs.environment.outputs.env }}
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GithubActionsRole
           role-session-name: telagri-build-session
           aws-region: ${{ needs.environment.outputs.region }}
 
@@ -286,7 +286,7 @@ jobs:
       - name: ⚙️ Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/telagri-github-actions-role-${{ needs.environment.outputs.env }}
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GithubActionsRole
           role-session-name: telagri-deploy-session
           aws-region: ${{ needs.environment.outputs.region }}
 
