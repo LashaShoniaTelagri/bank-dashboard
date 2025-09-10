@@ -55,7 +55,7 @@ jobs:
       - name: ⚙️ Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/telagri-github-actions-role-${{ needs.environment.outputs.env }}
           role-session-name: telagri-build-session
           aws-region: ${{ needs.environment.outputs.region }}
 
@@ -255,6 +255,9 @@ jobs:
     environment: ${{ needs.environment.outputs.env }}
     # Only deploy on push events (when PRs are merged), not on pull_request events
     if: github.event_name != 'pull_request'
+    permissions:
+      id-token: write
+      contents: read
     
     steps:
       - name: 📥 Checkout repository
@@ -280,12 +283,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: ⚙️ Configure AWS credentials (Access Keys)
+      - name: ⚙️ Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/telagri-github-actions-role-${{ needs.environment.outputs.env }}
+          role-session-name: telagri-deploy-session
+          aws-region: ${{ needs.environment.outputs.region }}
 
       - name: 📦 Install CDK dependencies
         working-directory: cdk
