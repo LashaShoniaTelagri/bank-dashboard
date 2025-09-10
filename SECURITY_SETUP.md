@@ -14,8 +14,7 @@ This guide explains how to securely manage environment variables without exposin
 ## ✅ What IS Safe to Commit
 
 **These files are safe because they contain only placeholders:**
-- `aws/parameter-store-setup.yaml` - CloudFormation template with placeholder values
-- `aws/iam-parameter-store-policy.json` - IAM policy structure (no secrets)
+- `cdk/lib/telagri-stack.ts` - CDK stack with Parameter Store resources (placeholder values only)
 - `env.template` - Template with variable names only
 - `ENVIRONMENT_SETUP.md` - Documentation
 - Scripts in `scripts/` directory
@@ -25,12 +24,8 @@ This guide explains how to securely manage environment variables without exposin
 ### 1. **Initial Setup (One-time)**
 
 ```bash
-# 1. Deploy AWS infrastructure (creates encrypted Parameter Store)
-aws cloudformation deploy \
-  --template-file aws/parameter-store-setup.yaml \
-  --stack-name telagri-parameter-store \
-  --capabilities CAPABILITY_IAM \
-  --parameter-overrides GitHubOrg=your-org GitHubRepo=your-repo
+# 1. Deploy AWS infrastructure via CDK (creates encrypted Parameter Store)
+./scripts/setup-aws-parameter-store.sh us-east-1 dev your-org your-repo
 
 # 2. Upload your REAL environment variables to AWS (encrypted)
 ./scripts/upload-env-to-aws.sh frontend dev env.frontend.dev us-east-1

@@ -8,6 +8,8 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as kms from 'aws-cdk-lib/aws-kms';
 import { Construct } from 'constructs';
 
 export interface TelAgriStackProps extends cdk.StackProps {
@@ -311,11 +313,226 @@ export class TelAgriStack extends cdk.Stack {
       exportName: `TelAgri-${environment}-WebACLId`,
     });
 
+    // ================================
+    // Parameter Store for Environment Configuration
+    // ================================
+
+    // KMS Key for Parameter Store encryption
+    const parameterStoreKmsKey = new kms.Key(this, 'ParameterStoreKMSKey', {
+      description: `TelAgri Bank Dashboard Parameter Store encryption key for ${environment}`,
+      enableKeyRotation: true,
+      policy: new iam.PolicyDocument({
+        statements: [
+          // Root account permissions
+          new iam.PolicyStatement({
+            sid: 'EnableIAMUserPermissions',
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.AccountRootPrincipal()],
+            actions: ['kms:*'],
+            resources: ['*'],
+          }),
+          // Parameter Store service permissions
+          new iam.PolicyStatement({
+            sid: 'AllowParameterStoreService',
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.ServicePrincipal('ssm.amazonaws.com')],
+            actions: [
+              'kms:Decrypt',
+              'kms:DescribeKey',
+              'kms:Encrypt',
+              'kms:GenerateDataKey',
+              'kms:ReEncrypt*',
+            ],
+            resources: ['*'],
+          }),
+        ],
+      }),
+    });
+
+    // KMS Key Alias
+    new kms.Alias(this, 'ParameterStoreKMSKeyAlias', {
+      aliasName: `alias/telagri-monitoring-${environment}`,
+      targetKey: parameterStoreKmsKey,
+    });
+
+    // Frontend Environment Parameter (with placeholder values)
+    const frontendParameter = new ssm.CfnParameter(this, 'FrontendEnvironmentParameter', {
+      name: `/telagri/monitoring/${environment}/frontend/env`,
+      description: `Frontend environment configuration for ${environment}`,
+      value: this.getFrontendEnvironmentTemplate(environment),
+      type: 'SecureString',
+      tier: 'Standard',
+    });
+
+    // Backend Environment Parameter (with placeholder values)
+    const backendParameter = new ssm.CfnParameter(this, 'BackendEnvironmentParameter', {
+      name: `/telagri/monitoring/${environment}/backend/env`,
+      description: `Backend environment configuration for ${environment}`,
+      value: this.getBackendEnvironmentTemplate(environment),
+      type: 'SecureString',
+      tier: 'Standard',
+    });
+
+    // GitHub Actions IAM Role (if it doesn't exist)
+    const githubActionsRole = new iam.Role(this, 'GitHubActionsRole', {
+      roleName: `telagri-github-actions-role-${environment}`,
+      description: `GitHub Actions role for TelAgri Bank Dashboard ${environment}`,
+      assumedBy: new iam.WebIdentityPrincipal(
+        `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`,
+        {
+          StringEquals: {
+            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+          },
+          StringLike: {
+            'token.actions.githubusercontent.com:sub': 'repo:*:*', // Update with your actual repo
+          },
+        }
+      ),
+      inlinePolicies: {
+        ParameterStoreAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              sid: 'AllowParameterStoreRead',
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'ssm:GetParameter',
+                'ssm:GetParameters',
+                'ssm:GetParametersByPath',
+              ],
+              resources: [
+                `arn:aws:ssm:${this.region}:${this.account}:parameter/telagri/monitoring/*/frontend/*`,
+                `arn:aws:ssm:${this.region}:${this.account}:parameter/telagri/monitoring/*/backend/*`,
+              ],
+            }),
+            new iam.PolicyStatement({
+              sid: 'AllowParameterStoreWrite',
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'ssm:PutParameter',
+                'ssm:DeleteParameter',
+                'ssm:AddTagsToResource',
+                'ssm:RemoveTagsFromResource',
+              ],
+              resources: [
+                `arn:aws:ssm:${this.region}:${this.account}:parameter/telagri/monitoring/*/frontend/*`,
+                `arn:aws:ssm:${this.region}:${this.account}:parameter/telagri/monitoring/*/backend/*`,
+              ],
+            }),
+            new iam.PolicyStatement({
+              sid: 'AllowKMSDecryption',
+              effect: iam.Effect.ALLOW,
+              actions: ['kms:Decrypt', 'kms:DescribeKey'],
+              resources: [parameterStoreKmsKey.keyArn],
+              conditions: {
+                StringEquals: {
+                  'kms:ViaService': [`ssm.${this.region}.amazonaws.com`],
+                },
+              },
+            }),
+          ],
+        }),
+      },
+    });
+
+    // Outputs for Parameter Store resources
+    new cdk.CfnOutput(this, 'ParameterStoreKMSKeyId', {
+      value: parameterStoreKmsKey.keyId,
+      description: 'KMS Key ID for Parameter Store encryption',
+      exportName: `TelAgri-${environment}-ParameterStore-KMSKeyId`,
+    });
+
+    new cdk.CfnOutput(this, 'ParameterStoreKMSKeyArn', {
+      value: parameterStoreKmsKey.keyArn,
+      description: 'KMS Key ARN for Parameter Store encryption',
+      exportName: `TelAgri-${environment}-ParameterStore-KMSKeyArn`,
+    });
+
+    new cdk.CfnOutput(this, 'GitHubActionsRoleArn', {
+      value: githubActionsRole.roleArn,
+      description: 'GitHub Actions IAM Role ARN',
+      exportName: `TelAgri-${environment}-GitHubActions-RoleArn`,
+    });
+
+    new cdk.CfnOutput(this, 'FrontendParameterName', {
+      value: frontendParameter.name!,
+      description: 'Frontend environment parameter name',
+      exportName: `TelAgri-${environment}-Frontend-ParameterName`,
+    });
+
+    new cdk.CfnOutput(this, 'BackendParameterName', {
+      value: backendParameter.name!,
+      description: 'Backend environment parameter name',
+      exportName: `TelAgri-${environment}-Backend-ParameterName`,
+    });
+
     // Tags
     cdk.Tags.of(this).add('Project', 'TelAgri-Bank-Dashboard');
     cdk.Tags.of(this).add('Environment', environment);
     cdk.Tags.of(this).add('Owner', 'TelAgri-Tech-Team');
     cdk.Tags.of(this).add('CostCenter', 'AgriTech');
     cdk.Tags.of(this).add('ManagedBy', 'AWS-CDK');
+  }
+
+  /**
+   * Generate frontend environment template with placeholder values
+   */
+  private getFrontendEnvironmentTemplate(environment: string): string {
+    const baseUrl = environment === 'prod' 
+      ? 'https://dashboard.telagri.com' 
+      : `https://dashboard-${environment}.telagri.com`;
+
+    return `# Application Configuration
+VITE_APP_NAME=TelAgri Monitoring
+VITE_APP_VERSION=2.0.0
+VITE_APP_ENVIRONMENT=${environment}
+
+# Supabase Configuration (Public keys only)
+VITE_SUPABASE_URL=https://your-${environment}-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-${environment}-anon-key-placeholder
+
+# Public Service URLs
+VITE_APP_URL=${baseUrl}
+
+# Public API Keys (with domain restrictions)
+VITE_APP_GOOGLE_MAPS_API_KEY=your-google-maps-key
+VITE_APP_GOOGLE_AUTH_CLIENT_ID=your-google-oauth-client-id
+
+# Analytics & Monitoring (Public keys)
+VITE_APP_TAG_MANAGER_KEY=G-XXXXXXX
+VITE_APP_SENTRY_DSN=https://public-key@sentry.io/project
+VITE_APP_CDN_URL=https://cdn.telagri.com/
+VITE_APP_HYPERDX_API_KEY=your-hyperdx-key
+VITE_APP_HYPERDX_ENABLED=${environment === 'prod' ? 'true' : 'false'}`;
+  }
+
+  /**
+   * Generate backend environment template with placeholder values
+   */
+  private getBackendEnvironmentTemplate(environment: string): string {
+    const baseUrl = environment === 'prod' 
+      ? 'https://dashboard.telagri.com' 
+      : `https://dashboard-${environment}.telagri.com`;
+
+    return `# Backend Environment Configuration (Server-side only)
+
+# Email Service (SENSITIVE)
+SENDGRID_API_KEY=SG.REPLACE_WITH_REAL_SENDGRID_API_KEY
+SENDGRID_FROM_EMAIL=noreply@telagri.com
+
+# Server Configuration
+# INTERNAL_API_SECRET=your-internal-secret
+# JWT_SECRET=your-jwt-secret
+
+# Supabase ${environment.charAt(0).toUpperCase() + environment.slice(1)} Configuration
+VITE_SUPABASE_URL=https://your-${environment}-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-${environment}-anon-key-placeholder
+
+# ${environment.charAt(0).toUpperCase() + environment.slice(1)} Database Connection (for migrations)
+SUPABASE_PROJECT_ID=your-${environment}-project-id
+SUPABASE_DB_PASSWORD=REPLACE_WITH_REAL_DB_PASSWORD
+
+# Edge Functions Environment
+SITE_URL=${baseUrl}
+VITE_APP_URL=${baseUrl}`;
   }
 } 

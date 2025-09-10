@@ -9,6 +9,7 @@ The application uses environment-specific `.env` files that are:
 - **Environment-specific** (dev, staging, prod)
 - **Secure** (encrypted with KMS, never committed to repository)
 - **Centrally managed** (AWS Parameter Store with proper IAM controls)
+- **Infrastructure as Code** (Managed via AWS CDK alongside other resources)
 
 ## 📁 File Structure
 
