@@ -350,12 +350,97 @@ jobs:
             --query 'Stacks[0].Outputs' \
             --output table || true
 
+      - name: 🔧 Deploy Edge Functions
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
+        run: |
+          echo "🔧 Deploying Supabase Edge Functions..."
+          
+          # Install Supabase CLI
+          echo "📦 Installing Supabase CLI..."
+          curl -sSfL https://supabase.com/install.sh | sh
+          export PATH=$PATH:/home/runner/.local/bin
+          
+          # Fetch backend environment from Parameter Store
+          echo "🔧 Fetching backend environment configuration..."
+          aws ssm get-parameter \
+            --name "/telagri/monitoring/${ENVIRONMENT}/backend/env" \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text > env.backend.temp
+          
+          # Source environment variables
+          set -a
+          source env.backend.temp
+          set +a
+          
+          # Link to Supabase project
+          echo "🔗 Linking to Supabase project: ${SUPABASE_PROJECT_ID}"
+          supabase link --project-ref ${SUPABASE_PROJECT_ID} --password ${SUPABASE_DB_PASSWORD}
+          
+          # Deploy all Edge Functions dynamically
+          echo "🚀 Deploying Edge Functions..."
+          
+          # Find all Edge Functions in the supabase/functions directory
+          if [ -d "supabase/functions" ]; then
+            for function_dir in supabase/functions/*/; do
+              if [ -d "$function_dir" ]; then
+                function_name=$(basename "$function_dir")
+                echo "📦 Deploying function: $function_name"
+                
+                if supabase functions deploy "$function_name" --no-verify-jwt; then
+                  echo "✅ Successfully deployed: $function_name"
+                else
+                  echo "❌ Failed to deploy: $function_name"
+                  exit 1
+                fi
+              fi
+            done
+          else
+            echo "⚠️ No supabase/functions directory found"
+          fi
+          
+          # Set Edge Function secrets dynamically
+          echo "🔐 Setting Edge Function secrets..."
+          
+          # Define required secrets for Edge Functions
+          declare -A secrets=(
+            ["PROJECT_URL"]="${PROJECT_URL}"
+            ["SERVICE_ROLE_KEY"]="${SERVICE_ROLE_KEY}"
+            ["SENDGRID_API_KEY"]="${SENDGRID_API_KEY}"
+            ["SENDGRID_FROM_EMAIL"]="${SENDGRID_FROM_EMAIL}"
+          )
+          
+          # Set each secret with error handling
+          for secret_name in "${!secrets[@]}"; do
+            secret_value="${secrets[$secret_name]}"
+            
+            if [ -n "$secret_value" ] && [ "$secret_value" != "REPLACE_WITH_"* ]; then
+              echo "🔑 Setting secret: $secret_name"
+              if supabase secrets set "$secret_name=$secret_value"; then
+                echo "✅ Successfully set secret: $secret_name"
+              else
+                echo "❌ Failed to set secret: $secret_name"
+                exit 1
+              fi
+            else
+              echo "⚠️ Skipping secret $secret_name (not configured or placeholder value)"
+            fi
+          done
+          
+          # Cleanup
+          rm -f env.backend.temp
+          
+          echo "✅ Edge Functions deployed successfully!"
+
       - name: ✅ Deployment Success
         run: |
           echo "🎉 TelAgri Bank Dashboard successfully deployed!"
           echo "🌐 URL: https://${{ needs.environment.outputs.domain }}"
           echo "🔧 Environment: ${{ needs.environment.outputs.env }}"
           echo "📊 Build: ${{ github.sha }}"
+          echo "⚡ Edge Functions: Deployed"
 
   # Security scan (runs on all events)
   security-scan:

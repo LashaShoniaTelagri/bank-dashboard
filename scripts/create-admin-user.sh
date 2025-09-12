@@ -151,8 +151,79 @@ EOF
 
 echo -e "${BLUE}📝 Creating admin user in database...${NC}"
 
-# Execute the SQL using Supabase CLI
-if supabase db push --file "$ADMIN_SQL" --linked; then
+# Ask user where to run the command
+echo -e "${YELLOW}🎯 Where do you want to create the admin user?${NC}"
+echo "1) Cloud Supabase (Remote Database)"
+echo "2) Local Supabase (Local Development)"
+echo ""
+read -p "Enter your choice (1 or 2): " DB_CHOICE
+
+case $DB_CHOICE in
+    1)
+        echo -e "${BLUE}🌐 Using Cloud Supabase...${NC}"
+        
+        # Get project details
+        if [ "$ENVIRONMENT" = "prod" ]; then
+            PROJECT_REF="jhelkawgkjohvzsusrnw"
+        else
+            PROJECT_REF="imncjxfppzikerifyukk"
+        fi
+        
+        echo -e "${YELLOW}🔑 Please enter your Supabase database password:${NC}"
+        read -s DB_PASSWORD
+        echo ""
+        
+        if [ -z "$DB_PASSWORD" ]; then
+            echo -e "${RED}❌ Error: Database password is required${NC}"
+            exit 1
+        fi
+        
+        # Execute SQL using psql through Supabase connection
+        DB_URL="postgresql://postgres:${DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres"
+        
+        if command -v psql &> /dev/null; then
+            if PGPASSWORD="$DB_PASSWORD" psql "$DB_URL" -f "$ADMIN_SQL"; then
+                SUCCESS=true
+            else
+                SUCCESS=false
+            fi
+        else
+            echo -e "${YELLOW}⚠️  psql not found, trying alternative method...${NC}"
+            # Alternative: use curl to execute via Supabase API (if available)
+            echo -e "${RED}❌ psql is required for cloud database access${NC}"
+            echo "Please install PostgreSQL client: brew install postgresql"
+            exit 1
+        fi
+        ;;
+    2)
+        echo -e "${BLUE}🏠 Using Local Supabase...${NC}"
+        
+        # Check if local Supabase is running
+        if ! supabase status &> /dev/null; then
+            echo -e "${RED}❌ Error: Local Supabase is not running${NC}"
+            echo "Please start it with: supabase start"
+            exit 1
+        fi
+        
+        # Execute SQL on local database
+        if supabase db reset --linked=false && cat "$ADMIN_SQL" | supabase db push --linked=false; then
+            SUCCESS=true
+        else
+            # Try alternative method for local
+            if psql "postgresql://postgres:postgres@localhost:54322/postgres" -f "$ADMIN_SQL"; then
+                SUCCESS=true
+            else
+                SUCCESS=false
+            fi
+        fi
+        ;;
+    *)
+        echo -e "${RED}❌ Invalid choice. Please run the script again.${NC}"
+        exit 1
+        ;;
+esac
+
+if [ "$SUCCESS" = true ]; then
     echo ""
     echo -e "${GREEN}🎉 SUCCESS: System admin created successfully!${NC}"
     echo ""

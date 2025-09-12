@@ -1,18 +1,37 @@
 #!/bin/bash
 
-# Script to upload environment configuration to AWS Parameter Store
-# Usage: ./scripts/upload-env-to-aws.sh <type> <environment> [env-file] [region]
-# Example: ./scripts/upload-env-to-aws.sh frontend dev env.frontend.dev us-east-1
+# TelAgri Monitoring - Update AWS Parameter Store
+# Script to update environment configuration in AWS Parameter Store
+# Usage: ./scripts/update-parameter-store.sh <type> <environment> [env-file] [region]
+# 
+# Examples:
+#   ./scripts/update-parameter-store.sh frontend dev
+#   ./scripts/update-parameter-store.sh backend prod env.backend.prod
+#   ./scripts/update-parameter-store.sh frontend dev .env.frontend.dev us-east-1
 
 set -e
 
 TYPE=${1:-frontend}  # frontend or backend
 ENVIRONMENT=${2:-dev}
-ENV_FILE=${3:-"env.$TYPE.$ENVIRONMENT"}
+# Auto-detect environment file if not specified
+if [ -n "$3" ]; then
+    ENV_FILE="$3"
+elif [ -f "env.backend.$ENVIRONMENT" ] && [ "$TYPE" = "backend" ]; then
+    ENV_FILE="env.backend.$ENVIRONMENT"
+elif [ -f ".env.$TYPE.$ENVIRONMENT" ]; then
+    ENV_FILE=".env.$TYPE.$ENVIRONMENT"
+elif [ -f "env.$TYPE.$ENVIRONMENT" ]; then
+    ENV_FILE="env.$TYPE.$ENVIRONMENT"
+elif [ -f ".env" ] && [ "$ENVIRONMENT" = "dev" ]; then
+    ENV_FILE=".env"
+else
+    ENV_FILE="env.$TYPE.$ENVIRONMENT"
+fi
+
 AWS_REGION=${4:-us-east-1}
 PARAMETER_NAME="/telagri/monitoring/$ENVIRONMENT/$TYPE/env"
 
-echo "🚀 Uploading environment configuration to AWS Parameter Store"
+echo "🚀 Updating AWS Parameter Store configuration"
 echo "Type: $TYPE"
 echo "Environment: $ENVIRONMENT"
 echo "Source File: $ENV_FILE"
@@ -85,6 +104,10 @@ echo ""
 echo "🚀 To fetch in CI/CD, run:"
 echo "  ./scripts/fetch-env-from-aws.sh $ENVIRONMENT $AWS_REGION"
 echo ""
-echo "📋 Upload commands for all types:"
-echo "  # Frontend: ./scripts/upload-env-to-aws.sh frontend $ENVIRONMENT env.frontend.$ENVIRONMENT $AWS_REGION"
-echo "  # Backend:  ./scripts/upload-env-to-aws.sh backend $ENVIRONMENT env.backend.$ENVIRONMENT $AWS_REGION"
+echo "📋 Update commands for all types:"
+echo "  # Frontend: ./scripts/update-parameter-store.sh frontend $ENVIRONMENT"
+echo "  # Backend:  ./scripts/update-parameter-store.sh backend $ENVIRONMENT"
+echo ""
+echo "🔧 Quick update commands:"
+echo "  # Update dev backend:  ./scripts/update-parameter-store.sh backend dev"
+echo "  # Update prod frontend: ./scripts/update-parameter-store.sh frontend prod"

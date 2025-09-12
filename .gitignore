@@ -27,6 +27,8 @@ env.backend.*
 
 # Editor directories and files
 .vscode/*
+scripts/archive-obsolete/*
+
 !.vscode/extensions.json
 .idea
 .DS_Store

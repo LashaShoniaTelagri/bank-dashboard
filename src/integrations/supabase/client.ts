@@ -2,8 +2,58 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://imncjxfppzikerifyukk.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltbmNqeGZwcHppa2VyaWZ5dWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4MDA1NTYsImV4cCI6MjA3MTM3NjU1Nn0._k_RqPZd0vYTEFij_W3jHZouAuaGF8dlPJZCaHyzy5M";
+// Validate required environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Validate configuration
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  const missingVars = [];
+  if (!SUPABASE_URL) missingVars.push('VITE_SUPABASE_URL');
+  if (!SUPABASE_PUBLISHABLE_KEY) missingVars.push('VITE_SUPABASE_ANON_KEY');
+  
+  // Developer error logging
+  console.error('🔥 SUPABASE CONFIGURATION ERROR');
+  console.error('Missing required environment variables:', missingVars);
+  console.error('Please check your .env file and ensure these variables are set:');
+  missingVars.forEach(varName => {
+    console.error(`  - ${varName}`);
+  });
+  console.error('See env.template for required variables.');
+  
+  // User-friendly error for production
+  const errorMessage = 'Application configuration error. Please contact support.';
+  
+  // Show user-friendly error in UI
+  if (typeof window !== 'undefined') {
+    // Create error overlay for missing config
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-family: system-ui, -apple-system, sans-serif;
+    `;
+    errorDiv.innerHTML = `
+      <div style="text-align: center; padding: 2rem;">
+        <h1 style="color: #ef4444; margin-bottom: 1rem;">⚠️ Configuration Error</h1>
+        <p style="margin-bottom: 1rem;">${errorMessage}</p>
+        <p style="font-size: 0.875rem; opacity: 0.7;">Error ID: SUPABASE_CONFIG_MISSING</p>
+      </div>
+    `;
+    document.body.appendChild(errorDiv);
+  }
+  
+  throw new Error(`Supabase configuration error: Missing environment variables: ${missingVars.join(', ')}`);
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

@@ -8,7 +8,7 @@ DECLARE
     admin_user_id uuid;
     existing_user_id uuid;
     admin_email text := 'lasha@telagri.com';
-    admin_password text := 'YOUR_SECURE_PASSWORD'; -- CHANGE THIS!
+    admin_password text := 'mdamda'; -- CHANGE THIS!
 BEGIN
     -- Check if user already exists in auth.users
     SELECT id INTO existing_user_id 
@@ -90,8 +90,19 @@ BEGIN
     ELSE
         RAISE EXCEPTION 'Failed to verify admin setup';
     END IF;
+    
+    -- Final success messages
+    RAISE NOTICE '';
+    RAISE NOTICE '✅ Admin creation completed successfully!';
+    RAISE NOTICE '🎯 Next steps:';
+    RAISE NOTICE '   1. Login to your TelAgri Monitoring dashboard';
+    RAISE NOTICE '   2. Use email: lasha@telagri.com';
+    RAISE NOTICE '   3. Use the password you provided';
+    RAISE NOTICE '   4. You will have full system administrator access';
 END
 $$;
+
+
 
 -- Display the created admin user details
 SELECT 
