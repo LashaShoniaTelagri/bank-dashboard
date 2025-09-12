@@ -102,9 +102,10 @@ export class TelAgriStack extends cdk.Stack {
       },
     });
 
-    // Custom Response Headers Policy
+    // Custom Response Headers Policy with unique naming
+    const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp for uniqueness
     const responseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'TelAgriResponseHeadersPolicy', {
-      responseHeadersPolicyName: `TelAgri-Security-Headers-${environment}`,
+      responseHeadersPolicyName: `TelAgri-Monitoring-Headers-${environment}-${timestamp}`,
       securityHeadersBehavior: {
         contentTypeOptions: { override: true },
         frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
@@ -151,7 +152,7 @@ export class TelAgriStack extends cdk.Stack {
           defaultTtl: cdk.Duration.days(1),
           maxTtl: cdk.Duration.days(365),
           minTtl: cdk.Duration.seconds(0),
-          cachePolicyName: `TelAgri-Cache-Policy-${environment}`,
+          cachePolicyName: `TelAgri-Monitoring-Cache-${environment}-${timestamp}`,
         }),
         responseHeadersPolicy: responseHeadersPolicy,
         compress: true,
@@ -175,6 +176,7 @@ export class TelAgriStack extends cdk.Stack {
           cachePolicy: new cloudfront.CachePolicy(this, 'ManifestCachePolicy', {
             defaultTtl: cdk.Duration.hours(1),
             maxTtl: cdk.Duration.days(1),
+            cachePolicyName: `TelAgri-Monitoring-Manifest-${environment}-${timestamp}`,
           }),
           responseHeadersPolicy: responseHeadersPolicy,
         },
