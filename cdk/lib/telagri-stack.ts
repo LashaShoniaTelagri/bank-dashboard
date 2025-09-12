@@ -258,7 +258,6 @@ export class TelAgriStack extends cdk.Stack {
       parameterName: `/telagri/monitoring/${environment}/frontend/env`,
       description: `Frontend environment configuration for ${environment}`,
       stringValue: this.getFrontendEnvironmentTemplate(environment),
-      type: ssm.ParameterType.STRING,
     });
 
     // Backend Environment Parameter (with placeholder values)
@@ -266,7 +265,6 @@ export class TelAgriStack extends cdk.Stack {
       parameterName: `/telagri/monitoring/${environment}/backend/env`,
       description: `Backend environment configuration for ${environment}`,
       stringValue: this.getBackendEnvironmentTemplate(environment),
-      type: ssm.ParameterType.STRING,
     });
 
     // GitHub Actions IAM Role (if it doesn't exist)
