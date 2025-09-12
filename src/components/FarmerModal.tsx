@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -18,8 +18,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useCrops } from "@/hooks/useCrops";
+import ServiceCostCalculator from "@/components/ServiceCostCalculator";
+import { calculate, type Selection } from "@/lib/serviceCost";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Upload, X, FileText, Image, MapPin } from "lucide-react";
+import GooglePlacesAutocomplete from "@/components/GooglePlacesAutocomplete";
+import LoansEditor, { type Loan } from "@/components/LoansEditor";
 
 interface Bank {
   id: string;
@@ -69,6 +73,18 @@ interface Farmer {
   last_year_harvest_amount?: number;
   irrigation_sectors_count?: number;
   equipment_list?: string;
+  // New calculator + location fields
+  service_cost_tariff?: string;
+  service_cost_total_eur?: number;
+  service_cost_breakdown?: Record<string, number>;
+  service_cost_selections?: Selection;
+  location_name?: string;
+  location_lat?: number;
+  location_lng?: number;
+  cadastral_codes?: string[];
+  bank_comment?: string;
+  other_comment?: string;
+  registration_date?: string;
 }
 
 interface FarmerModalProps {
@@ -110,6 +126,21 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
   const [isCreatingBank, setIsCreatingBank] = useState(false);
   const [irrigationFiles, setIrrigationFiles] = useState<File[]>([]);
   const [analysisFiles, setAnalysisFiles] = useState<File[]>([]);
+  const [otherFiles, setOtherFiles] = useState<File[]>([]);
+  const [step, setStep] = useState<'calculator' | 'details'>('calculator');
+  const [calcSelection, setCalcSelection] = useState<Selection>({
+    crop: '',
+    area: '',
+    reservoirs: '',
+    outermostDistance: '',
+    plantAges: '',
+    varieties: '',
+    roadDistance: ''
+  });
+  const [calcTotal, setCalcTotal] = useState<number | null>(null);
+  const [calcTariff, setCalcTariff] = useState<string | null>(null);
+  const [cadastralCodes, setCadastralCodes] = useState<string[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
 
   const queryClient = useQueryClient();
 
@@ -182,7 +213,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['farmers'] });
       toast({ 
-        title: farmer?.id ? "Farmer updated successfully" : "Farmer created successfully" 
+        title: farmer?.id ? "Farmer updated successfully" : "Farmer registration completed successfully. We will review the submitted information and contact you shortly" 
       });
       onClose();
       // Reset files
@@ -221,13 +252,21 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         irrigation_sectors_count: farmer.irrigation_sectors_count || undefined,
         equipment_list: farmer.equipment_list || '',
       });
+      // Preload calculator if existing
+      if (farmer.service_cost_selections) {
+        setCalcSelection(farmer.service_cost_selections);
+        const res = calculate(farmer.service_cost_selections);
+        setCalcTotal(res.total);
+        setCalcTariff(res.tariff);
+      }
+      setStep('details');
     } else {
       // Auto-select bank for bank users, leave empty for admins
       const defaultBankId = profile?.role === 'bank_viewer' ? (profile.bank_id || '') : '';
       
       setFormData({
         bank_id: defaultBankId,
-        type: 'person',
+        type: 'company',
         name: '',
         id_number: '',
         contact_phone: '',
@@ -250,7 +289,24 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         last_year_harvest_amount: undefined,
         irrigation_sectors_count: undefined,
         equipment_list: '',
+        service_cost_tariff: undefined,
+        service_cost_total_eur: undefined,
+        service_cost_breakdown: undefined,
+        service_cost_selections: undefined,
+        location_name: '',
+        location_lat: undefined,
+        location_lng: undefined,
+        cadastral_codes: [],
+        bank_comment: '',
+        other_comment: '',
+        registration_date: undefined,
       });
+      setCalcSelection({ crop: '', area: '', reservoirs: '', outermostDistance: '', plantAges: '', varieties: '', roadDistance: '' });
+      setCalcTotal(null);
+      setCalcTariff(null);
+      setStep('calculator');
+      setCadastralCodes([]);
+      setLoans([]);
     }
     // Reset files when modal opens/closes
     setIrrigationFiles([]);
@@ -268,9 +324,13 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     // New required fields validation
     if (!formData.full_name?.trim()) errors.push("Full name and lastname is required");
     if (!formData.mobile?.trim()) errors.push("Mobile number is required");
-    if (!formData.farmer_location?.trim()) errors.push("Farmer location is required");
+    if (!formData.location_name?.trim()) errors.push("Location is required");
     if (!formData.area || formData.area <= 0) errors.push("Area must be greater than 0");
     if (!formData.crop?.trim()) errors.push("Crop is required");
+    // Calculator completeness
+    if (!calcTotal || !calcTariff) {
+      errors.push("Please complete the service cost calculator");
+    }
     if (!formData.variety?.trim()) errors.push("Variety is required");
     if (!formData.irrigation_type?.trim()) errors.push("Irrigation type is required");
     if (!formData.water_source?.trim()) errors.push("Water source is required");
@@ -326,14 +386,67 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     return true;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
+    if (step === 'calculator') {
+      if (!calcTotal || !calcTariff) {
+        toast({ title: 'Please complete the calculator', variant: 'destructive' });
+        return;
+      }
+      setStep('details');
       return;
     }
-
-    farmerMutation.mutate(formData);
+    if (!validateForm()) return;
+    const payload: Farmer = {
+      ...formData,
+      service_cost_tariff: calcTariff || undefined,
+      service_cost_total_eur: calcTotal || undefined,
+      service_cost_breakdown: formData.service_cost_breakdown,
+      service_cost_selections: calcSelection,
+      cadastral_codes: cadastralCodes,
+    };
+    try {
+      let currentFarmerId = farmer?.id as string | undefined;
+      if (currentFarmerId) {
+        const { error } = await supabase.from('farmers').update(payload).eq('id', currentFarmerId);
+        if (error) throw error;
+      } else {
+        const { data: inserted, error } = await supabase.from('farmers').insert([payload]).select('id').single();
+        if (error) throw error;
+        currentFarmerId = inserted.id;
+      }
+      if (irrigationFiles.length > 0) await uploadFiles(currentFarmerId!, irrigationFiles, 'irrigation_diagram');
+      if (analysisFiles.length > 0) await uploadFiles(currentFarmerId!, analysisFiles, 'current_analysis');
+      if (otherFiles.length > 0) await uploadFiles(currentFarmerId!, otherFiles, 'other');
+      if (currentFarmerId) {
+        if (farmer?.id) {
+          await supabase.from('farmer_loans').delete().eq('farmer_id', currentFarmerId);
+        }
+        const rows = loans
+          .filter(l => l.amount !== '' && l.currency && l.start_date && l.end_date && l.issuance_date)
+          .map(l => ({
+            farmer_id: currentFarmerId!,
+            amount: l.amount as number,
+            currency: l.currency,
+            start_date: l.start_date,
+            end_date: l.end_date,
+            issuance_date: l.issuance_date,
+          }));
+        if (rows.length > 0) {
+          const { error: loanErr } = await supabase.from('farmer_loans').insert(rows);
+          if (loanErr) throw loanErr;
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['farmers'] });
+      toast({ 
+        title: farmer?.id ? "Farmer updated successfully" : "Farmer created successfully" 
+      });
+      onClose();
+      setIrrigationFiles([]);
+      setAnalysisFiles([]);
+    } catch (err: any) {
+      toast({ title: 'Error saving farmer', description: err.message, variant: 'destructive' });
+    }
   };
 
   const handleNewBank = () => {
@@ -342,7 +455,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     }
   };
 
-  const uploadFiles = async (farmerId: string, files: File[], documentType: 'irrigation_diagram' | 'current_analysis') => {
+  const uploadFiles = async (farmerId: string, files: File[], documentType: 'irrigation_diagram' | 'current_analysis' | 'other') => {
     // Get farmer's bank_id first
     const { data: farmer, error: farmerError } = await supabase
       .from('farmers')
@@ -393,7 +506,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleFileChange = (files: FileList | null, type: 'irrigation' | 'analysis') => {
+  const handleFileChange = (files: FileList | null, type: 'irrigation' | 'analysis' | 'other') => {
     if (!files) return;
     
     const fileArray = Array.from(files);
@@ -403,18 +516,25 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     const allowedTypes = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
       'application/pdf',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.google-earth.kml+xml',
       'application/vnd.google-earth.kmz'
     ];
     
     for (const file of fileArray) {
-      if (allowedTypes.includes(file.type) || file.name.toLowerCase().endsWith('.kml') || file.name.toLowerCase().endsWith('.kmz')) {
-        if (file.size <= 10 * 1024 * 1024) { // 10MB limit
+      if (
+        allowedTypes.includes(file.type) ||
+        file.name.toLowerCase().endsWith('.kml') || file.name.toLowerCase().endsWith('.kmz') ||
+        file.name.toLowerCase().endsWith('.doc') || file.name.toLowerCase().endsWith('.docx') ||
+        file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx')
+      ) {
+        if (file.size <= 100 * 1024 * 1024) { // 100MB limit
           validFiles.push(file);
         } else {
           toast({
             title: "File too large",
-            description: `${file.name} is larger than 10MB`,
+            description: `${file.name} is larger than 100MB`,
             variant: "destructive",
           });
         }
@@ -429,16 +549,20 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     
     if (type === 'irrigation') {
       setIrrigationFiles(prev => [...prev, ...validFiles]);
-    } else {
+    } else if (type === 'analysis') {
       setAnalysisFiles(prev => [...prev, ...validFiles]);
+    } else {
+      setOtherFiles(prev => [...prev, ...validFiles]);
     }
   };
 
-  const removeFile = (index: number, type: 'irrigation' | 'analysis') => {
+  const removeFile = (index: number, type: 'irrigation' | 'analysis' | 'other') => {
     if (type === 'irrigation') {
       setIrrigationFiles(prev => prev.filter((_, i) => i !== index));
-    } else {
+    } else if (type === 'analysis') {
       setAnalysisFiles(prev => prev.filter((_, i) => i !== index));
+    } else {
+      setOtherFiles(prev => prev.filter((_, i) => i !== index));
     }
   };
 
@@ -472,6 +596,36 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         >
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Step switcher */}
+          {!farmer?.id && (
+            <div className="space-y-4">
+              {step === 'calculator' && (
+                <ServiceCostCalculator
+                  value={calcSelection}
+                  onChange={(next, res) => {
+                    setCalcSelection(next);
+                    if (res) {
+                      setCalcTariff(res.tariff);
+                      setCalcTotal(res.total);
+                      // mirror into formData for submission
+                      setFormData(prev => ({
+                        ...prev,
+                        service_cost_tariff: res.tariff,
+                        service_cost_total_eur: res.total,
+                        service_cost_breakdown: calculate(next).parts,
+                        service_cost_selections: next,
+                        crop: next.crop,
+                      }));
+                    }
+                  }}
+                  onNext={() => setStep('details')}
+                />
+              )}
+            </div>
+          )}
+
+          {step === 'details' && (
+          <>
           {/* Bank Selection - Only show for admins */}
           {profile?.role === 'admin' && (
           <div>
@@ -530,23 +684,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
           )}
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">Farmer Type</Label>
-            <RadioGroup
-              value={formData.type}
-              onValueChange={(value: 'person' | 'company') => updateFormData('type', value)}
-              className="flex gap-6 mt-3"
-            >
-              <div className="flex items-center space-x-3">
-                <RadioGroupItem value="person" id="person" />
-                <Label htmlFor="person" className="text-sm font-normal cursor-pointer">Person</Label>
-              </div>
-              <div className="flex items-center space-x-3">
-                <RadioGroupItem value="company" id="company" />
-                <Label htmlFor="company" className="text-sm font-normal cursor-pointer">Company</Label>
-              </div>
-            </RadioGroup>
-          </div>
+          {/* Farmer Type is removed per spec; assume company */}
 
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium text-gray-700">
@@ -663,19 +801,15 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="farmer_location" className="text-sm font-medium text-gray-700">
-                  Farmer Location <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="farmer_location"
-                  value={formData.farmer_location || ''}
-                  onChange={(e) => updateFormData('farmer_location', e.target.value)}
-                  placeholder="Geographic location of the farm"
-                  className="mt-1 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                  required
-                />
-              </div>
+              <GooglePlacesAutocomplete
+                label="Location"
+                value={{ name: formData.location_name || '', lat: formData.location_lat, lng: formData.location_lng }}
+                onChange={(loc) => {
+                  updateFormData('location_name', loc.name);
+                  updateFormData('location_lat', loc.lat);
+                  updateFormData('location_lng', loc.lng);
+                }}
+              />
               
               <div className="space-y-2">
                 <Label htmlFor="area" className="text-sm font-medium text-gray-700">
@@ -694,62 +828,10 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 />
               </div>
               
+              {/* Crop is selected in calculator step; keep read-only value here */}
               <div className="space-y-2">
-                <Label htmlFor="crop" className="text-sm font-medium text-gray-700">
-                  Crop <span className="text-red-500">*</span>
-                </Label>
-                {cropsError || (!cropsLoading && crops.length === 0) ? (
-                  // Fallback to text input if crops API fails
-                  <Input
-                    id="crop"
-                    value={formData.crop || ''}
-                    onChange={(e) => updateFormData('crop', e.target.value)}
-                    placeholder="Enter primary crop type"
-                    className="mt-1 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                    required
-                  />
-                ) : (
-                  <Select
-                    value={formData.crop || undefined}
-                    onValueChange={(value) => {
-                      if (value && value !== 'loading' && value !== 'no-crops') {
-                        updateFormData('crop', value);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="mt-1 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors">
-                      <SelectValue placeholder={cropsLoading ? "Loading crops..." : "Select crop type"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cropsLoading ? (
-                        <SelectItem value="loading" disabled>
-                          Loading crops...
-                        </SelectItem>
-                      ) : crops.length > 0 ? (
-                        crops.map((crop) => (
-                          <SelectItem key={crop.id} value={crop.name}>
-                            <div className="flex items-center gap-3">
-                              <img 
-                                src={crop.image_url} 
-                                alt={crop.name}
-                                className="w-8 h-8 rounded-full object-cover"
-                                onError={(e) => {
-                                  // Fallback to a default icon if image fails to load
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                              <span>{crop.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-crops" disabled>
-                          No crops available
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Label className="text-sm font-medium text-gray-700">Crop</Label>
+                <Input value={formData.crop || ''} readOnly />
               </div>
               
               <div className="space-y-2">
@@ -921,7 +1003,51 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
           
           <Separator className="my-6" />
-          
+          {/* Cadastral Codes */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">Cadastral Codes</Label>
+            <div className="flex gap-2">
+              <Input placeholder="Enter code and press Enter" onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const val = (e.target as HTMLInputElement).value.trim();
+                  if (val) {
+                    setCadastralCodes(prev => Array.from(new Set([...prev, val])));
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }
+              }} />
+              <Button type="button" variant="outline" onClick={() => setCadastralCodes([])}>Clear</Button>
+            </div>
+            {cadastralCodes.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {cadastralCodes.map((c, i) => (
+                  <div key={i} className="px-2 py-1 rounded border text-xs flex items-center gap-2">
+                    <span>{c}</span>
+                    <button type="button" onClick={() => setCadastralCodes(prev => prev.filter((_, idx) => idx !== i))}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Loans and Comments */}
+          <LoansEditor loans={loans} onChange={setLoans} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Bank’s Comment on Farmer</Label>
+              <Textarea rows={4} value={formData.bank_comment || ''} onChange={(e) => updateFormData('bank_comment', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Other (Upload files or add a comment)</Label>
+              <Textarea rows={4} value={formData.other_comment || ''} onChange={(e) => updateFormData('other_comment', e.target.value)} />
+            </div>
+          </div>
+
+          <Separator className="my-6" />
+
           {/* File Upload Section */}
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-emerald-700 flex items-center gap-2">
@@ -933,13 +1059,13 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-gray-700">Irrigation System Diagram</Label>
-                <p className="text-xs text-gray-500">Upload images, PDF, KMZ, or KML files (max 10MB each)</p>
+                <p className="text-xs text-gray-500">Upload images, PDF, KMZ, or KML files (max 100MB each)</p>
               </div>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-emerald-400 transition-colors">
                 <input
                   type="file"
                   multiple
-                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.kml,.kmz"
+                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.kml,.kmz,.doc,.docx,.xls,.xlsx"
                   onChange={(e) => handleFileChange(e.target.files, 'irrigation')}
                   className="hidden"
                   id="irrigation-files"
@@ -993,13 +1119,13 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-gray-700">Current Analysis Documents</Label>
-                <p className="text-xs text-gray-500">Upload multiple documents and images for current analysis (max 10MB each)</p>
+                <p className="text-xs text-gray-500">Upload multiple documents and images (PDF, Word, Excel, Images) (max 100MB each)</p>
               </div>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
                 <input
                   type="file"
                   multiple
-                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
+                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx"
                   onChange={(e) => handleFileChange(e.target.files, 'analysis')}
                   className="hidden"
                   id="analysis-files"
@@ -1048,7 +1174,67 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 )}
               </div>
             </div>
+            {/* Other Files */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-gray-700">Other Files</Label>
+                <p className="text-xs text-gray-500">Upload any additional files (PDF, Word, Excel, Images) (max 100MB each)</p>
+              </div>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-gray-400 transition-colors">
+                <input
+                  type="file"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={(e) => handleFileChange(e.target.files, 'other')}
+                  className="hidden"
+                  id="other-files"
+                />
+                <div className="text-center">
+                  <FileText className="mx-auto h-8 w-8 text-gray-400 mb-3" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('other-files')?.click()}
+                    className="mb-2 hover:bg-gray-50 hover:border-gray-300"
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Select Other Files
+                  </Button>
+                  <p className="text-xs text-gray-500">or drag and drop files here</p>
+                </div>
+                {otherFiles.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Selected files:</p>
+                    {otherFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border">
+                        <div className="flex items-center gap-3">
+                          {file.type.startsWith('image/') ? 
+                            <Image className="h-5 w-5 text-gray-600" /> : 
+                            <FileText className="h-5 w-5 text-gray-600" />
+                          }
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">{file.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index, 'other')}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+          </>
+          )}
 
           <div className="flex gap-3 pt-6 border-t border-gray-200">
             <Button 
@@ -1063,7 +1249,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 </>
               ) : (
                 <>
-                  {farmer?.id ? 'Update Farmer' : 'Create Farmer'}
+                  {farmer?.id ? 'Update Farmer' : step === 'calculator' ? 'Next' : 'Register Farmer'}
                 </>
               )}
             </Button>
