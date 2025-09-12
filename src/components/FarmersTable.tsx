@@ -188,11 +188,11 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
           variant: "destructive",
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Unexpected error:', error);
       toast({
         title: "Error opening file",
-        description: error.message || "Could not generate file URL",
+        description: error instanceof Error ? error.message : "Could not generate file URL",
         variant: "destructive",
       });
     }
