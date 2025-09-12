@@ -267,55 +267,8 @@ export class TelAgriStack extends cdk.Stack {
       stringValue: this.getBackendEnvironmentTemplate(environment),
     });
 
-    // GitHub Actions IAM Role (if it doesn't exist)
-    try {
-      const githubActionsRole = new iam.Role(this, 'GithubActionsRole', {
-        roleName: 'GithubActionsRole',
-        assumedBy: new iam.WebIdentityPrincipal('arn:aws:iam::183784642322:oidc-provider/token.actions.githubusercontent.com', {
-          StringEquals: {
-            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          },
-          StringLike: {
-            'token.actions.githubusercontent.com:sub': 'repo:TelAgri/bank-dashboard:*',
-          },
-        }),
-        managedPolicies: [
-          iam.ManagedPolicy.fromAwsManagedPolicyName('AWSCloudFormationFullAccess'),
-          iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess'),
-          iam.ManagedPolicy.fromAwsManagedPolicyName('CloudFrontFullAccess'),
-        ],
-        inlinePolicies: {
-          ParameterStoreAccess: new iam.PolicyDocument({
-            statements: [
-              new iam.PolicyStatement({
-                effect: iam.Effect.ALLOW,
-                actions: [
-                  'ssm:GetParameter',
-                  'ssm:GetParameters',
-                  'ssm:GetParametersByPath',
-                  'ssm:PutParameter',
-                ],
-                resources: [
-                  `arn:aws:ssm:${this.region}:${this.account}:parameter/telagri/monitoring/*`,
-                ],
-              }),
-              new iam.PolicyStatement({
-                effect: iam.Effect.ALLOW,
-                actions: [
-                  'kms:Decrypt',
-                  'kms:DescribeKey',
-                  'kms:GenerateDataKey',
-                ],
-                resources: [parameterStoreKmsKey.keyArn],
-              }),
-            ],
-          }),
-        },
-      });
-    } catch (error) {
-      // Role might already exist, that's okay
-      console.log('GitHub Actions role might already exist, continuing...');
-    }
+    // Note: GitHub Actions IAM Role is managed manually via scripts/create-github-oidc-role.sh
+    // This avoids CDK conflicts when the role already exists from manual creation
 
     // CloudFormation Outputs
     new cdk.CfnOutput(this, 'DistributionDomainName', {
