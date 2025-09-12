@@ -66,6 +66,16 @@ interface Farmer {
   irrigation_sectors_count?: number;
   equipment_list?: string;
   created_at: string;
+  // new fields
+  service_cost_tariff?: string;
+  service_cost_total_eur?: number;
+  service_cost_breakdown?: Record<string, number>;
+  location_name?: string;
+  location_lat?: number;
+  location_lng?: number;
+  cadastral_codes?: string[];
+  bank_comment?: string;
+  other_comment?: string;
 }
 
 interface FarmerProfileModalProps {
@@ -88,6 +98,21 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
       
       if (error) throw error;
       return data as Farmer;
+    },
+    enabled: isOpen && !!farmerId,
+  });
+
+  // Fetch loans
+  const { data: loans = [] } = useQuery({
+    queryKey: ['farmer-loans', farmerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('farmer_loans')
+        .select('amount,currency,start_date,end_date,issuance_date')
+        .eq('farmer_id', farmerId)
+        .order('issuance_date', { ascending: false })
+      if (error) return []
+      return data as { amount: number; currency: string; start_date: string; end_date: string; issuance_date: string }[]
     },
     enabled: isOpen && !!farmerId,
   });
@@ -128,12 +153,12 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
         .createSignedUrl(document.file_path, 3600);
       
       if (data?.signedUrl) {
-        const link = document.createElement('a');
-        link.href = data.signedUrl;
-        link.download = document.file_name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const linkEl = window.document.createElement('a');
+        linkEl.href = data.signedUrl;
+        linkEl.download = document.file_name;
+        window.document.body.appendChild(linkEl);
+        linkEl.click();
+        window.document.body.removeChild(linkEl);
       }
     } catch (error) {
       toast({
@@ -192,8 +217,8 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 <div>
                   <label className="text-sm font-medium text-gray-600">Type</label>
                   <div className="mt-1">
-                    <Badge variant={farmer.type === 'person' ? 'default' : 'secondary'}>
-                      {farmer.type === 'person' ? 'Person' : 'Company'}
+                    <Badge variant={farmer.type === 'person' ? 'default' : 'secondary'} className="px-2 py-0.5">
+                      <span>{farmer.type === 'person' ? 'Person' : 'Company'}</span>
                     </Badge>
                   </div>
                 </div>
@@ -261,10 +286,20 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {farmer.farmer_location && (
+                {farmer.location_name && (
                   <div>
                     <label className="text-sm font-medium text-gray-600">Farm Location</label>
-                    <p className="mt-1 text-sm">{farmer.farmer_location}</p>
+                    <p className="mt-1 text-sm">{farmer.location_name} {farmer.location_lat && farmer.location_lng ? `(${farmer.location_lat.toFixed(5)}, ${farmer.location_lng.toFixed(5)})` : ''}</p>
+                  </div>
+                )}
+                {farmer.cadastral_codes && farmer.cadastral_codes.length > 0 && (
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-600">Cadastral Codes</label>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {farmer.cadastral_codes.map((c, i) => (
+                        <span key={i} className="px-2 py-1 rounded border text-xs">{c}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {farmer.area && (
@@ -323,6 +358,60 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 )}
               </CardContent>
             </Card>
+
+            {/* Service Cost */}
+            {(farmer.service_cost_total_eur || farmer.service_cost_tariff) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Service Cost
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {farmer.service_cost_tariff && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Tariff</label>
+                        <p className="mt-1 text-sm">{farmer.service_cost_tariff}</p>
+                      </div>
+                    )}
+                    {typeof farmer.service_cost_total_eur === 'number' && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Total (EUR)</label>
+                        <p className="mt-1 text-sm">€{(farmer.service_cost_total_eur || 0).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Bank & Other Comments */}
+            {(farmer.bank_comment || farmer.other_comment) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Comments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {farmer.bank_comment && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Bank’s Comment</label>
+                      <p className="mt-1 text-sm whitespace-pre-wrap">{farmer.bank_comment}</p>
+                    </div>
+                  )}
+                  {farmer.other_comment && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Other Comment</label>
+                      <p className="mt-1 text-sm whitespace-pre-wrap">{farmer.other_comment}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Reservoir Information */}
             {farmer.has_reservoir && (
@@ -387,8 +476,8 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                           <div>
                             <p className="font-medium text-sm">{document.file_name}</p>
                             <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <Badge variant="outline" className="text-xs">
-                                {document.document_type.replace('_', ' ')}
+                              <Badge variant="outline" className="text-xs px-2 py-0.5">
+                                <span>{document.document_type.replace('_', ' ')}</span>
                               </Badge>
                               <span>{formatFileSize(document.file_size_bytes)}</span>
                               <span>{new Date(document.created_at).toLocaleDateString()}</span>
@@ -421,6 +510,28 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 )}
               </CardContent>
             </Card>
+
+            {/* Loans */}
+            {loans.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Loans ({loans.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {loans.map((l, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 border rounded">
+                        <div className="text-sm">Amount: {l.amount.toLocaleString()} {l.currency}</div>
+                        <div className="text-xs text-gray-600">Start: {l.start_date} • End: {l.end_date} • Issued: {l.issuance_date}</div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Creation Date */}
             <div className="text-xs text-gray-500 text-center">

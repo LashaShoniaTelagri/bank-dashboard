@@ -31,7 +31,11 @@ export const useCrops = () => {
           throw new Error('API returned unsuccessful response');
         }
         
-        return result.data;
+        // Restrict to the 15 allowed items per spec
+        const allowed = new Set([
+          'Walnut','Hazelnut','Almond','Blueberry','Apple','Cherry','Pear','Peach','Nectarine','Plum','Grapes','Pomegranate','Apricot','Raspberry','Blackberry'
+        ]);
+        return result.data.filter(c => allowed.has(c.name));
       } catch (error) {
         console.error('Error fetching crops:', error);
         // Return empty array as fallback

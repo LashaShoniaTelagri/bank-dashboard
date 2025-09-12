@@ -171,6 +171,18 @@ export type Database = {
           variety_cultivation_area: number | null
           variety_cultivation_year: number | null
           water_source: string | null
+          // New fields
+          service_cost_tariff: string | null
+          service_cost_total_eur: number | null
+          service_cost_breakdown: Json | null
+          service_cost_selections: Json | null
+          location_name: string | null
+          location_lat: number | null
+          location_lng: number | null
+          cadastral_codes: string[] | null
+          bank_comment: string | null
+          other_comment: string | null
+          registration_date: string | null
         }
         Insert: {
           area?: number | null
@@ -199,6 +211,18 @@ export type Database = {
           variety_cultivation_area?: number | null
           variety_cultivation_year?: number | null
           water_source?: string | null
+          // New fields
+          service_cost_tariff?: string | null
+          service_cost_total_eur?: number | null
+          service_cost_breakdown?: Json | null
+          service_cost_selections?: Json | null
+          location_name?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          cadastral_codes?: string[] | null
+          bank_comment?: string | null
+          other_comment?: string | null
+          registration_date?: string | null
         }
         Update: {
           area?: number | null
@@ -227,10 +251,79 @@ export type Database = {
           variety_cultivation_area?: number | null
           variety_cultivation_year?: number | null
           water_source?: string | null
+          // New fields
+          service_cost_tariff?: string | null
+          service_cost_total_eur?: number | null
+          service_cost_breakdown?: Json | null
+          service_cost_selections?: Json | null
+          location_name?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          cadastral_codes?: string[] | null
+          bank_comment?: string | null
+          other_comment?: string | null
+          registration_date?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "farmers_bank_id_fkey"
+            columns: ["bank_id"]
+            isOneToOne: false
+            referencedRelation: "banks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      farmer_loans: {
+        Row: {
+          id: string
+          farmer_id: string
+          bank_id: string
+          amount: number
+          currency: string
+          start_date: string
+          end_date: string
+          issuance_date: string
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          farmer_id: string
+          bank_id?: string
+          amount: number
+          currency: 'GEL' | 'USD' | 'EUR'
+          start_date: string
+          end_date: string
+          issuance_date: string
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          farmer_id?: string
+          bank_id?: string
+          amount?: number
+          currency?: 'GEL' | 'USD' | 'EUR'
+          start_date?: string
+          end_date?: string
+          issuance_date?: string
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "farmer_loans_farmer_id_fkey"
+            columns: ["farmer_id"]
+            isOneToOne: false
+            referencedRelation: "farmers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "farmer_loans_bank_id_fkey"
             columns: ["bank_id"]
             isOneToOne: false
             referencedRelation: "banks"
