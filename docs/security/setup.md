@@ -79,7 +79,7 @@ VITE_APP_GOOGLE_MAPS_API_KEY=AIzaSy...  # Domain-restricted
 
 ### **Backend Variables (Sensitive - Server-side only)**
 ```bash
-SENDGRID_API_KEY=SG.XFNPPbMSR...  # 🚨 SENSITIVE
+SENDGRID_API_KEY=SG.your-api-key...  # 🚨 SENSITIVE
 SUPABASE_DB_PASSWORD=CbiYoXSJ...  # 🚨 SENSITIVE
 JWT_SECRET=your-jwt-secret        # 🚨 SENSITIVE
 ```
