@@ -350,17 +350,17 @@ jobs:
             --query 'Stacks[0].Outputs' \
             --output table || true
 
+      - name: 🔧 Setup Supabase CLI for Edge Functions
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
       - name: 🔧 Deploy Edge Functions
         env:
           ENVIRONMENT: ${{ needs.environment.outputs.env }}
           AWS_REGION: ${{ needs.environment.outputs.region }}
         run: |
           echo "🔧 Deploying Supabase Edge Functions..."
-          
-          # Install Supabase CLI
-          echo "📦 Installing Supabase CLI..."
-          curl -sSfL https://supabase.com/install.sh | sh
-          export PATH=$PATH:/home/runner/.local/bin
           
           # Fetch backend environment from Parameter Store
           echo "🔧 Fetching backend environment configuration..."
