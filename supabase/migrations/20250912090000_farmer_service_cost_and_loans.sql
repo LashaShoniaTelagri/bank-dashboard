@@ -16,7 +16,7 @@ ALTER TABLE public.farmers
   ADD COLUMN IF NOT EXISTS registration_date timestamptz DEFAULT now();
 
 -- Ensure farmer type defaults to company and normalize existing
-ALTER TYPE public.farmer_type RENAME VALUE 'person' TO 'person'; -- no-op if value exists
+-- Note: farmer_type enum should already have 'person' and 'company' values
 ALTER TABLE public.farmers ALTER COLUMN type SET DEFAULT 'company';
 UPDATE public.farmers SET type = 'company' WHERE type IS DISTINCT FROM 'company';
 
@@ -92,15 +92,23 @@ FOR EACH ROW EXECUTE FUNCTION public.enforce_max_loans_per_farmer();
 -- Enable RLS
 ALTER TABLE public.farmer_loans ENABLE ROW LEVEL SECURITY;
 
--- RLS policies for farmer_loans
--- READ
-CREATE POLICY IF NOT EXISTS "farmer_loans.read.admin"
+-- RLS policies for farmer_loans (drop existing policies first to avoid conflicts)
+DROP POLICY IF EXISTS "farmer_loans.read.admin" ON public.farmer_loans;
+DROP POLICY IF EXISTS "farmer_loans.read.bank_viewer" ON public.farmer_loans;
+DROP POLICY IF EXISTS "farmer_loans.insert.admin" ON public.farmer_loans;
+DROP POLICY IF EXISTS "farmer_loans.insert.bank_viewer" ON public.farmer_loans;
+DROP POLICY IF EXISTS "farmer_loans.update.admin" ON public.farmer_loans;
+DROP POLICY IF EXISTS "farmer_loans.update.bank_viewer" ON public.farmer_loans;
+DROP POLICY IF EXISTS "farmer_loans.delete.admin" ON public.farmer_loans;
+
+-- READ policies
+CREATE POLICY "farmer_loans.read.admin"
 ON public.farmer_loans FOR SELECT TO authenticated
 USING (
   EXISTS(SELECT 1 FROM public.profiles p WHERE p.user_id = auth.uid() AND p.role = 'admin')
 );
 
-CREATE POLICY IF NOT EXISTS "farmer_loans.read.bank_viewer"
+CREATE POLICY "farmer_loans.read.bank_viewer"
 ON public.farmer_loans FOR SELECT TO authenticated
 USING (
   EXISTS(
@@ -109,14 +117,14 @@ USING (
   )
 );
 
--- INSERT
-CREATE POLICY IF NOT EXISTS "farmer_loans.insert.admin"
+-- INSERT policies
+CREATE POLICY "farmer_loans.insert.admin"
 ON public.farmer_loans FOR INSERT TO authenticated
 WITH CHECK (
   EXISTS(SELECT 1 FROM public.profiles p WHERE p.user_id = auth.uid() AND p.role = 'admin')
 );
 
-CREATE POLICY IF NOT EXISTS "farmer_loans.insert.bank_viewer"
+CREATE POLICY "farmer_loans.insert.bank_viewer"
 ON public.farmer_loans FOR INSERT TO authenticated
 WITH CHECK (
   EXISTS(
@@ -125,8 +133,8 @@ WITH CHECK (
   )
 );
 
--- UPDATE
-CREATE POLICY IF NOT EXISTS "farmer_loans.update.admin"
+-- UPDATE policies
+CREATE POLICY "farmer_loans.update.admin"
 ON public.farmer_loans FOR UPDATE TO authenticated
 USING (
   EXISTS(SELECT 1 FROM public.profiles p WHERE p.user_id = auth.uid() AND p.role = 'admin')
@@ -135,7 +143,7 @@ WITH CHECK (
   EXISTS(SELECT 1 FROM public.profiles p WHERE p.user_id = auth.uid() AND p.role = 'admin')
 );
 
-CREATE POLICY IF NOT EXISTS "farmer_loans.update.bank_viewer"
+CREATE POLICY "farmer_loans.update.bank_viewer"
 ON public.farmer_loans FOR UPDATE TO authenticated
 USING (
   EXISTS(
@@ -150,8 +158,8 @@ WITH CHECK (
   )
 );
 
--- DELETE (admin only)
-CREATE POLICY IF NOT EXISTS "farmer_loans.delete.admin"
+-- DELETE policy (admin only)
+CREATE POLICY "farmer_loans.delete.admin"
 ON public.farmer_loans FOR DELETE TO authenticated
 USING (
   EXISTS(SELECT 1 FROM public.profiles p WHERE p.user_id = auth.uid() AND p.role = 'admin')
