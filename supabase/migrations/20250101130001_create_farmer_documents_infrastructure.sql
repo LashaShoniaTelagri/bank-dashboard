@@ -2,7 +2,7 @@
 -- This adds the missing table, storage bucket, and policies for farmer document uploads
 
 -- Create farmer_documents table
-CREATE TABLE public.farmer_documents (
+CREATE TABLE IF NOT EXISTS public.farmer_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id uuid NOT NULL REFERENCES public.farmers(id) ON DELETE CASCADE,
   bank_id uuid NOT NULL REFERENCES public.banks(id) ON DELETE CASCADE,
@@ -16,15 +16,16 @@ CREATE TABLE public.farmer_documents (
 );
 
 -- Create indexes for performance
-CREATE INDEX farmer_documents_farmer_idx ON public.farmer_documents(farmer_id);
-CREATE INDEX farmer_documents_bank_idx ON public.farmer_documents(bank_id);
-CREATE INDEX farmer_documents_type_idx ON public.farmer_documents(document_type);
+CREATE INDEX IF NOT EXISTS farmer_documents_farmer_idx ON public.farmer_documents(farmer_id);
+CREATE INDEX IF NOT EXISTS farmer_documents_bank_idx ON public.farmer_documents(bank_id);
+CREATE INDEX IF NOT EXISTS farmer_documents_type_idx ON public.farmer_documents(document_type);
 
 -- Enable RLS
 ALTER TABLE public.farmer_documents ENABLE ROW LEVEL SECURITY;
 
 -- RLS POLICIES for farmer_documents table
 -- READ: Admin can read all, bank_viewer can read their bank's documents
+DROP POLICY IF EXISTS "farmer_documents.read.admin" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.read.admin"
 ON public.farmer_documents FOR SELECT
 TO authenticated
@@ -35,6 +36,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "farmer_documents.read.bank_viewer" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.read.bank_viewer"
 ON public.farmer_documents FOR SELECT
 TO authenticated
@@ -48,6 +50,7 @@ USING (
 );
 
 -- INSERT: Admin can insert any document, bank_viewer can insert for their bank
+DROP POLICY IF EXISTS "farmer_documents.insert.admin" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.insert.admin"
 ON public.farmer_documents FOR INSERT
 TO authenticated
@@ -58,6 +61,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "farmer_documents.insert.bank_viewer" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.insert.bank_viewer"
 ON public.farmer_documents FOR INSERT
 TO authenticated
@@ -71,6 +75,7 @@ WITH CHECK (
 );
 
 -- UPDATE: Admin can update any document, bank_viewer can update their bank's documents
+DROP POLICY IF EXISTS "farmer_documents.update.admin" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.update.admin"
 ON public.farmer_documents FOR UPDATE
 TO authenticated
@@ -87,6 +92,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "farmer_documents.update.bank_viewer" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.update.bank_viewer"
 ON public.farmer_documents FOR UPDATE
 TO authenticated
@@ -108,6 +114,7 @@ WITH CHECK (
 );
 
 -- DELETE: Only admin can delete documents
+DROP POLICY IF EXISTS "farmer_documents.delete.admin" ON public.farmer_documents;
 CREATE POLICY "farmer_documents.delete.admin"
 ON public.farmer_documents FOR DELETE
 TO authenticated
@@ -119,10 +126,12 @@ USING (
 );
 
 -- Create farmer-documents storage bucket
-INSERT INTO storage.buckets (id, name, public) VALUES ('farmer-documents', 'farmer-documents', false);
+INSERT INTO storage.buckets (id, name, public) VALUES ('farmer-documents', 'farmer-documents', false)
+ON CONFLICT (id) DO NOTHING;
 
 -- STORAGE POLICIES for farmer-documents bucket
 -- READ: Admin can read all, bank_viewer can read their bank's files
+DROP POLICY IF EXISTS "storage.farmer_documents.read.admin" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.read.admin"
 ON storage.objects FOR SELECT
 TO authenticated
@@ -134,6 +143,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "storage.farmer_documents.read.bank_viewer" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.read.bank_viewer"
 ON storage.objects FOR SELECT
 TO authenticated
@@ -154,6 +164,7 @@ USING (
 );
 
 -- WRITE: Admin can write anywhere, bank_viewer can write to their bank's farmer folders
+DROP POLICY IF EXISTS "storage.farmer_documents.write.admin" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.write.admin"
 ON storage.objects FOR INSERT
 TO authenticated
@@ -165,6 +176,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "storage.farmer_documents.write.bank_viewer" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.write.bank_viewer"
 ON storage.objects FOR INSERT
 TO authenticated
@@ -185,6 +197,7 @@ WITH CHECK (
 );
 
 -- UPDATE/DELETE: Admin can update/delete, bank_viewer can update/delete their bank's files
+DROP POLICY IF EXISTS "storage.farmer_documents.update.admin" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.update.admin"
 ON storage.objects FOR UPDATE
 TO authenticated
@@ -203,6 +216,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "storage.farmer_documents.update.bank_viewer" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.update.bank_viewer"
 ON storage.objects FOR UPDATE
 TO authenticated
@@ -235,6 +249,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "storage.farmer_documents.delete.admin" ON storage.objects;
 CREATE POLICY "storage.farmer_documents.delete.admin"
 ON storage.objects FOR DELETE
 TO authenticated
@@ -255,6 +270,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trg_set_farmer_document_created_by ON public.farmer_documents;
 CREATE TRIGGER trg_set_farmer_document_created_by
 BEFORE INSERT ON public.farmer_documents
 FOR EACH ROW EXECUTE FUNCTION public.set_farmer_document_created_by();

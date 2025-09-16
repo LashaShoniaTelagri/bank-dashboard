@@ -3,18 +3,18 @@ name: 🌾 Deploy TelAgri Bank Dashboard
 # This workflow:
 # - On PULL REQUEST: Only runs build, lint, test, and security scan (no deployment)
 # - On PUSH (merge): Runs full pipeline including deployment to AWS  
-# - On MANUAL: Allows manual deployment to any environment
+# - On MANUAL: Allows manual deployment to any environment (dev, staging, prod)
 
 on:
   push:
     branches:
       - main
-      - develop 
+      - dev
       - staging
   pull_request:
     branches:
       - main
-      - develop
+      - dev
       - staging
   workflow_dispatch:
     inputs:
@@ -29,7 +29,7 @@ on:
           - prod
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -37,6 +37,10 @@ jobs:
   build:
     name: 🏗️ Build PWA
     runs-on: ubuntu-latest
+    needs: [environment]
+    permissions:
+      id-token: write
+      contents: read
     
     steps:
       - name: 📥 Checkout repository
@@ -48,14 +52,57 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GithubActionsRole
+          role-session-name: telagri-build-session
+          aws-region: ${{ needs.environment.outputs.region }}
+
       - name: 📥 Install dependencies
         run: npm ci
 
       - name: 🔍 Lint code
         run: npm run lint
 
+      - name: 🔧 Fetch Environment Configuration from AWS
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
+        run: |
+          echo "🔧 Fetching environment configuration from AWS Parameter Store"
+          echo "Environment: $ENVIRONMENT"
+          echo "Region: $AWS_REGION"
+          echo "Parameter Path: /telagri/monitoring/$ENVIRONMENT/frontend/env"
+          
+          # Make the script executable
+          chmod +x scripts/fetch-env-from-aws.sh
+          
+          # Fetch frontend environment configuration from AWS Parameter Store
+          ./scripts/fetch-env-from-aws.sh "$ENVIRONMENT" "$AWS_REGION"
+          
+          # Validate that .env file was created and contains VITE_ variables
+          if [ ! -f ".env" ]; then
+            echo "❌ .env file was not created"
+            exit 1
+          fi
+          
+          # Check if .env contains frontend variables
+          VITE_COUNT=$(grep -c '^VITE_' .env || echo "0")
+          if [ "$VITE_COUNT" -eq 0 ]; then
+            echo "⚠️ Warning: No VITE_ variables found in .env file"
+            echo "📋 .env file contents:"
+            cat .env
+          else
+            echo "✅ Found $VITE_COUNT frontend variables in .env file"
+          fi
+
       - name: 🏗️ Build PWA
-        run: npm run build
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+        run: |
+          echo "🏗️ Building PWA for environment: $ENVIRONMENT"
+          npm run build
 
       - name: 📊 Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -71,6 +118,7 @@ jobs:
     outputs:
       env: ${{ steps.env.outputs.env }}
       domain: ${{ steps.env.outputs.domain }}
+      region: ${{ steps.env.outputs.region }}
     
     steps:
       - name: 🎯 Set environment
@@ -82,6 +130,8 @@ jobs:
             ENV="prod"
           elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
             ENV="staging"
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            ENV="dev"
           else
             ENV="dev"
           fi
@@ -93,15 +143,19 @@ jobs:
               echo "domain=dashboard.telagri.com" >> $GITHUB_OUTPUT
               ;;
             staging)
-              echo "domain=bank-staging.telagri.com" >> $GITHUB_OUTPUT
+              echo "domain=dashboard-stg.telagri.com" >> $GITHUB_OUTPUT
               ;;
             dev)
-              echo "domain=bank-dev.telagri.com" >> $GITHUB_OUTPUT
+              echo "domain=dashboard-dev.telagri.com" >> $GITHUB_OUTPUT
               ;;
           esac
           
+          # Set AWS region (us-east-1 for all environments)
+          echo "region=us-east-1" >> $GITHUB_OUTPUT
+          
           echo "🎯 Deploying to: ${ENV}"
           echo "🌐 Domain: $(cat $GITHUB_OUTPUT | grep domain | cut -d= -f2)"
+          echo "🌍 Region: us-east-1"
 
   # Run database migrations
   migrate:
@@ -130,93 +184,68 @@ jobs:
         with:
           version: latest
 
-      - name: 🗄️ Run database migrations (Direct URL method)
+      - name: 🗄️ Run database migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          echo "🗄️ Running database migrations using direct URL method..."
-          echo "Project ID: $SUPABASE_PROJECT_ID"
+          echo "🗄️ Running database migrations using Supabase CLI..."
+          
+          # Export environment variables for Supabase CLI
+          export SUPABASE_ACCESS_TOKEN
+          export SUPABASE_DB_PASSWORD  
+          export SUPABASE_PROJECT_ID
+          
+          echo "Project ID: ${SUPABASE_PROJECT_ID:0:3}***"
           echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
           echo "DB Password: ${SUPABASE_DB_PASSWORD:+Set}${SUPABASE_DB_PASSWORD:-Not Set}"
           
-          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "❌ SUPABASE_DB_PASSWORD is not set!"
-            echo "Please add SUPABASE_DB_PASSWORD to GitHub repository secrets"
+          # Pre-validation: Check credentials
+          echo "🔍 Pre-validation checks..."
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "❌ Missing required environment variables"
             exit 1
           fi
           
-          # Construct database URL
-          DB_URL="postgresql://postgres.$(echo $SUPABASE_PROJECT_ID):${SUPABASE_DB_PASSWORD}@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
-          echo "🔗 Using direct database URL connection..."
+          echo "✅ All required environment variables are set"
           
-          # Run migrations using direct URL with retry logic
-          echo "📋 Checking current migration status..."
+          # Link project
+          echo "🔗 Linking to Supabase project..."
+          if supabase link --project-ref "$SUPABASE_PROJECT_ID"; then
+            echo "✅ Project linked successfully"
+          else
+            echo "❌ Failed to link project"
+            exit 1
+          fi
           
-          # Retry function for database operations
-          retry_command() {
-            local cmd="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: $cmd"
-              
-              # Capture both stdout and stderr
-              local output
-              if output=$(eval "$cmd" 2>&1); then
-                echo "✅ Command succeeded on attempt $attempt"
-                echo "$output"
-                return 0
-              else
-                echo "❌ Command failed on attempt $attempt"
-                echo "$output"
-                
-                # Check for specific "up to date" messages
-                if echo "$output" | grep -q "Remote database is up to date"; then
-                  echo "✅ Database is already up to date - treating as success"
-                  return 0
-                fi
-                
-                # Check for prepared statement errors that might indicate up-to-date database
-                if echo "$output" | grep -q "prepared statement.*already exists"; then
-                  echo "⚠️ Prepared statement conflict detected"
-                  # For db push commands, this typically means database is already up to date
-                  if echo "$cmd" | grep -q "db push"; then
-                    echo "✅ Database is already up to date - treating prepared statement conflict as success"
-                    return 0
-                  # For migration list commands, also treat as success since connection is working
-                  elif echo "$cmd" | grep -q "migration list"; then
-                    echo "✅ Migration list connection works despite prepared statement conflict - treating as success"
-                    return 0
-                  else
-                    echo "⚠️ Prepared statement conflict in other command - continuing retry..."
-                  fi
-                fi
-                
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "🚨 All attempts failed"
-                  return 1
-                fi
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-                attempt=$((attempt + 1))
-              fi
-            done
-          }
+          # Pre-migration check
+          echo "📋 Pre-migration validation..."
+          supabase migration list --linked || echo "⚠️ Could not retrieve migration list"
           
-          # Check migration status with retry
-          # Check migration status with retry
-          retry_command "supabase migration list --db-url '$DB_URL'"
+          # Apply migrations
+          echo "🚀 Applying database migrations..."
+          if supabase db push --linked; then
+            echo "✅ Migrations applied successfully"
+          else
+            echo "❌ Migration failed"
+            echo "🔍 Post-failure diagnostics..."
+            supabase migration list || echo "Could not retrieve migration status"
+            supabase db diff || echo "Could not retrieve database diff"
+            exit 1
+          fi
           
-          echo "🚀 Applying new migrations..."
-          retry_command "supabase db push --db-url '$DB_URL'"
+          # Post-migration validation
+          echo "📊 Post-migration validation..."
+          supabase migration list --linked
           
-          echo "✅ Migrations completed successfully!"
+          if supabase db diff --linked; then
+            echo "⚠️ Schema differences detected after migration"
+          else
+            echo "✅ No schema differences - migrations fully applied"
+          fi
           
-          echo "📊 Final migration status:"
-          retry_command "supabase migration list --db-url '$DB_URL'"
+          echo "✅ Migration process completed successfully"
 
   # Deploy infrastructure with CDK
   deploy:
@@ -226,6 +255,9 @@ jobs:
     environment: ${{ needs.environment.outputs.env }}
     # Only deploy on push events (when PRs are merged), not on pull_request events
     if: github.event_name != 'pull_request'
+    permissions:
+      id-token: write
+      contents: read
     
     steps:
       - name: 📥 Checkout repository
@@ -251,12 +283,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: ⚙️ Configure AWS credentials (Access Keys)
+      - name: ⚙️ Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GithubActionsRole
+          role-session-name: telagri-deploy-session
+          aws-region: ${{ needs.environment.outputs.region }}
 
       - name: 📦 Install CDK dependencies
         working-directory: cdk
@@ -273,9 +305,27 @@ jobs:
           DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
         run: |
           echo "🔍 Showing infrastructure changes..."
+          # Ensure bootstrap before diff to avoid warnings
+          npx cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION --force > /dev/null 2>&1 || true
           npm run diff || true
+
+      - name: 🔧 Ensure CDK Bootstrap
+        working-directory: cdk
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
+          CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
+        run: |
+          echo "🔧 Ensuring CDK bootstrap is up to date..."
+          # Update CDK bootstrap to latest version to fix role assumption warnings
+          echo "📦 Updating CDK bootstrap for account $AWS_ACCOUNT_ID in region $AWS_REGION..."
+          npx cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION --force
+          echo "✅ CDK bootstrap updated successfully"
 
       - name: 🚀 Deploy CDK Stack
         working-directory: cdk
@@ -284,6 +334,7 @@ jobs:
           DOMAIN_NAME: ${{ needs.environment.outputs.domain }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
         run: |
           echo "🚀 Deploying TelAgri Bank Dashboard to ${{ needs.environment.outputs.env }}..."
           npm run deploy
@@ -299,12 +350,108 @@ jobs:
             --query 'Stacks[0].Outputs' \
             --output table || true
 
+      - name: 🔧 Setup Supabase CLI for Edge Functions
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: 🔧 Deploy Edge Functions
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          AWS_REGION: ${{ needs.environment.outputs.region }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "🔧 Deploying Supabase Edge Functions..."
+          
+          # Export Supabase access token for CLI authentication
+          export SUPABASE_ACCESS_TOKEN
+          echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
+          
+          # Validate access token
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "❌ SUPABASE_ACCESS_TOKEN is not set"
+            exit 1
+          fi
+          
+          # Fetch backend environment from Parameter Store
+          echo "🔧 Fetching backend environment configuration..."
+          aws ssm get-parameter \
+            --name "/telagri/monitoring/${ENVIRONMENT}/backend/env" \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text > env.backend.temp
+          
+          # Source environment variables
+          set -a
+          source env.backend.temp
+          set +a
+          
+          # Link to Supabase project
+          echo "🔗 Linking to Supabase project: ${SUPABASE_PROJECT_ID}"
+          supabase link --project-ref ${SUPABASE_PROJECT_ID} --password ${SUPABASE_DB_PASSWORD}
+          
+          # Deploy all Edge Functions dynamically
+          echo "🚀 Deploying Edge Functions..."
+          
+          # Find all Edge Functions in the supabase/functions directory
+          if [ -d "supabase/functions" ]; then
+            for function_dir in supabase/functions/*/; do
+              if [ -d "$function_dir" ]; then
+                function_name=$(basename "$function_dir")
+                echo "📦 Deploying function: $function_name"
+                
+                if supabase functions deploy "$function_name" --no-verify-jwt; then
+                  echo "✅ Successfully deployed: $function_name"
+                else
+                  echo "❌ Failed to deploy: $function_name"
+                  exit 1
+                fi
+              fi
+            done
+          else
+            echo "⚠️ No supabase/functions directory found"
+          fi
+          
+          # Set Edge Function secrets dynamically
+          echo "🔐 Setting Edge Function secrets..."
+          
+          # Define required secrets for Edge Functions
+          declare -A secrets=(
+            ["PROJECT_URL"]="${PROJECT_URL}"
+            ["SERVICE_ROLE_KEY"]="${SERVICE_ROLE_KEY}"
+            ["SENDGRID_API_KEY"]="${SENDGRID_API_KEY}"
+            ["SENDGRID_FROM_EMAIL"]="${SENDGRID_FROM_EMAIL}"
+          )
+          
+          # Set each secret with error handling
+          for secret_name in "${!secrets[@]}"; do
+            secret_value="${secrets[$secret_name]}"
+            
+            if [ -n "$secret_value" ] && [ "$secret_value" != "REPLACE_WITH_"* ]; then
+              echo "🔑 Setting secret: $secret_name"
+              if supabase secrets set "$secret_name=$secret_value"; then
+                echo "✅ Successfully set secret: $secret_name"
+              else
+                echo "❌ Failed to set secret: $secret_name"
+                exit 1
+              fi
+            else
+              echo "⚠️ Skipping secret $secret_name (not configured or placeholder value)"
+            fi
+          done
+          
+          # Cleanup
+          rm -f env.backend.temp
+          
+          echo "✅ Edge Functions deployed successfully!"
+
       - name: ✅ Deployment Success
         run: |
           echo "🎉 TelAgri Bank Dashboard successfully deployed!"
           echo "🌐 URL: https://${{ needs.environment.outputs.domain }}"
           echo "🔧 Environment: ${{ needs.environment.outputs.env }}"
           echo "📊 Build: ${{ github.sha }}"
+          echo "⚡ Edge Functions: Deployed"
 
   # Security scan (runs on all events)
   security-scan:

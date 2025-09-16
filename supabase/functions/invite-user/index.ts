@@ -162,8 +162,8 @@ serve(async (req) => {
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('PROJECT_URL') ?? '',
+      Deno.env.get('SERVICE_ROLE_KEY') ?? '',
     )
 
     const { email, role, bankId, inviterEmail } = await req.json()
@@ -317,8 +317,8 @@ serve(async (req) => {
 
     // Generate a proper recovery link with auth tokens
     console.log('🔗 Attempting to generate recovery link for:', email);
-    console.log('  - SUPABASE_URL:', Deno.env.get('SUPABASE_URL') ? 'Set' : 'Missing');
-    console.log('  - SERVICE_ROLE_KEY:', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'Set' : 'Missing');
+    console.log('  - PROJECT_URL:', Deno.env.get('PROJECT_URL') ? 'Set' : 'Missing');
+    console.log('  - SERVICE_ROLE_KEY:', Deno.env.get('SERVICE_ROLE_KEY') ? 'Set' : 'Missing');
     console.log('  - Redirect URL:', `${baseUrl}/auth?type=recovery`);
 
     const { data: resetData, error: resetError } = await supabaseClient.auth.admin.generateLink({

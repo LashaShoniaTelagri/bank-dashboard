@@ -8,6 +8,8 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as kms from 'aws-cdk-lib/aws-kms';
 import { Construct } from 'constructs';
 
 export interface TelAgriStackProps extends cdk.StackProps {
@@ -39,21 +41,11 @@ export class TelAgriStack extends cdk.Stack {
       enforceSSL: true,
     });
 
-
-
     // WAF Web ACL for Security
     const webAcl = new wafv2.CfnWebACL(this, 'TelAgriWebACL', {
       scope: 'CLOUDFRONT',
       defaultAction: { allow: {} },
-      description: `TelAgri Bank Dashboard WAF - ${environment}`,
-      name: `TelAgri-Bank-Dashboard-WAF-${environment}`,
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: `TelAgri-WAF-${environment}`,
-      },
       rules: [
-        // Rate limiting rule
         {
           name: 'RateLimitRule',
           priority: 1,
@@ -70,9 +62,8 @@ export class TelAgriStack extends cdk.Stack {
             metricName: 'RateLimitRule',
           },
         },
-        // AWS Managed Rules - Core Rule Set
         {
-          name: 'AWSManagedRulesCoreRuleSet',
+          name: 'AWSManagedRulesCommonRuleSet',
           priority: 2,
           overrideAction: { none: {} },
           statement: {
@@ -87,7 +78,6 @@ export class TelAgriStack extends cdk.Stack {
             metricName: 'CommonRuleSetMetric',
           },
         },
-        // AWS Managed Rules - Known Bad Inputs
         {
           name: 'AWSManagedRulesKnownBadInputsRuleSet',
           priority: 3,
@@ -105,94 +95,74 @@ export class TelAgriStack extends cdk.Stack {
           },
         },
       ],
+      visibilityConfig: {
+        sampledRequestsEnabled: true,
+        cloudWatchMetricsEnabled: true,
+        metricName: 'TelAgriWebACL',
+      },
     });
 
-    // Import existing certificate
-    const certificate = acm.Certificate.fromCertificateArn(
-      this,
-      'TelAgriCertificate',
-      certificateArn
-    );
-
-    // Response Headers Policy for Security
-    const responseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeadersPolicy', {
-      responseHeadersPolicyName: `TelAgri-Security-Headers-${environment}`,
+    // Custom Response Headers Policy with unique naming
+    const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp for uniqueness
+    const responseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'TelAgriResponseHeadersPolicy', {
+      responseHeadersPolicyName: `TelAgri-Monitoring-Headers-${environment}-${timestamp}`,
       securityHeadersBehavior: {
-        contentSecurityPolicy: {
-          contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co https://*.telagri.com; style-src 'self' 'unsafe-inline' https://*.telagri.com; img-src 'self' data: https: https://*.telagri.com; font-src 'self' data: https://*.telagri.com; connect-src 'self' *.supabase.co wss://*.supabase.co https://*.telagri.com; worker-src 'self' blob:; manifest-src 'self';",
-          override: true,
-        },
         contentTypeOptions: { override: true },
-        frameOptions: { frameOption: cloudfront.HeadersFrameOption.SAMEORIGIN, override: true },
+        frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
         referrerPolicy: { referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
-        strictTransportSecurity: {
-          accessControlMaxAge: cdk.Duration.seconds(31536000),
-          includeSubdomains: true,
-          preload: true,
-          override: true,
+        strictTransportSecurity: { accessControlMaxAge: cdk.Duration.seconds(31536000), includeSubdomains: true, override: true },
+        contentSecurityPolicy: { 
+          contentSecurityPolicy: [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com",
+            "img-src 'self' data: https: blob:",
+            "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co",
+            "frame-src 'none'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'"
+          ].join('; '),
+          override: true 
         },
       },
       customHeadersBehavior: {
         customHeaders: [
           {
             header: 'X-Robots-Tag',
-            value: 'noindex, nofollow, noarchive, nosnippet, noimageindex',
+            value: environment === 'prod' ? 'index, follow' : 'noindex, nofollow',
             override: true,
           },
           {
-            header: 'Permissions-Policy',
-            value: 'geolocation=(), microphone=(), camera=(), payment=(), usb=()',
-            override: true,
+            header: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+            override: false,
           },
         ],
       },
     });
 
-    // Cache Policy for PWA
-    const cachePolicy = new cloudfront.CachePolicy(this, 'PWACachePolicy', {
-      cachePolicyName: `TelAgri-PWA-Cache-${environment}`,
-      defaultTtl: cdk.Duration.days(1),
-      maxTtl: cdk.Duration.days(365),
-      minTtl: cdk.Duration.seconds(0),
-      headerBehavior: cloudfront.CacheHeaderBehavior.allowList('Authorization', 'CloudFront-Viewer-Country'),
-      queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
-      cookieBehavior: cloudfront.CacheCookieBehavior.none(),
-    });
-
-    // Origin Request Policy
-    const originRequestPolicy = new cloudfront.OriginRequestPolicy(this, 'PWAOriginRequestPolicy', {
-      originRequestPolicyName: `TelAgri-PWA-Origin-${environment}`,
-      headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList(
-        'CloudFront-Viewer-Country',
-        'CloudFront-Is-Mobile-Viewer',
-        'CloudFront-Is-Tablet-Viewer'
-      ),
-      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.none(),
-      cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
-    });
-
     // CloudFront Distribution
     this.distribution = new cloudfront.Distribution(this, 'TelAgriDistribution', {
-      domainNames: [domainName],
-      certificate: certificate,
-      defaultRootObject: 'index.html',
-      webAclId: webAcl.attrArn,
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-      enabled: true,
-      httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
-      minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       defaultBehavior: {
         origin: new origins.S3Origin(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
-        cachePolicy: cachePolicy,
-        originRequestPolicy: originRequestPolicy,
+        cachePolicy: new cloudfront.CachePolicy(this, 'TelAgriCachePolicy', {
+          defaultTtl: cdk.Duration.days(1),
+          maxTtl: cdk.Duration.days(365),
+          minTtl: cdk.Duration.seconds(0),
+          cachePolicyName: `TelAgri-Monitoring-Cache-${environment}-${timestamp}`,
+        }),
         responseHeadersPolicy: responseHeadersPolicy,
         compress: true,
       },
+      domainNames: [domainName],
+      certificate: acm.Certificate.fromCertificateArn(this, 'TelAgriCertificate', certificateArn),
+      webAclId: webAcl.attrArn,
+      defaultRootObject: 'index.html',
       additionalBehaviors: {
-        // Service Worker - always fresh
+        // Service Worker - no cache
         '/sw.js': {
           origin: new origins.S3Origin(this.bucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -206,6 +176,7 @@ export class TelAgriStack extends cdk.Stack {
           cachePolicy: new cloudfront.CachePolicy(this, 'ManifestCachePolicy', {
             defaultTtl: cdk.Duration.hours(1),
             maxTtl: cdk.Duration.days(1),
+            cachePolicyName: `TelAgri-Monitoring-Manifest-${environment}-${timestamp}`,
           }),
           responseHeadersPolicy: responseHeadersPolicy,
         },
@@ -231,40 +202,13 @@ export class TelAgriStack extends cdk.Stack {
           ttl: cdk.Duration.minutes(5),
         },
       ],
-      comment: `TelAgri Bank Dashboard - ${environment}`,
+      comment: `TelAgri Monitoring - ${environment}`,
     });
 
     // Grant CloudFront access to S3 bucket
     this.bucket.grantRead(new iam.ServicePrincipal('cloudfront.amazonaws.com'));
 
-    // Route53 configuration commented out for testing
-    // Will be added back when real DNS values are configured
-    
-    /*
-    // Cross-Account Role for Route 53 DNS Management
-    const crossAccountRole = iam.Role.fromRoleArn(
-      this,
-      'CrossAccountRoute53Role',
-      crossAccountRoleArn
-    );
-
-    // Import hosted zone from root account
-    const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'TelAgriHostedZone', {
-      hostedZoneId: hostedZoneId,
-      zoneName: domainName.split('.').slice(-2).join('.'), // Extract root domain
-    });
-
-    // Route 53 A Record pointing to CloudFront
-    new route53.ARecord(this, 'TelAgriAliasRecord', {
-      zone: hostedZone,
-      recordName: domainName.split('.')[0], // subdomain only
-      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution)),
-      ttl: cdk.Duration.minutes(5),
-      comment: `TelAgri Bank Dashboard ${environment} - Managed by CDK`,
-    });
-    */
-
-    // S3 Deployment
+    // S3 Bucket Deployment
     new s3deploy.BucketDeployment(this, 'TelAgriDeployment', {
       sources: [s3deploy.Source.asset('../dist')],
       destinationBucket: this.bucket,
@@ -274,48 +218,166 @@ export class TelAgriStack extends cdk.Stack {
       retainOnDelete: environment === 'prod',
     });
 
-    // Outputs
-    new cdk.CfnOutput(this, 'BucketName', {
-      value: this.bucket.bucketName,
-      description: 'S3 Bucket Name',
-      exportName: `TelAgri-${environment}-BucketName`,
+    // KMS Key for Parameter Store encryption
+    const parameterStoreKmsKey = new kms.Key(this, 'ParameterStoreKMSKey', {
+      description: `TelAgri Monitoring Parameter Store encryption key - ${environment}`,
+      keyUsage: kms.KeyUsage.ENCRYPT_DECRYPT,
+      keySpec: kms.KeySpec.SYMMETRIC_DEFAULT,
+      policy: new iam.PolicyDocument({
+        statements: [
+          new iam.PolicyStatement({
+            sid: 'Enable IAM User Permissions',
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.AccountRootPrincipal()],
+            actions: ['kms:*'],
+            resources: ['*'],
+          }),
+          new iam.PolicyStatement({
+            sid: 'Allow GitHub Actions Role',
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.ArnPrincipal(`arn:aws:iam::${this.account}:role/GithubActionsRole`)],
+            actions: [
+              'kms:Decrypt',
+              'kms:DescribeKey',
+              'kms:GenerateDataKey',
+            ],
+            resources: ['*'],
+          }),
+        ],
+      }),
+    });
+
+    // KMS Key Alias
+    new kms.Alias(this, 'ParameterStoreKMSKeyAlias', {
+      aliasName: `alias/telagri-monitoring-${environment}`,
+      targetKey: parameterStoreKmsKey,
+    });
+
+    // Frontend Environment Parameter (with placeholder values)
+    const frontendParameter = new ssm.StringParameter(this, 'FrontendEnvironmentParameter', {
+      parameterName: `/telagri/monitoring/${environment}/frontend/env`,
+      description: `Frontend environment configuration for ${environment}`,
+      stringValue: this.getFrontendEnvironmentTemplate(environment),
+    });
+
+    // Backend Environment Parameter (with placeholder values)
+    const backendParameter = new ssm.StringParameter(this, 'BackendEnvironmentParameter', {
+      parameterName: `/telagri/monitoring/${environment}/backend/env`,
+      description: `Backend environment configuration for ${environment}`,
+      stringValue: this.getBackendEnvironmentTemplate(environment),
+    });
+
+    // Note: GitHub Actions IAM Role is managed manually via scripts/create-github-oidc-role.sh
+    // This avoids CDK conflicts when the role already exists from manual creation
+
+    // CloudFormation Outputs
+    new cdk.CfnOutput(this, 'DistributionDomainName', {
+      value: this.distribution.distributionDomainName,
+      description: 'CloudFront Distribution Domain Name',
     });
 
     new cdk.CfnOutput(this, 'DistributionId', {
       value: this.distribution.distributionId,
       description: 'CloudFront Distribution ID',
-      exportName: `TelAgri-${environment}-DistributionId`,
     });
 
-    new cdk.CfnOutput(this, 'DistributionDomainName', {
-      value: this.distribution.distributionDomainName,
-      description: 'CloudFront Distribution Domain Name',
-      exportName: `TelAgri-${environment}-DistributionDomainName`,
+    new cdk.CfnOutput(this, 'S3BucketName', {
+      value: this.bucket.bucketName,
+      description: 'S3 Bucket Name',
     });
 
-    new cdk.CfnOutput(this, 'WebsiteURL', {
-      value: `https://${domainName}`,
-      description: 'TelAgri Bank Dashboard URL (Custom Domain)',
-      exportName: `TelAgri-${environment}-WebsiteURL`,
+    new cdk.CfnOutput(this, 'WebACLArn', {
+      value: webAcl.attrArn,
+      description: 'WAF Web ACL ARN',
     });
 
-    new cdk.CfnOutput(this, 'CloudFrontURL', {
-      value: `https://${this.distribution.distributionDomainName}`,
-      description: 'CloudFront Distribution URL (for DNS setup)',
-      exportName: `TelAgri-${environment}-CloudFrontURL`,
+    new cdk.CfnOutput(this, 'FrontendParameterName', {
+      value: frontendParameter.parameterName,
+      description: 'Frontend Environment Parameter Name',
     });
 
-    new cdk.CfnOutput(this, 'WebACLId', {
-      value: webAcl.attrId,
-      description: 'WAF Web ACL ID',
-      exportName: `TelAgri-${environment}-WebACLId`,
+    new cdk.CfnOutput(this, 'BackendParameterName', {
+      value: backendParameter.parameterName,
+      description: 'Backend Environment Parameter Name',
     });
 
     // Tags
-    cdk.Tags.of(this).add('Project', 'TelAgri-Bank-Dashboard');
+    cdk.Tags.of(this).add('Project', 'TelAgri-Monitoring');
     cdk.Tags.of(this).add('Environment', environment);
     cdk.Tags.of(this).add('Owner', 'TelAgri-Tech-Team');
     cdk.Tags.of(this).add('CostCenter', 'AgriTech');
     cdk.Tags.of(this).add('ManagedBy', 'AWS-CDK');
   }
-} 
+
+  /**
+   * Generate frontend environment template with secure placeholders
+   */
+  private getFrontendEnvironmentTemplate(environment: string): string {
+    const baseUrl = environment === 'prod' 
+      ? 'https://dashboard.telagri.com' 
+      : `https://dashboard-${environment}.telagri.com`;
+
+    // Secure project IDs (these are not sensitive)
+    const supabaseProjectId = environment === 'prod' 
+      ? 'imncjxfppzikerifyukk'  // PROD project ID
+      : 'jhelkawgkjohvzsusrnw';  // DEV project ID
+
+    return `# Application Configuration
+VITE_APP_NAME=TelAgri Monitoring
+VITE_APP_VERSION=2.0.0
+VITE_APP_ENVIRONMENT=${environment}
+
+# Supabase Configuration (Public keys only - replace with real values)
+VITE_SUPABASE_URL=https://${supabaseProjectId}.supabase.co
+VITE_SUPABASE_ANON_KEY=REPLACE_WITH_${environment.toUpperCase()}_ANON_KEY
+
+# Public Service URLs
+VITE_APP_URL=${baseUrl}
+
+# Public API Keys (with domain restrictions - replace with real values)
+VITE_APP_GOOGLE_MAPS_API_KEY=REPLACE_WITH_GOOGLE_MAPS_API_KEY
+
+# Analytics & Monitoring (Public keys - replace with real values)
+VITE_APP_TAG_MANAGER_KEY=REPLACE_WITH_TAG_MANAGER_KEY
+VITE_APP_SENTRY_DSN=REPLACE_WITH_SENTRY_DSN
+VITE_APP_CDN_URL=https://cdn.telagri.com/
+VITE_APP_HYPERDX_API_KEY=REPLACE_WITH_HYPERDX_API_KEY
+VITE_APP_HYPERDX_ENABLED=${environment === 'prod' ? 'true' : 'false'}`;
+  }
+
+  /**
+   * Generate backend environment template with secure placeholders
+   */
+  private getBackendEnvironmentTemplate(environment: string): string {
+    const baseUrl = environment === 'prod' 
+      ? 'https://dashboard.telagri.com' 
+      : `https://dashboard-${environment}.telagri.com`;
+
+    // Secure project IDs (these are not sensitive)
+    const supabaseProjectId = environment === 'prod' 
+      ? 'imncjxfppzikerifyukk'  // PROD project ID
+      : 'jhelkawgkjohvzsusrnw';  // DEV project ID
+
+    return `# Backend Environment Configuration (Server-side only)
+
+# Email Service (SENSITIVE - replace with real values)
+SENDGRID_API_KEY=REPLACE_WITH_SENDGRID_API_KEY
+SENDGRID_FROM_EMAIL=noreply@telagri.com
+
+# Server Configuration
+SITE_URL=${baseUrl}
+VITE_APP_URL=${baseUrl}
+
+# Supabase ${environment.charAt(0).toUpperCase() + environment.slice(1)} Configuration
+VITE_SUPABASE_URL=https://${supabaseProjectId}.supabase.co
+VITE_SUPABASE_ANON_KEY=REPLACE_WITH_${environment.toUpperCase()}_ANON_KEY
+
+# ${environment.charAt(0).toUpperCase() + environment.slice(1)} Database Connection (for migrations)
+SUPABASE_PROJECT_ID=${supabaseProjectId}
+SUPABASE_DB_PASSWORD=REPLACE_WITH_${environment.toUpperCase()}_DB_PASSWORD
+
+# Edge Functions Environment (renamed to avoid Supabase restrictions)
+PROJECT_URL=https://${supabaseProjectId}.supabase.co
+SERVICE_ROLE_KEY=REPLACE_WITH_${environment.toUpperCase()}_SERVICE_ROLE_KEY`;
+  }
+}

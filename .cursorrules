@@ -1,8 +1,40 @@
-# TelAgri Bank Dashboard - Cursor Rules
-# AgriTech Banking Platform for Farmer Financial Management
+# TelAgri Monitoring - Advanced Cursor Rules
+# Agricultural Finance Management Platform
+# Secure Financial Platform Serving Real Farmers' Livelihoods
+
+## 🎯 AI ASSISTANT BEHAVIOR & RESPONSE PATTERNS
+
+### Strategic CTO Context
+You are working with Lasha Shonia, CTO and co-founder of TelAgri, who values systematic, thorough analysis and strategic decision-making. Always provide:
+
+- **Comprehensive Analysis**: Break down complex problems into structured components
+- **Strategic Business Impact**: Connect technical decisions to farmer outcomes, bank partnerships, and platform scalability
+- **Security-First Thinking**: Every decision must prioritize banking-grade security and data protection
+- **Performance-First Implementation**: Always consider mobile usage in rural areas with limited connectivity
+- **Agricultural Domain Expertise**: Understand the seasonal nature of farming and financial cycles
+- **Regulatory Compliance**: Consider F-100 reporting requirements and banking regulations
+- **Farmer Empathy**: Remember that every feature affects real farmers' access to credit and agricultural success
+
+### Response Quality Standards
+- **Structured Responses**: Use tables, sections, and clear hierarchies with banking-themed formatting
+- **Actionable Recommendations**: Provide specific next steps and implementation paths for financial platform optimization
+- **Context Awareness**: Remember TelAgri's mission to serve farmers and banking partnerships
+- **Risk Assessment**: Identify potential security vulnerabilities and compliance issues
+- **Performance Metrics**: Include concrete improvements for loading speed, data processing, and user experience
+- **Code Examples**: Provide working, production-ready code that maintains banking-grade security
+- **Typography Consistency**: NEVER use em dashes (`—`), always use regular hyphens (`-`) in all text, code, and documentation
+
+### Working Pattern Recognition
+When the user asks about:
+- **"Analyze"**: Provide comprehensive breakdown with security impact and compliance considerations
+- **"Optimize"**: Focus on performance, mobile experience, and database query efficiency
+- **"Enhance"**: Offer multiple approaches with security assessment and agricultural domain alignment
+- **"Best practices"**: Reference modern fintech standards with specific banking implementation
+
+---
 
 ## 🏗️ PROJECT OVERVIEW
-You are working on TelAgri's bank dashboard - a secure financial platform for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. This is a production-grade application handling sensitive financial data.
+You are working on TelAgri Monitoring - a secure financial platform for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. This is a production-grade application handling sensitive financial data affecting farmers' livelihoods.
 
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
@@ -36,29 +68,208 @@ You are working on TelAgri's bank dashboard - a secure financial platform for ma
 - Ensure smooth transitions and animations
 - Progressive enhancement approach
 
-## 📁 PROJECT STRUCTURE
+## 📁 PROJECT STRUCTURE & ORGANIZATION STANDARDS
+
+**CRITICAL: Always maintain clean, structured file organization. Follow this structure religiously:**
 
 ```
-src/
-├── components/           # Reusable UI components
-│   ├── ui/              # shadcn/ui base components
-│   ├── *Modal.tsx       # Feature-specific modals
-│   ├── *Table.tsx       # Data tables with filtering
-│   └── *Management.tsx  # CRUD management components
-├── pages/               # Route-based page components
-├── hooks/               # Custom React hooks
-├── integrations/        # External service integrations
-│   └── supabase/        # Supabase client & types
-├── lib/                 # Utility functions
-└── main.tsx             # Application entry point
-
-supabase/
-├── migrations/          # Database schema versions
-├── functions/           # Edge Functions for serverless logic
-└── config.toml          # Supabase configuration
+telagri-monitoring/
+├── src/                          # Frontend source code
+│   ├── components/               # React components
+│   │   ├── ui/                   # shadcn/ui base components
+│   │   ├── *Modal.tsx            # Feature-specific modals
+│   │   ├── *Table.tsx            # Data tables with filtering
+│   │   └── *Management.tsx       # CRUD management components
+│   ├── pages/                    # Route-based page components
+│   ├── hooks/                    # Custom React hooks
+│   ├── integrations/             # External service integrations
+│   │   └── supabase/             # Supabase client & types
+│   ├── lib/                      # Utility functions
+│   └── main.tsx                  # Application entry point
+├── cdk/                          # AWS CDK infrastructure (isolated)
+│   ├── lib/                      # CDK stack definitions
+│   ├── bin/                      # CDK app entry point
+│   ├── package.json              # Infrastructure dependencies
+│   ├── tsconfig.json             # Infrastructure TypeScript config
+│   └── README.md                 # Infrastructure documentation
+├── supabase/                     # Backend infrastructure
+│   ├── migrations/               # Database schema versions
+│   ├── functions/                # Edge Functions for serverless logic
+│   └── config.toml               # Supabase configuration
+├── scripts/                      # Automation and utility scripts
+│   ├── setup-*.sh                # Environment setup scripts
+│   ├── *-env-*.sh                # Environment management
+│   └── validate-*.sh             # Validation and testing scripts
+├── docs/                         # Organized documentation
+│   ├── README.md                 # Documentation index
+│   ├── QUICK_REFERENCE.md        # Fast access guide
+│   ├── setup/                    # Initial setup and configuration
+│   ├── security/                 # Security guides and best practices
+│   ├── deployment/               # Deployment and infrastructure
+│   ├── development/              # Development guides and templates
+│   └── api/                      # API documentation
+├── public/                       # Static public assets
+├── .cursorrules                  # AI assistant configuration
+├── .env.template                 # Environment variables template
+├── package.json                  # Frontend dependencies and scripts
+└── README.md                     # Project overview
 ```
 
-## 🔧 DEVELOPMENT PATTERNS
+**ORGANIZATION PRINCIPLES:**
+- **Never create files in project root** unless absolutely necessary (only config files like package.json, .env, etc.)
+- **Group related files** in appropriate directories by function and purpose
+- **Use descriptive names** that indicate purpose and scope clearly
+- **Maintain consistent naming** conventions (kebab-case for files, PascalCase for React components)
+- **Document file purposes** in comments, README files, and inline documentation
+- **Clean up temporary files** immediately after use - no loose files in root
+- **Version control everything** except sensitive data (.env, secrets) and build artifacts (dist/, node_modules/)
+- **Separate concerns**: Frontend (src/), Infrastructure (cdk/), Backend (supabase/), Scripts (scripts/), Documentation (docs/)
+- **Use proper extensions**: .ts for TypeScript, .tsx for React components, .md for documentation
+- **Maintain clean imports**: Use absolute imports with @ alias for src/ directory
+- **Follow the established structure religiously** - any deviation must be justified and documented
+- **Typography Standards**: NEVER use em dashes (`—`), always use regular hyphens (`-`) for consistency across all files
+
+## 🔧 MODERN DEVELOPMENT PATTERNS
+
+### React 18 Banking-Optimized Patterns
+```typescript
+// Banking-grade component with performance optimization
+import { useMemo, useCallback, useRef, useEffect } from 'react';
+
+interface FarmerData {
+  id: string;
+  name: string;
+  bankId: string;
+  loanAmount: number;
+  status: 'active' | 'pending' | 'defaulted';
+  lastPayment: Date;
+}
+
+interface BankingTableProps {
+  farmers: FarmerData[];
+  onStatusChange: (farmerId: string, status: FarmerData['status']) => void;
+  isAdmin: boolean;
+}
+
+const BankingTable: React.FC<BankingTableProps> = ({ farmers, onStatusChange, isAdmin }) => {
+  // Memoize expensive calculations for large datasets
+  const sortedFarmers = useMemo(() => 
+    farmers.sort((a, b) => b.loanAmount - a.loanAmount), 
+    [farmers]
+  );
+
+  // Optimized event handlers with security validation
+  const handleStatusChange = useCallback((farmerId: string, newStatus: FarmerData['status']) => {
+    // Security: Validate admin permissions
+    if (!isAdmin && newStatus === 'defaulted') {
+      console.warn('🔒 Unauthorized status change attempt');
+      return;
+    }
+    
+    // Analytics tracking for banking operations
+    analytics.track('farmer_status_changed', { 
+      farmerId: farmerId.slice(0, 8), // Partial ID for privacy
+      newStatus,
+      timestamp: new Date().toISOString()
+    });
+    
+    onStatusChange(farmerId, newStatus);
+  }, [isAdmin, onStatusChange]);
+
+  return (
+    <Table className="banking-table">
+      {/* Optimized rendering with React.memo for large datasets */}
+    </Table>
+  );
+};
+
+// Compound component pattern for banking forms
+const BankingForm = ({ children, onSubmit }: PropsWithChildren<{ onSubmit: (data: any) => void }>) => {
+  const [formData, setFormData] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      // Banking-grade validation and submission
+      await onSubmit(formData);
+      toast({ title: "Success", description: "Banking operation completed" });
+    } catch (error: any) {
+      console.error('🏦 Banking operation failed:', error);
+      toast({
+        title: "Banking Error",
+        description: error.message || "Operation failed. Please contact support.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [formData, onSubmit]);
+
+  return (
+    <form onSubmit={handleSubmit} className="banking-form">
+      {children}
+    </form>
+  );
+};
+```
+
+### TypeScript 5.8+ Banking Domain Patterns
+```typescript
+// Branded types for banking domain safety
+type FarmerId = string & { readonly brand: unique symbol };
+type LoanAmount = number & { readonly brand: unique symbol };
+type BankId = string & { readonly brand: unique symbol };
+
+// Banking operation types with strict validation
+const BANKING_OPERATIONS = {
+  LOAN_APPROVAL: 'loan-approval',
+  PAYMENT_PROCESSING: 'payment-processing',
+  F100_GENERATION: 'f100-generation',
+  FARMER_ONBOARDING: 'farmer-onboarding'
+} as const satisfies Record<string, string>;
+
+type BankingOperation = typeof BANKING_OPERATIONS[keyof typeof BANKING_OPERATIONS];
+
+// Secure farmer data interface
+interface SecureFarmerData {
+  id: FarmerId;
+  personalInfo: {
+    name: string;
+    email: string;
+    phone?: string;
+  };
+  bankingInfo: {
+    bankId: BankId;
+    accountStatus: 'active' | 'suspended' | 'pending';
+    creditScore: number;
+    loanHistory: LoanRecord[];
+  };
+  agriculturalInfo: {
+    farmSize: number;
+    cropTypes: string[];
+    seasonalIncome: number;
+    lastHarvestDate: Date;
+  };
+}
+
+// Result pattern for banking operations
+type BankingResult<T, E = Error> = 
+  | { success: true; data: T; auditLog: AuditEntry }
+  | { success: false; error: E; errorCode: string };
+
+// Audit logging for compliance
+interface AuditEntry {
+  operation: BankingOperation;
+  userId: string;
+  timestamp: Date;
+  ipAddress: string;
+  userAgent: string;
+  dataAccessed?: string[];
+}
+```
 
 ### Component Architecture
 - Use functional components with TypeScript interfaces
@@ -66,6 +277,8 @@ supabase/
 - Follow compound component pattern for complex UI
 - Use React.forwardRef for component library consistency
 - Implement proper error boundaries
+- **Banking-Grade Security**: Always validate permissions and log sensitive operations
+- **Performance Optimization**: Use React.memo, useMemo, and useCallback for large datasets
 
 ### State Management
 - Use React hooks for local state
@@ -90,19 +303,141 @@ if (error) {
 }
 ```
 
-### Error Handling
+### Enhanced Error Handling for Banking Operations
 ```typescript
-// Standard error handling pattern
-try {
-  const result = await someOperation();
-  toast({ title: "Success", description: "Operation completed" });
-} catch (error: any) {
-  console.error('Operation failed:', error);
+// Custom error classes for banking operations
+class BankingError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public userFriendlyMessage: string,
+    public severity: 'low' | 'medium' | 'high' | 'critical',
+    public context?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'BankingError';
+  }
+}
+
+class ComplianceError extends BankingError {
+  constructor(message: string, public regulatoryCode: string) {
+    super(
+      message, 
+      'COMPLIANCE_ERROR', 
+      'This operation requires additional verification. Please contact support.',
+      'critical',
+      { regulatoryCode }
+    );
+  }
+}
+
+class SecurityError extends BankingError {
+  constructor(message: string, public securityLevel: 'authentication' | 'authorization' | 'data-breach') {
+    super(
+      message,
+      'SECURITY_ERROR',
+      'Access denied. Please verify your credentials.',
+      'critical',
+      { securityLevel }
+    );
+  }
+}
+
+// Comprehensive error handling for banking operations
+async function executeBankingOperation<T>(
+  operation: () => Promise<T>,
+  operationType: BankingOperation,
+  userId: string
+): Promise<BankingResult<T>> {
+  const auditEntry: AuditEntry = {
+    operation: operationType,
+    userId,
+    timestamp: new Date(),
+    ipAddress: getClientIP(),
+    userAgent: navigator.userAgent
+  };
+
+  try {
+    // Pre-operation security validation
+    await validateUserPermissions(userId, operationType);
+    
+    // Execute operation with timeout
+    const result = await Promise.race([
+      operation(),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Operation timeout')), 30000)
+      )
+    ]);
+
+    // Log successful operation
+    await logAuditEntry({ ...auditEntry, status: 'success' });
+    
+    return { 
+      success: true, 
+      data: result, 
+      auditLog: auditEntry 
+    };
+  } catch (error) {
+    // Enhanced error logging with context
+    const bankingError = error instanceof BankingError 
+      ? error 
+      : new BankingError(
+          error.message || 'Unknown banking operation error',
+          'UNKNOWN_ERROR',
+          'An unexpected error occurred. Please try again or contact support.',
+          'medium',
+          { originalError: error }
+        );
+
+    // Log failed operation with security context
+    await logAuditEntry({ 
+      ...auditEntry, 
+      status: 'failed', 
+      error: bankingError.code,
+      severity: bankingError.severity 
+    });
+
+    // Alert security team for critical errors
+    if (bankingError.severity === 'critical') {
+      await alertSecurityTeam(bankingError, auditEntry);
+    }
+
+    return { 
+      success: false, 
+      error: bankingError, 
+      errorCode: bankingError.code 
+    };
+  }
+}
+
+// Usage in components with proper error boundaries
+function FarmerManagement() {
+  const handleLoanApproval = async (farmerId: string, loanAmount: number) => {
+    const result = await executeBankingOperation(
+      () => approveLoan(farmerId, loanAmount),
+      BANKING_OPERATIONS.LOAN_APPROVAL,
+      currentUser.id
+    );
+
+    if (result.success) {
+      toast({ 
+        title: "Loan Approved", 
+        description: `Loan of $${loanAmount} approved for farmer ${farmerId}` 
+      });
+    } else {
   toast({
-    title: "Error",
-    description: error.message || "Something went wrong",
+        title: "Loan Approval Failed",
+        description: result.error.userFriendlyMessage,
     variant: "destructive"
   });
+      
+      // Additional handling for compliance errors
+      if (result.error instanceof ComplianceError) {
+        // Redirect to compliance verification flow
+        router.push(`/compliance/verify?code=${result.error.regulatoryCode}`);
+      }
+    }
+  };
 }
 ```
 
@@ -243,14 +578,28 @@ Storage:
 ```
 
 ### Environment Configuration
+- **ALWAYS** use AWS Parameter Store for environment variables
+- **NEVER** commit real environment values to repository
+- **ALWAYS** separate frontend (VITE_*) and backend variables
+- **ALWAYS** use KMS encryption for sensitive parameters
+
 ```bash
-# Production environment variables
+# Frontend variables (public, safe in builds)
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-SENDGRID_API_KEY=your-sendgrid-key
-NODE_ENV=production
 VITE_APP_URL=https://your-domain.com
+
+# Backend variables (sensitive, server-side only)
+SENDGRID_API_KEY=your-sendgrid-key  # NEVER in frontend builds
+SUPABASE_DB_PASSWORD=your-password  # NEVER in frontend builds
 ```
+
+### Infrastructure Management
+- **ALWAYS** use AWS CDK for infrastructure as code
+- **NEVER** create AWS resources manually in console
+- **ALWAYS** version control infrastructure changes
+- **ALWAYS** use separate environments (dev, staging, prod)
+- **ALWAYS** implement proper IAM least privilege access
 
 ## 🧪 TESTING STRATEGY
 
@@ -336,6 +685,40 @@ LIMIT 10;
 - Regular review of RLS policies and permissions
 - Monitor authentication logs for suspicious activity
 
+## 📚 DOCUMENTATION STANDARDS
+
+### Documentation Organization
+- **ALWAYS** place documentation in `docs/` folder with proper categorization
+- **NEVER** create documentation files in project root (except README.md)
+- **ALWAYS** update `docs/README.md` index when adding new documentation
+- **ALWAYS** use relative links between documentation files
+
+### Documentation Structure
+```
+docs/
+├── README.md                    # Documentation index
+├── setup/                       # Initial setup and configuration
+├── security/                    # Security guides and best practices
+├── deployment/                  # Deployment and infrastructure
+├── development/                 # Development guides and templates
+└── api/                        # API documentation
+```
+
+### Writing Standards
+- Use clear, concise language with step-by-step instructions
+- Include code examples with proper syntax highlighting
+- Add troubleshooting sections for complex procedures
+- Keep security considerations prominent
+- Update documentation immediately when making changes
+- Test all instructions and code examples before committing
+
+### Documentation Requirements
+- **New Features**: Must include documentation in appropriate `docs/` subfolder
+- **API Changes**: Must update API documentation
+- **Security Changes**: Must update security documentation
+- **Deployment Changes**: Must update deployment guides
+- **Breaking Changes**: Must update all affected documentation
+
 ## 📋 COMMON TASKS
 
 ### Adding New Features
@@ -344,8 +727,9 @@ LIMIT 10;
 3. Implement UI components with TypeScript
 4. Add proper error handling and validation
 5. Write tests for critical paths
-6. Update documentation
-7. Create PR with detailed description
+6. **Create/update documentation in `docs/` folder**
+7. **Update `docs/README.md` index if needed**
+8. Create PR with detailed description
 
 ### Bug Fixes
 1. Reproduce the issue in development
@@ -353,7 +737,7 @@ LIMIT 10;
 3. Write failing test case
 4. Implement fix with proper error handling
 5. Verify fix doesn't break existing functionality
-6. Update relevant documentation
+6. **Update relevant documentation in `docs/` folder**
 
 ### Performance Optimization
 1. Profile component rendering with React DevTools
@@ -361,6 +745,7 @@ LIMIT 10;
 3. Optimize images and assets
 4. Implement code splitting if needed
 5. Monitor Core Web Vitals after deployment
+6. **Document performance improvements in `docs/development/`**
 
 ## ⚠️ CRITICAL CONSIDERATIONS
 
@@ -384,4 +769,65 @@ LIMIT 10;
 
 ---
 
-**Remember: This is a financial platform for farmers' livelihoods. Every line of code impacts real people's access to credit and agricultural success. Code with responsibility and precision.** 
+## 📋 AI ASSISTANT TASK PATTERNS FOR TELAGRI
+
+### Banking Platform Optimization Guidelines
+When analyzing banking platform opportunities, always check for:
+- **Security Compliance**: Are all banking regulations and security standards met?
+- **Data Protection**: Is sensitive farmer and banking data properly encrypted and protected?
+- **Performance Impact**: Any database queries or operations that could slow down critical banking functions?
+- **Mobile Experience**: Touch-friendly interactions for farmers using mobile devices in rural areas?
+- **Audit Trail**: All financial operations properly logged for compliance and regulatory requirements?
+- **Error Handling**: Graceful handling of banking errors with proper user feedback and security logging?
+
+### Feature Development Framework
+When building new features for TelAgri:
+1. **Security Impact Assessment**: How does this affect banking-grade security and compliance?
+2. **Agricultural Domain Alignment**: Does this serve farmers' real needs and seasonal patterns?
+3. **Performance Consideration**: Impact on database performance and mobile user experience?
+4. **Regulatory Compliance**: Does this meet F-100 reporting and banking partnership requirements?
+5. **Audit Integration**: How will we track and log this feature for compliance?
+6. **Farmer Experience**: Does this improve farmers' access to credit and agricultural success?
+
+### Problem-Solving Framework for Banking Platforms
+For banking platform optimization challenges:
+1. **Security Impact**: Identify which elements affect banking-grade security most
+2. **Compliance Analysis**: Map regulatory requirements and audit trail needs
+3. **Technical Solutions**: Multiple approaches with security and performance trade-offs
+4. **Testing Strategy**: How to validate improvements without compromising security
+5. **Implementation Plan**: Specific steps with rollback options and security validation
+6. **Success Metrics**: Concrete KPIs for measuring improvement in farmer outcomes
+
+### Quality Gates for Banking Production
+Before any deployment to the live banking platform:
+- ✅ **Security Validation**: All banking operations properly secured and audited
+- ✅ **Performance Testing**: Database queries optimized for large farmer datasets
+- ✅ **Compliance Check**: F-100 reporting and regulatory requirements met
+- ✅ **Mobile Testing**: Perfect functionality on rural mobile connections
+- ✅ **Error Handling**: All banking errors properly caught and logged
+- ✅ **Audit Trail**: All financial operations properly tracked for compliance
+
+---
+
+## 🚀 STRATEGIC DEVELOPMENT GOVERNANCE
+
+### Banking-First Decision Framework
+For all development decisions:
+1. **Security Impact**: How does this affect banking-grade security and data protection?
+2. **Farmer Experience**: Does this improve farmers' access to credit and agricultural services?
+3. **Performance Implications**: Impact on database performance and mobile user experience?
+4. **Regulatory Compliance**: Maintains F-100 reporting and banking partnership standards?
+5. **Audit Requirements**: Can we track and log this for compliance and security?
+6. **Agricultural Domain**: Serves the seasonal nature of farming and financial cycles?
+
+### Change Management for Banking Operations
+1. **Security Assessment**: Clear evaluation of security and compliance impact
+2. **Testing Strategy**: Proper validation without compromising live banking operations
+3. **Performance Monitoring**: Ensure changes don't hurt database performance or mobile experience
+4. **Compliance Validation**: Data-driven verification of regulatory requirement adherence
+5. **Implementation Planning**: Gradual rollout with security validation and rollback procedures
+6. **Success Measurement**: Concrete metrics improvement in farmer outcomes and banking efficiency
+
+---
+
+**Remember: You are building a financial platform that affects real farmers' livelihoods and access to credit. Every line of code impacts agricultural success and economic opportunity. Code with banking-grade security, regulatory compliance, and deep empathy for the farmers who depend on this platform. This is not just a technical system - it's a bridge between farmers and the financial resources they need to feed communities and build sustainable agricultural businesses.** 

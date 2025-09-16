@@ -39,6 +39,7 @@ USING (
 
 -- Also create a more permissive temporary policy for debugging
 -- This can be removed once the issue is resolved
+DROP POLICY IF EXISTS "storage.f100.select.bank_viewer_debug" ON storage.objects;
 CREATE POLICY "storage.f100.select.bank_viewer_debug"
 ON storage.objects FOR SELECT
 TO authenticated
@@ -51,6 +52,5 @@ USING (
   )
 );
 
--- Let's also check if we need to enable RLS on the storage.objects table
--- (This might already be enabled, but let's make sure)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Note: RLS on storage.objects table is already enabled by Supabase
+-- No need to explicitly enable it in this migration

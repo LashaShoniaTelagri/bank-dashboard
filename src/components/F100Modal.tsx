@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Upload, Eye, Edit, FileText, Trash2 } from "lucide-react";
@@ -157,7 +158,8 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['farmers'] });
       toast({ 
-        title: editMode ? "F-100 report updated successfully" : "F-100 report uploaded successfully" 
+        title: editMode ? "F-100 report updated successfully" : "F-100 report uploaded successfully",
+        variant: "success"
       });
       onClose();
       // Reset form
@@ -207,6 +209,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
       queryClient.invalidateQueries({ queryKey: ['farmers'] });
       toast({ 
         title: "F-100 report deleted successfully",
+        variant: "success",
         description: `Phase ${phaseData?.phase} report has been removed.`
       });
       onClose();
@@ -439,12 +442,11 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
 
           <div>
             <Label htmlFor="issue_date">Issue Date *</Label>
-            <Input
-              id="issue_date"
-              type="date"
+            <DatePicker
               value={formData.issue_date}
-              onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
-              required
+              onChange={(date) => setFormData({ ...formData, issue_date: date })}
+              placeholder="Select issue date"
+              maxDate={new Date()} // Can't select future dates
             />
           </div>
 

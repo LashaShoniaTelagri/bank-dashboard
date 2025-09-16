@@ -17,6 +17,7 @@ import { FarmerModal } from "@/components/FarmerModal";
 import { F100Modal } from "@/components/F100Modal";
 import { FarmerProfileModal } from "@/components/FarmerProfileModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { FileViewer } from "@/components/FileViewer";
 
 interface FarmerWithF100 {
   farmer_id: string;
@@ -73,6 +74,13 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     } 
   }>({ open: false });
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; type?: 'farmer' | 'f100'; id?: string; title?: string; description?: string }>({ open: false });
+  
+  // FileViewer state for F-100 reports
+  const [fileViewerOpen, setFileViewerOpen] = useState(false);
+  const [fileViewerFiles, setFileViewerFiles] = useState<any[]>([]);
+  const [fileViewerInitialIndex, setFileViewerInitialIndex] = useState(0);
+  const [fileViewerSectionName, setFileViewerSectionName] = useState('');
+  const [isLoadingFile, setIsLoadingFile] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -103,7 +111,10 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['farmers'] });
-      toast({ title: "Farmer deleted successfully" });
+      toast({ 
+        title: "Farmer deleted successfully",
+        variant: "success"
+      });
     },
     onError: (error) => {
       toast({
@@ -120,66 +131,53 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     return "bg-red-500 hover:bg-red-500";
   };
 
-  const openFileInNewTab = async (filePath: string) => {
+  const handleFileViewerClose = () => {
+    console.log('🔒 Closing F-100 file viewer');
+    setFileViewerOpen(false);
+    setFileViewerFiles([]);
+    setFileViewerSectionName('');
+  };
+
+  const openF100InLightbox = async (filePath: string, farmerName: string, phase: string) => {
     try {
-      console.log('🔍 Attempting to open file:', filePath);
-      console.log('👤 Current user profile:', profile);
+      console.log('🔍 Opening F-100 report in lightbox:', filePath);
       
-      // First, let's check if the file exists by listing objects
-      console.log('🔍 Checking if file exists in storage...');
-      const { data: listData, error: listError } = await supabase.storage
-        .from('f100')
-        .list('', { search: filePath.split('/').pop() });
+      // Set loading state for this specific file
+      setIsLoadingFile(filePath);
       
-      if (listError) {
-        console.error('❌ List error:', listError);
-      } else {
-        console.log('📁 Storage list result:', listData);
-      }
-      
-      // Check the bank path specifically
-      const bankPath = filePath.split('/').slice(0, 2).join('/'); // e.g., "bank/f3c3b674-637e-49eb-8866-cebeba4fd2d1"
-      console.log('🏦 Checking bank path:', bankPath);
-      
-      const { data: bankListData, error: bankListError } = await supabase.storage
-        .from('f100')
-        .list(bankPath);
-      
-      if (bankListError) {
-        console.error('❌ Bank list error:', bankListError);
-      } else {
-        console.log('🏦 Bank path contents:', bankListData);
-      }
-      
-      // Now try to create signed URL
+      // Generate signed URL for the F-100 report
       const { data, error } = await supabase.storage.from('f100').createSignedUrl(filePath, 3600);
       
       if (error) {
         console.error('❌ Storage error:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
-        
-        // Try alternative approach - check if we can access the file directly
-        const { data: fileData, error: downloadError } = await supabase.storage
-          .from('f100')
-          .download(filePath);
-          
-        if (downloadError) {
-          console.error('❌ Download error:', downloadError);
-        } else {
-          console.log('✅ File exists and is accessible via download');
-        }
-        
         toast({
           title: "Access Error",
-          description: `Storage error: ${error.message}`,
+          description: `Could not access F-100 report: ${error.message}`,
           variant: "destructive",
         });
         return;
       }
       
       if (data?.signedUrl) {
-        console.log('✅ Successfully generated signed URL');
-        window.open(data.signedUrl, '_blank');
+        console.log('✅ Successfully generated signed URL for F-100 report');
+        
+        // Create a mock document object for the FileViewer
+        const fileName = `F-100_Phase_${phase}_${farmerName}.pdf`;
+        const mockDocument = {
+          id: `f100-${filePath}`,
+          file_name: fileName,
+          file_path: filePath,
+          file_mime: 'application/pdf',
+          file_size_bytes: 0, // We don't have the actual size, but it's not critical for viewing
+          created_at: new Date().toISOString(),
+          signedUrl: data.signedUrl // Add the signed URL directly
+        };
+        
+        // Open in FileViewer
+        setFileViewerFiles([mockDocument]);
+        setFileViewerInitialIndex(0);
+        setFileViewerSectionName(`F-100 Report - Phase ${phase}`);
+        setFileViewerOpen(true);
       } else {
         console.error('❌ No signed URL returned');
         toast({
@@ -188,13 +186,16 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
           variant: "destructive",
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Unexpected error:', error);
       toast({
         title: "Error opening file",
-        description: error.message || "Could not generate file URL",
+        description: error instanceof Error ? error.message : "Could not access F-100 report",
         variant: "destructive",
       });
+    } finally {
+      // Clear loading state
+      setIsLoadingFile(null);
     }
   };
 
@@ -289,7 +290,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                       <span className="text-xs text-emerald-600 font-normal">(clickable)</span>
                     </div>
                   </th>
-                  <th className="md:sticky md:left-[200px] bg-background p-2 text-left font-medium md:z-10 border-r">ID Number</th>
+                  <th className="md:sticky md:left-[200px] bg-background p-2 text-left font-medium md:z-10 border-r">Identification Code</th>
                   {phases.map((phase) => (
                     <th key={phase} className="p-2 text-center font-medium min-w-[120px] border-r">
                       Phase {phase}
@@ -391,15 +392,20 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                 <div className="text-xs text-muted-foreground">
                                   {new Date(phaseData.issue_date).toLocaleDateString()}
                                 </div>
-                                {/* View/Download button - visible for all users */}
+                                {/* View F-100 Report button - visible for all users */}
                                 <Button
                                   variant="default"
                                   size="sm"
-                                  className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-                                  onClick={() => openFileInNewTab(phaseData.file_path)}
-                                  title="Download F-100 Report PDF"
+                                  className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                  onClick={() => openF100InLightbox(phaseData.file_path, farmer.name, phase.toString())}
+                                  disabled={isLoadingFile === phaseData.file_path}
+                                  title="View F-100 Report"
                                 >
-                                  <Eye className="h-3 w-3" />
+                                  {isLoadingFile === phaseData.file_path ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                  ) : (
+                                    <Eye className="h-3 w-3" />
+                                  )}
                                   F-100
                                 </Button>
                               </>
@@ -503,6 +509,15 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         description={confirmDialog.description || ''}
         confirmText="Delete"
         isDestructive={true}
+      />
+
+      {/* FileViewer for F-100 reports */}
+      <FileViewer
+        isOpen={fileViewerOpen}
+        onClose={handleFileViewerClose}
+        files={fileViewerFiles}
+        initialFileIndex={fileViewerInitialIndex}
+        sectionName={fileViewerSectionName}
       />
     </div>
   );
