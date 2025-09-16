@@ -822,7 +822,9 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
       if (!isExisting) {
         try {
           base.signedUrl = URL.createObjectURL(f)
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to create preview URL for file', fileName, error)
+        }
       }
       return base
     })
