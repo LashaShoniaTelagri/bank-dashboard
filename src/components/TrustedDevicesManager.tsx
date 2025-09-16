@@ -72,6 +72,7 @@ export const TrustedDevicesManager = () => {
       toast({
         title: "Device removed",
         description: "The trusted device has been removed successfully",
+        variant: "success"
       });
     },
     onError: (error) => {

@@ -49,9 +49,11 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
         <CardTitle>Service Cost Calculation</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Crop</Label>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Crop <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.crop} onValueChange={(v) => handleField('crop', v)}>
               <SelectTrigger><SelectValue placeholder="Select crop" /></SelectTrigger>
               <SelectContent>
@@ -62,8 +64,10 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
             </Select>
           </div>
 
-          <div>
-            <Label>Area</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Area <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.area} onValueChange={(v) => handleField('area', v)}>
               <SelectTrigger><SelectValue placeholder="Select area" /></SelectTrigger>
               <SelectContent>
@@ -72,8 +76,10 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
             </Select>
           </div>
 
-          <div>
-            <Label>Number of reservoirs</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Number of reservoirs <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.reservoirs} onValueChange={(v) => handleField('reservoirs', v)}>
               <SelectTrigger><SelectValue placeholder="Select count" /></SelectTrigger>
               <SelectContent>
@@ -82,8 +88,10 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
             </Select>
           </div>
 
-          <div>
-            <Label>Longest distance between two outermost plots</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Longest distance between two outermost plots <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.outermostDistance} onValueChange={(v) => handleField('outermostDistance', v)}>
               <SelectTrigger><SelectValue placeholder="Select distance" /></SelectTrigger>
               <SelectContent>
@@ -92,8 +100,10 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
             </Select>
           </div>
 
-          <div>
-            <Label>Number of different plant ages cultivated</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Number of different plant ages cultivated <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.plantAges} onValueChange={(v) => handleField('plantAges', v)}>
               <SelectTrigger><SelectValue placeholder="Select count" /></SelectTrigger>
               <SelectContent>
@@ -102,8 +112,10 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
             </Select>
           </div>
 
-          <div>
-            <Label>Number of varieties cultivated</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Number of varieties cultivated <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.varieties} onValueChange={(v) => handleField('varieties', v)}>
               <SelectTrigger><SelectValue placeholder="Select count" /></SelectTrigger>
               <SelectContent>
@@ -112,8 +124,10 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
             </Select>
           </div>
 
-          <div>
-            <Label>Approx. distance from nearest sector to asphalt road</Label>
+          <div className="space-y-2 md:col-span-2">
+            <Label className="text-sm font-medium">
+              Approx. distance from nearest sector to asphalt road <span className="text-red-500">*</span>
+            </Label>
             <Select value={value.roadDistance} onValueChange={(v) => handleField('roadDistance', v)}>
               <SelectTrigger><SelectValue placeholder="Select distance" /></SelectTrigger>
               <SelectContent>
@@ -123,22 +137,25 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
           </div>
         </div>
 
-        <div className="border rounded p-4 bg-muted/30">
-          <div className="text-sm text-muted-foreground">Tariff</div>
-          <div className="font-semibold">{tariff}</div>
-          {result && (
-            <div className="mt-2">
-              <div className="text-sm text-muted-foreground">Total (EUR)</div>
-              <div className="text-2xl font-bold">€{result.total.toLocaleString()}</div>
+        <div className="border rounded-lg p-4 bg-muted/30 sticky bottom-0 bg-white/95 backdrop-blur-sm">
+          <div className="text-sm font-medium text-muted-foreground mb-2">Service Cost</div>
+          {result ? (
+            <div className="space-y-1">
+              <div className="text-2xl lg:text-3xl font-bold text-green-600">€{result.total.toLocaleString()}</div>
+              <div className="text-sm text-muted-foreground">
+                Service cost calculated
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="text-xl lg:text-2xl font-semibold text-muted-foreground">€ --</div>
+              <div className="text-sm text-muted-foreground">
+                Complete all fields above to calculate service cost
+              </div>
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-2">
-          {onNext && (
-            <Button disabled={!isComplete} onClick={onNext}>Next</Button>
-          )}
-        </div>
       </CardContent>
     </Card>
   )

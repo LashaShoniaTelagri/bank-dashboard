@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Bank {
@@ -62,7 +63,7 @@ export const AdminFilters = ({ filters, onFiltersChange }: AdminFiltersProps) =>
           </div>
           
           <div>
-            <label className="text-sm font-medium mb-2 block">Search Name/ID</label>
+            <label className="text-sm font-medium mb-2 block">Search Name/Identification Code</label>
             <Input
               placeholder="Search farmers..."
               value={filters.search}
@@ -72,19 +73,21 @@ export const AdminFilters = ({ filters, onFiltersChange }: AdminFiltersProps) =>
           
           <div>
             <label className="text-sm font-medium mb-2 block">From Date</label>
-            <Input
-              type="date"
+            <DatePicker
               value={filters.fromDate}
-              onChange={(e) => updateFilter('fromDate', e.target.value)}
+              onChange={(date) => updateFilter('fromDate', date)}
+              placeholder="Select start date"
+              maxDate={filters.toDate ? new Date(filters.toDate) : undefined}
             />
           </div>
           
           <div>
             <label className="text-sm font-medium mb-2 block">To Date</label>
-            <Input
-              type="date"
+            <DatePicker
               value={filters.toDate}
-              onChange={(e) => updateFilter('toDate', e.target.value)}
+              onChange={(date) => updateFilter('toDate', date)}
+              placeholder="Select end date"
+              minDate={filters.fromDate ? new Date(filters.fromDate) : undefined}
             />
           </div>
         </div>

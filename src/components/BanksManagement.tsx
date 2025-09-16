@@ -43,7 +43,10 @@ export const BanksManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['banks'] });
       setIsCreating(false);
       setFormData({ name: "", logo_url: "" });
-      toast({ title: "Bank created successfully" });
+      toast({ 
+        title: "Bank created successfully",
+        variant: "success"
+      });
     },
     onError: (error) => {
       toast({ 
@@ -63,7 +66,10 @@ export const BanksManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['banks'] });
       setEditingBank(null);
       setFormData({ name: "", logo_url: "" });
-      toast({ title: "Bank updated successfully" });
+      toast({ 
+        title: "Bank updated successfully",
+        variant: "success"
+      });
     },
     onError: (error) => {
       toast({ 
@@ -81,7 +87,10 @@ export const BanksManagement = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['banks'] });
-      toast({ title: "Bank deleted successfully" });
+      toast({ 
+        title: "Bank deleted successfully",
+        variant: "success"
+      });
     },
     onError: (error) => {
       toast({ 

@@ -47,9 +47,13 @@ export const T2_CROPS = new Set([
   'Pomegranate', 'Apricot',
 ])
 
+// Generate allowed crops from T1 and T2 tariff structures with exact names
 export const ALLOWED_CROPS = [
-  'Walnut', 'Hazelnut', 'Almond', 'Blueberry', 'Apple', 'Cherry', 'Pear', 'Peach', 'Nectarine', 'Plum', 'Grapes', 'Pomegranate', 'Apricot', 'Raspberry', 'Blackberry'
-]
+  // T1 Crops (high-value, intensive cultivation)
+  ...Array.from(T1_CROPS),
+  // T2 Crops (standard cultivation)  
+  ...Array.from(T2_CROPS)
+].sort()
 
 export function resolveTariff(crop: string): TariffCode {
   if (T1_CROPS.has(crop)) return 'T1'
@@ -86,9 +90,20 @@ const FEES = {
   T1: {
     crop_base: 500,
     area_fee: {
-      '0–5 ha': 200, '6–10 ha': 400, '11–15 ha': 600, '16–20 ha': 800, '21–30 ha': 1000,
-      '31–40 ha': 1200, '41–50 ha': 1400, '51–70 ha': 1600, '71–100 ha': 1800, '101–150 ha': 2000,
-      '151–200 ha': 2200, '201–300 ha': 2400, '301–500 ha': 2600, 'Over 500 hectares': 2800,
+      '0–5 ha': 200, 
+      '6–10 ha': 400, 
+      '11–15 ha': 600, 
+      '16–20 ha': 800, 
+      '21–30 ha': 1000,
+      '31–40 ha': 1200, 
+      '41–50 ha': 1400, 
+      '51–70 ha': 1600, 
+      '71–100 ha': 1800, 
+      '101–150 ha': 2000,
+      '151–200 ha': 2200, 
+      '201–300 ha': 2400, 
+      '301–500 ha': 2600, 
+      'Over 500 hectares': 2800,
     } as Record<string, number>,
     reservoirs_fee: {
       '0–1': 500, '2': 1000, '3': 1500, '4': 2000, '5': 2500, '6 or more': 5000,
