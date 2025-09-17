@@ -161,10 +161,9 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('PROJECT_URL') ?? '',
-      Deno.env.get('SERVICE_ROLE_KEY') ?? '',
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? Deno.env.get('PROJECT_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? ''
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
 
     const { email, role, bankId, inviterEmail } = await req.json()
 
