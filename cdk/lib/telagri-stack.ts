@@ -114,13 +114,16 @@ export class TelAgriStack extends cdk.Stack {
         contentSecurityPolicy: { 
           contentSecurityPolicy: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com",
+            // Allow Google Maps scripts
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https://maps.gstatic.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
             "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co",
-            "frame-src 'none'",
-            "object-src 'none'",
+            "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com",
+            // Allow iframes for Office viewer and Supabase signed URLs in FileViewer
+            "frame-src https://*.supabase.co https://view.officeapps.live.com",
+            // Allow PDF object embedding from Supabase (FileViewer primary renderer) and data/blob URLs
+            "object-src https://*.supabase.co blob: data:",
             "base-uri 'self'",
             "form-action 'self'"
           ].join('; '),
