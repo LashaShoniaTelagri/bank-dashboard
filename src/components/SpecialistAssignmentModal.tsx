@@ -29,6 +29,7 @@ interface SpecialistAssignmentModalProps {
   farmerId: string;
   farmerName: string;
   onAssignmentComplete?: () => void;
+  bankId?: string;
 }
 
 interface Specialist {
@@ -41,7 +42,8 @@ interface Specialist {
 export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps> = ({
   farmerId,
   farmerName,
-  onAssignmentComplete
+  onAssignmentComplete,
+  bankId
 }) => {
   const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -55,34 +57,23 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
 
   const queryClient = useQueryClient();
 
-  // Fetch available specialists
+  // Fetch available specialists via secure RPC (uses SECURITY DEFINER on backend)
   const { data: specialists = [], isLoading: specialistsLoading } = useQuery({
-    queryKey: ['specialists', profile?.bank_id],
+    queryKey: ['specialists', bankId || null],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, role, bank_id')
-        .eq('role', 'specialist')
-        .eq('bank_id', profile?.bank_id);
+        .rpc('list_specialists', { p_bank_id: bankId || null });
 
       if (error) throw error;
 
-      // Get user details
-      const userIds = data.map(p => p.user_id);
-      const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
-      
-      if (usersError) throw usersError;
-
-      return users.users
-        .filter(user => userIds.includes(user.id))
-        .map(user => ({
-          id: user.id,
-          email: user.email || '',
-          role: 'specialist',
-          bank_id: profile?.bank_id || ''
-        })) as Specialist[];
+      return (data || []).map((row: any) => ({
+        id: row.user_id,
+        email: row.email as string,
+        role: 'specialist',
+        bank_id: row.bank_id as string | null,
+      })) as Specialist[];
     },
-    enabled: !!profile?.bank_id,
+    enabled: true,
   });
 
   // Fetch existing assignments for this farmer
@@ -107,7 +98,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
         .from('specialist_assignments')
         .insert(assignments.map(assignment => ({
           farmer_id: assignment.farmer_id,
-          bank_id: profile?.bank_id || '',
+          bank_id: bankId || profile?.bank_id || '',
           specialist_id: assignment.specialist_id,
           phase: assignment.phase,
           assigned_by: profile?.user_id || '',

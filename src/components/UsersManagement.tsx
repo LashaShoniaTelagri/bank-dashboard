@@ -273,7 +273,7 @@ export const UsersManagement = () => {
               </div>
             </div>
 
-            {(inviteData.role === 'bank_viewer' || inviteData.role === 'specialist') && (
+            {(inviteData.role === 'bank_viewer') && (
               <div className="space-y-2">
                 <Label htmlFor="bank">Bank</Label>
                 <Select
@@ -366,12 +366,15 @@ const RecentInvitations = ({
     return badges[status as keyof typeof badges] || <Badge variant="outline">{status}</Badge>;
   };
 
-     const getRoleBadge = (role: string) => {
-     if (role === 'admin') {
-       return <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-300"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
-     }
-     return <Badge variant="outline">Bank Viewer</Badge>;
-   };
+  const getRoleBadge = (role: string) => {
+    if (role === 'admin') {
+      return <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-300"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
+    }
+    if (role === 'specialist') {
+      return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-300"><Brain className="w-3 h-3 mr-1" />Specialist</Badge>;
+    }
+    return <Badge variant="outline">Bank Viewer</Badge>;
+  };
 
   if (isLoading) {
     return (

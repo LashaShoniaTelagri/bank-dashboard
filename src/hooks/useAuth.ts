@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface UserProfile {
   user_id: string;
-  role: 'admin' | 'bank_viewer';
+  role: 'admin' | 'bank_viewer' | 'specialist';
   bank_id?: string;
   created_at: string;
   invited_by?: string;

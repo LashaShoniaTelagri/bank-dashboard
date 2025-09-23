@@ -26,22 +26,23 @@ import { SpecialistAssignmentWithData, AnalysisPhase, AnalysisStatus } from "../
 import { ANALYSIS_PHASES } from "../types/specialist";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { LLMApiKeyModal } from "../components/LLMApiKeyModal";
-import { ChatInterface } from "../components/ChatInterface";
+import AIAnalysisChat from "../components/AIAnalysisChat";
 
 export const SpecialistDashboard = () => {
   const { user, profile } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>("assignments");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<AnalysisStatus | "all">("all");
   const [phaseFilter, setPhaseFilter] = useState<AnalysisPhase | "all">("all");
-  const [selectedChatFarmer, setSelectedChatFarmer] = useState<{id: string, name: string} | null>(null);
+  const [aiChatContext, setAiChatContext] = useState<{id: string, name: string, phase: string} | null>(null);
 
   // Fetch specialist assignments
   const { data: assignments = [], isLoading, error } = useQuery({
     queryKey: ['specialist-assignments', user?.id],
     queryFn: async () => {
+      // Rely on function default (auth.uid()) to avoid param/signature mismatches
       const { data, error } = await supabase
-        .rpc('get_specialist_assignments', { p_specialist_id: user?.id });
+        .rpc('get_specialist_assignments');
 
       if (error) throw error;
       return data as SpecialistAssignmentWithData[];
@@ -127,7 +128,6 @@ export const SpecialistDashboard = () => {
           <Badge variant="outline" className="text-blue-600 border-blue-600">
             Agricultural Data Specialist
           </Badge>
-          <LLMApiKeyModal />
         </div>
       </div>
 
@@ -189,11 +189,11 @@ export const SpecialistDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="assignments" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="assignments">My Assignments</TabsTrigger>
           <TabsTrigger value="analysis">Analysis Tools</TabsTrigger>
-          <TabsTrigger value="chat">Communication</TabsTrigger>
+          <TabsTrigger value="chat">AI Analysis</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assignments" className="space-y-4">
@@ -329,14 +329,12 @@ export const SpecialistDashboard = () => {
                           size="sm" 
                           variant="outline"
                           onClick={() => {
-                            setSelectedChatFarmer({
-                              id: assignment.farmer_id,
-                              name: assignment.farmer_name
-                            });
+                            setAiChatContext({ id: assignment.farmer_id, name: assignment.farmer_name, phase: assignment.phase });
+                            setActiveTab('chat');
                           }}
                         >
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Chat
+                          <Brain className="h-4 w-4 mr-1" />
+                          AI Chat
                         </Button>
                       </div>
                     </div>
@@ -391,32 +389,24 @@ export const SpecialistDashboard = () => {
         </TabsContent>
 
         <TabsContent value="chat" className="space-y-4">
-          {selectedChatFarmer ? (
-            <ChatInterface
-              farmerId={selectedChatFarmer.id}
-              farmerName={selectedChatFarmer.name}
-              onClose={() => setSelectedChatFarmer(null)}
+          {aiChatContext ? (
+            <AIAnalysisChat
+              farmerId={aiChatContext.id}
+              farmerName={aiChatContext.name}
+              phase={aiChatContext.phase}
+              onClose={() => setAiChatContext(null)}
             />
           ) : (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Communication Center
+                  <Brain className="h-5 w-5" />
+                  AI Analysis Workspace
                 </CardTitle>
                 <CardDescription>
-                  Chat with farmers, admins, and other specialists
+                  Select an assignment above to open the AI analysis chat.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="font-semibold mb-2">No active conversations</h3>
-                  <p className="text-sm text-gray-600">
-                    Start a conversation by selecting an assignment above
-                  </p>
-                </div>
-              </CardContent>
             </Card>
           )}
         </TabsContent>

@@ -7,6 +7,7 @@ import { LLMProvider, AnalysisResult, LLMApiKey } from '../types/specialist';
 // LLM Service class for managing AI analysis
 export class LLMService {
   private static instance: LLMService;
+  // Removed per policy: specialists cannot store their own keys.
   private apiKeys: Map<string, string> = new Map();
 
   private constructor() {}
@@ -18,68 +19,14 @@ export class LLMService {
     return LLMService.instance;
   }
 
-  // Store API key securely
-  async storeApiKey(provider: LLMProvider, keyName: string, apiKey: string): Promise<void> {
-    try {
-      // Encrypt the API key (in production, use proper encryption)
-      const encryptedKey = btoa(apiKey); // Simple base64 encoding for demo
-
-      const { error } = await supabase
-        .from('llm_api_keys')
-        .upsert({
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          provider,
-          key_name: keyName,
-          encrypted_key: encryptedKey,
-          is_active: true
-        });
-
-      if (error) {
-        throw new Error(`Failed to store API key: ${error.message}`);
-      }
-
-      // Cache the key for current session
-      this.apiKeys.set(`${provider}-${keyName}`, apiKey);
-    } catch (error) {
-      console.error('Error storing API key:', error);
-      throw error;
-    }
+  // Disabled: storing user-provided keys is not allowed for specialists
+  async storeApiKey(): Promise<void> {
+    throw new Error('Storing API keys is disabled for this environment.');
   }
 
-  // Retrieve API key securely
-  async getApiKey(provider: LLMProvider, keyName: string): Promise<string> {
-    try {
-      // Check cache first
-      const cacheKey = `${provider}-${keyName}`;
-      if (this.apiKeys.has(cacheKey)) {
-        return this.apiKeys.get(cacheKey)!;
-      }
-
-      // Fetch from database
-      const { data, error } = await supabase
-        .from('llm_api_keys')
-        .select('encrypted_key, is_active')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .eq('provider', provider)
-        .eq('key_name', keyName)
-        .eq('is_active', true)
-        .single();
-
-      if (error || !data) {
-        throw new Error(`API key not found: ${provider}-${keyName}`);
-      }
-
-      // Decrypt the key (in production, use proper decryption)
-      const decryptedKey = atob(data.encrypted_key);
-      
-      // Cache for current session
-      this.apiKeys.set(cacheKey, decryptedKey);
-      
-      return decryptedKey;
-    } catch (error) {
-      console.error('Error retrieving API key:', error);
-      throw error;
-    }
+  // Retrieve API key - now uses server-managed environment key via Edge Function proxy
+  async getApiKey(): Promise<string> {
+    throw new Error('Direct API key access is disabled. Use the server proxy.');
   }
 
   // List available API keys
@@ -127,46 +74,24 @@ export class LLMService {
     model: string = 'gpt-4'
   ): Promise<AnalysisResult> {
     try {
-      const apiKey = await this.getApiKey('openai', 'default');
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
+      // Call secured proxy (Edge Function) that injects OpenAI key server-side
+      const { data: proxyData, error: proxyError } = await supabase.functions.invoke('ai-chat', {
+        body: {
+          // No provider/model or system prompts from client
           messages: [
-            {
-              role: 'system',
-              content: `You are an agricultural data analysis specialist working for TelAgri, a financial platform serving farmers. 
-              Analyze the provided agricultural data with expertise in:
-              - Crop health and yield optimization
-              - Soil analysis and fertility management
-              - Irrigation and water management
-              - Financial analysis for agricultural loans
-              - Risk assessment for farming operations
-              
-              Provide detailed, actionable insights that help farmers improve their agricultural practices and financial outcomes.
-              Focus on practical recommendations that can be implemented in real farming conditions.`
-            },
             {
               role: 'user',
               content: `Context Data: ${JSON.stringify(contextData, null, 2)}\n\nAnalysis Request: ${prompt}`
             }
-          ],
-          max_tokens: 2000,
-          temperature: 0.7,
-        }),
+          ]
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      if (proxyError || !proxyData) {
+        throw new Error(`AI proxy error: ${proxyError?.message || 'Unknown error'}`);
       }
 
-      const data = await response.json();
+      const data = proxyData as any;
       const analysis = data.choices[0]?.message?.content;
 
       if (!analysis) {
@@ -199,120 +124,13 @@ export class LLMService {
     }
   }
 
-  // Analyze data using Anthropic Claude
-  async analyzeWithClaude(
-    prompt: string,
-    contextData: Record<string, unknown>,
-    model: string = 'claude-3-sonnet-20240229'
-  ): Promise<AnalysisResult> {
-    try {
-      const apiKey = await this.getApiKey('anthropic', 'default');
-      
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 2000,
-          messages: [
-            {
-              role: 'user',
-              content: `As an agricultural data analysis specialist for TelAgri, analyze this data:
-
-Context Data: ${JSON.stringify(contextData, null, 2)}
-
-Analysis Request: ${prompt}
-
-Provide detailed insights on crop health, soil conditions, irrigation needs, and financial implications. Focus on actionable recommendations for farmers.`
-            }
-          ],
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Anthropic API error: ${errorData.error?.message || 'Unknown error'}`);
-      }
-
-      const data = await response.json();
-      const analysis = data.content[0]?.text;
-
-      if (!analysis) {
-        throw new Error('No analysis generated');
-      }
-
-      // Update usage statistics
-      await this.updateApiKeyUsage('anthropic', 'default', data.usage);
-
-      return {
-        success: true,
-        data: {
-          analysis,
-          recommendations: this.extractRecommendations(analysis),
-          confidence_score: 0.88,
-          processing_time: Date.now(),
-          model_used: model
-        }
-      };
-    } catch (error) {
-      console.error('Claude analysis error:', error);
-      return {
-        success: false,
-        error: {
-          code: 'ANTHROPIC_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: { provider: 'anthropic', model }
-        }
-      };
-    }
-  }
-
-  // Generic analysis method that tries multiple providers
+  // Generic analysis method (OpenAI-only)
   async analyzeData(
     prompt: string,
     contextData: Record<string, unknown>,
     preferredProvider?: LLMProvider
   ): Promise<AnalysisResult> {
-    const providers: LLMProvider[] = preferredProvider 
-      ? [preferredProvider, 'openai', 'anthropic']
-      : ['openai', 'anthropic'];
-
-    for (const provider of providers) {
-      try {
-        let result: AnalysisResult;
-        
-        switch (provider) {
-          case 'openai':
-            result = await this.analyzeWithOpenAI(prompt, contextData);
-            break;
-          case 'anthropic':
-            result = await this.analyzeWithClaude(prompt, contextData);
-            break;
-          default:
-            continue;
-        }
-
-        if (result.success) {
-          return result;
-        }
-      } catch (error) {
-        console.warn(`Provider ${provider} failed, trying next:`, error);
-        continue;
-      }
-    }
-
-    return {
-      success: false,
-      error: {
-        code: 'ALL_PROVIDERS_FAILED',
-        message: 'All AI providers failed to generate analysis',
-        details: { providers: providers.join(', ') }
-      }
-    };
+    return await this.analyzeWithOpenAI(prompt, contextData);
   }
 
   // Extract recommendations from analysis text
@@ -352,34 +170,10 @@ Provide detailed insights on crop health, soil conditions, irrigation needs, and
   }
 
   // Validate API key
-  async validateApiKey(provider: LLMProvider, apiKey: string): Promise<boolean> {
+  async validateApiKey(): Promise<boolean> {
     try {
-      switch (provider) {
-        case 'openai':
-          const openaiResponse = await fetch('https://api.openai.com/v1/models', {
-            headers: { 'Authorization': `Bearer ${apiKey}` }
-          });
-          return openaiResponse.ok;
-
-        case 'anthropic':
-          const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'x-api-key': apiKey,
-              'Content-Type': 'application/json',
-              'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-              model: 'claude-3-haiku-20240307',
-              max_tokens: 1,
-              messages: [{ role: 'user', content: 'test' }]
-            })
-          });
-          return anthropicResponse.ok;
-
-        default:
-          return false;
-      }
+      // Client no longer validates keys
+      return true;
     } catch (error) {
       console.error('API key validation error:', error);
       return false;

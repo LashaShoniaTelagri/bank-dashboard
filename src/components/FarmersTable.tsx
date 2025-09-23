@@ -454,6 +454,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                           <SpecialistAssignmentModal
                             farmerId={farmer.farmer_id}
                             farmerName={farmer.name}
+                            bankId={farmer.bank_id}
                             onAssignmentComplete={() => {
                               // Refresh data if needed
                             }}
