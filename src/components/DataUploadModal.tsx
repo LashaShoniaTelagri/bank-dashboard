@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../integrations/supabase/client";
 import { Button } from "./ui/button";
@@ -8,6 +8,7 @@ import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Progress } from "./ui/progress";
 import { 
@@ -16,27 +17,43 @@ import {
   Image, 
   MapPin, 
   Video, 
-  Music, 
   File,
   X,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Sun,
+  Trash2
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "./ui/use-toast";
-import { DataUploadForm, DataType, AnalysisPhase, UploadProgress } from "../types/specialist";
-import { DATA_TYPES, ANALYSIS_PHASES } from "../types/specialist";
+import { DataUploadForm, DataType, F100Phase, UploadProgress, getPhaseLabel } from "../types/specialist";
+import { DATA_TYPES } from "../types/specialist";
 
 interface DataUploadModalProps {
   farmerId: string;
   farmerName: string;
+  bankId: string; // required to avoid invalid UUID
   onUploadComplete?: () => void;
 }
+
+type UploadRow = {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_mime: string;
+  file_size_bytes: number;
+  created_at: string;
+  phase: number;
+  data_type: DataType;
+  metadata: Record<string, unknown> | null;
+  updated_at?: string;
+};
 
 export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   farmerId,
   farmerName,
+  bankId,
   onUploadComplete
 }) => {
   const { profile } = useAuth();
@@ -44,39 +61,66 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   const [uploadData, setUploadData] = useState<DataUploadForm>({
     farmer_id: farmerId,
     data_type: 'photo',
-    file: null as any,
+    file: null,
     description: '',
     tags: [],
-    phase: 'initial_assessment'
+    phase: 1 as F100Phase
   });
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [tagInput, setTagInput] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [uploadToDelete, setUploadToDelete] = useState<null | {
+    id: string;
+    file_name: string;
+    file_path: string;
+  }>(null);
+  const [f100Phase, setF100Phase] = useState<F100Phase | null>(null);
+
+  // Reset success message when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setShowSuccessMessage(false);
+    }
+  }, [isOpen]);
+
+  // Load previously uploaded data for this farmer
+  const { data: existingUploads = [], isLoading: uploadsLoading } = useQuery<UploadRow[]>({
+    queryKey: ['farmer-data-uploads', farmerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from<UploadRow>('farmer_data_uploads')
+        .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata')
+        .eq('farmer_id', farmerId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    }
+  });
 
   const queryClient = useQueryClient();
 
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (formData: DataUploadForm) => {
-      if (!formData.file) {
-        throw new Error('No file selected');
-      }
-
+    mutationFn: async (file: File) => {
       // Validate file size
-      const maxSize = parseInt(DATA_TYPES[formData.data_type].maxSize.replace('MB', '')) * 1024 * 1024;
-      if (formData.file.size > maxSize) {
-        throw new Error(`File size exceeds maximum allowed size of ${DATA_TYPES[formData.data_type].maxSize}`);
+      const maxSize = parseInt(DATA_TYPES[uploadData.data_type].maxSize.replace('MB', '')) * 1024 * 1024;
+      if (file.size > maxSize) {
+        throw new Error(`File size exceeds maximum allowed size of ${DATA_TYPES[uploadData.data_type].maxSize}`);
       }
 
       // Generate unique file path
-      const fileExt = formData.file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `farmer-data/${farmerId}/${formData.phase}/${fileName}`;
+      const filePath = `farmer-data/${farmerId}/${uploadData.phase}/${fileName}`;
 
       // Upload file to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('farmer-documents')
-        .upload(filePath, formData.file, {
+        .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
         });
@@ -85,39 +129,64 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Insert record into database
-      const { data, error } = await supabase
-        .from('farmer_data_uploads')
-        .insert({
-          farmer_id: formData.farmer_id,
-          bank_id: profile?.bank_id || '',
-          uploaded_by: profile?.user_id || '',
-          data_type: formData.data_type,
-          file_name: formData.file.name,
-          file_path: filePath,
-          file_mime: formData.file.type,
-          file_size_bytes: formData.file.size,
-          description: formData.description,
-          tags: formData.tags,
-          phase: formData.phase,
-          metadata: {
-            original_name: formData.file.name,
+      // Insert record into database (admin via RPC to bypass RLS; others direct insert)
+      let dbResponse: UploadRow | null = null;
+      let dbError: Error | null = null;
+      if (profile?.role === 'admin') {
+        const { data: rpcData, error: rpcError } = await supabase.rpc<UploadRow>('admin_insert_farmer_data_upload', {
+          p_farmer_id: farmerId,
+          p_bank_id: bankId,
+          p_data_type: uploadData.data_type,
+          p_file_name: file.name,
+          p_file_path: filePath,
+          p_file_mime: file.type,
+          p_file_size: file.size,
+          p_description: uploadData.description,
+          p_tags: uploadData.tags,
+          p_phase: uploadData.phase,
+          p_metadata: {
+            original_name: file.name,
             upload_timestamp: new Date().toISOString(),
-            uploader_role: profile?.role
+            uploader_role: profile?.role,
+            f100_phase: f100Phase
           }
-        })
-        .select()
-        .single();
-
-      if (error) {
-        // Clean up uploaded file if database insert fails
-        await supabase.storage
-          .from('farmer-documents')
-          .remove([filePath]);
-        throw new Error(`Database error: ${error.message}`);
+        });
+        dbResponse = rpcData ?? null;
+        dbError = rpcError ? new Error(rpcError.message) : null;
+      } else {
+        const { data: insertData, error: insertError } = await supabase
+          .from<UploadRow>('farmer_data_uploads')
+          .insert({
+            farmer_id: farmerId,
+            bank_id: bankId,
+            uploaded_by: profile?.user_id ?? '',
+            data_type: uploadData.data_type,
+            file_name: file.name,
+            file_path: filePath,
+            file_mime: file.type,
+            file_size_bytes: file.size,
+            description: uploadData.description,
+            tags: uploadData.tags,
+            phase: uploadData.phase,
+            metadata: {
+              original_name: file.name,
+              upload_timestamp: new Date().toISOString(),
+              uploader_role: profile?.role,
+              f100_phase: f100Phase
+            }
+          })
+          .select()
+          .single();
+        dbResponse = insertData ?? null;
+        dbError = insertError ? new Error(insertError.message) : null;
       }
 
-      return data;
+      if (dbError) {
+        await supabase.storage.from('farmer-documents').remove([filePath]);
+        throw dbError;
+      }
+
+      return dbResponse;
     },
     onSuccess: (data) => {
       toast({
@@ -125,19 +194,19 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         description: `Data uploaded successfully for ${farmerName}`,
       });
       
-      // Reset form
-      setUploadData({
-        farmer_id: farmerId,
-        data_type: 'photo',
-        file: null as any,
-        description: '',
-        tags: [],
-        phase: 'initial_assessment'
-      });
-      setUploadProgress(null);
-      setIsOpen(false);
+      // Show success message in modal
+      setShowSuccessMessage(true);
+      setTimeout(() => setShowSuccessMessage(false), 5000); // Hide after 5 seconds
       
-      // Invalidate queries
+      // Reset form but keep modal open
+      setUploadData(prev => ({
+        ...prev,
+        file: null as any
+      }));
+      setSelectedFiles([]);
+      setUploadProgress(null);
+      
+      // Invalidate queries to refresh the "Previously Uploaded" section
       queryClient.invalidateQueries({ queryKey: ['farmer-data-uploads', farmerId] });
       queryClient.invalidateQueries({ queryKey: ['specialist-assignments'] });
       
@@ -158,16 +227,97 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   const handleFileSelect = useCallback((file: File) => {
     // Validate file type based on data type
     const allowedTypes = {
-      photo: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-      analysis: ['application/pdf', 'text/plain', 'application/json'],
-      geospatial: ['application/json', 'text/csv', 'application/zip'],
-      text: ['text/plain', 'application/pdf', 'text/csv'],
-      document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-      video: ['video/mp4', 'video/avi', 'video/mov', 'video/wmv'],
-      audio: ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/ogg']
-    };
+      photo: [
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv',
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ],
+      analysis: [
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv', 'application/json',
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ],
+      maps: [
+        // Geospatial formats
+        'application/json', 'application/xml', 'text/xml',
+        'application/vnd.google-earth.kml+xml', 'application/vnd.google-earth.kmz',
+        'image/tiff', 'image/tif',
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv',
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ],
+      climate: [
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv', 'application/json',
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ],
+      text: [
+        'text/plain', 'text/csv', 'application/json',
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ],
+      document: [
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv',
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ],
+      video: [
+        // Videos
+        'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/webm', 'video/quicktime',
+        // Documents
+        'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv',
+        // Images
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        // Archives
+        'application/zip', 'application/x-zip-compressed'
+      ]
+    } as const;
 
-    const typeAllowed = allowedTypes[uploadData.data_type]?.includes(file.type);
+    const typeAllowed = allowedTypes[uploadData.data_type]?.includes(file.type as any);
     if (!typeAllowed) {
       toast({
         title: "Invalid file type",
@@ -177,7 +327,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       return;
     }
 
-    setUploadData(prev => ({ ...prev, file }));
+    setSelectedFiles(prev => [...prev, file]);
   }, [uploadData.data_type]);
 
   // Handle drag and drop
@@ -196,15 +346,16 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     e.stopPropagation();
     setDragActive(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      Array.from(e.dataTransfer.files).forEach((f) => handleFileSelect(f));
     }
   }, [handleFileSelect]);
 
   // Handle file input change
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      Array.from(e.target.files).forEach((f) => handleFileSelect(f));
+      e.currentTarget.value = '';
     }
   }, [handleFileSelect]);
 
@@ -228,9 +379,9 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   }, []);
 
   // Handle form submission
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadData.file) {
+    if (selectedFiles.length === 0) {
       toast({
         title: "No file selected",
         description: "Please select a file to upload",
@@ -238,8 +389,31 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       });
       return;
     }
-    uploadMutation.mutate(uploadData);
-  }, [uploadData, uploadMutation]);
+    
+    // Hide success message when starting new upload
+    setShowSuccessMessage(false);
+    
+    try {
+      // Validate session
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (userErr || !userId) {
+        toast({
+          title: 'Session expired',
+          description: 'Please sign in again to upload files.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      for (const file of selectedFiles) {
+        setUploadProgress({ file_name: file.name, progress: 0, status: 'uploading' });
+        await uploadMutation.mutateAsync(file);
+      }
+    } finally {
+      setUploadProgress(null);
+    }
+  }, [selectedFiles, uploadMutation]);
 
   // Get data type icon
   const getDataTypeIcon = (type: DataType) => {
@@ -248,16 +422,16 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         return <Image className="h-4 w-4" />;
       case 'analysis':
         return <FileText className="h-4 w-4" />;
-      case 'geospatial':
+      case 'maps':
         return <MapPin className="h-4 w-4" />;
+      case 'climate':
+        return <Sun className="h-4 w-4" />;
       case 'text':
         return <FileText className="h-4 w-4" />;
       case 'document':
         return <File className="h-4 w-4" />;
       case 'video':
         return <Video className="h-4 w-4" />;
-      case 'audio':
-        return <Music className="h-4 w-4" />;
       default:
         return <File className="h-4 w-4" />;
     }
@@ -306,23 +480,20 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             </Select>
           </div>
 
-          {/* Phase Selection */}
+          {/* F-100 Phase Selection */}
           <div className="space-y-2">
-            <Label htmlFor="phase">Analysis Phase</Label>
+            <Label htmlFor="f100-phase">Phase</Label>
             <Select
-              value={uploadData.phase}
-              onValueChange={(value) => setUploadData(prev => ({ ...prev, phase: value as AnalysisPhase }))}
+              value={f100Phase ? String(f100Phase) : ''}
+              onValueChange={(value) => setF100Phase(Number(value))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select analysis phase" />
+                <SelectValue placeholder="Phases (1-12)" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(ANALYSIS_PHASES).map(([key, phase]) => (
-                  <SelectItem key={key} value={key}>
-                    <div>
-                      <div className="font-medium">{phase.name}</div>
-                      <div className="text-xs text-gray-500">{phase.description}</div>
-                    </div>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    Phase {n}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -332,6 +503,15 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           {/* File Upload */}
           <div className="space-y-2">
             <Label>File Upload</Label>
+            {/* Always-mounted hidden input to support both initial select and Add more files */}
+            <Input
+              type="file"
+              onChange={handleFileInputChange}
+              className="hidden"
+              ref={fileInputRef}
+              multiple
+              accept={uploadData.data_type === 'photo' ? 'image/*' : undefined}
+            />
             <div
               className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                 dragActive 
@@ -343,21 +523,23 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
               onDragOver={handleDrag}
               onDrop={handleDrop}
             >
-              {uploadData.file ? (
+              {selectedFiles.length > 0 ? (
                 <div className="space-y-2">
-                  <CheckCircle className="h-8 w-8 text-green-500 mx-auto" />
-                  <p className="font-medium text-green-700">{uploadData.file.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {(uploadData.file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setUploadData(prev => ({ ...prev, file: null as any }))}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Remove
+                  <div className="max-h-40 overflow-auto space-y-2">
+                    {selectedFiles.map((f, idx) => (
+                      <div key={`${f.name}-${idx}`} className="flex items-center justify-between border rounded p-2">
+                        <div>
+                          <p className="text-sm font-medium">{f.name}</p>
+                          <p className="text-xs text-gray-500">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    Add more files
                   </Button>
                 </div>
               ) : (
@@ -371,18 +553,14 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                       Max file size: {DATA_TYPES[uploadData.data_type].maxSize}
                     </p>
                   </div>
-                  <Input
-                    type="file"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                    id="file-upload"
-                    accept={uploadData.data_type === 'photo' ? 'image/*' : undefined}
-                  />
-                  <Label htmlFor="file-upload" className="cursor-pointer">
-                    <Button type="button" variant="outline" size="sm">
-                      Choose File
-                    </Button>
-                  </Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Choose File
+                  </Button>
                 </div>
               )}
             </div>
@@ -466,6 +644,16 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             </Card>
           )}
 
+          {/* Success Message */}
+          {showSuccessMessage && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-sm font-medium text-green-800">
+                Data uploaded successfully! You can upload more files or close this dialog.
+              </span>
+            </div>
+          )}
+
           {/* Submit Button */}
           <div className="flex justify-end gap-2">
             <Button
@@ -478,7 +666,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={!uploadData.file || uploadMutation.isPending}
+              disabled={selectedFiles.length === 0 || uploadMutation.isPending}
             >
               {uploadMutation.isPending ? (
                 <>
@@ -493,8 +681,131 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
               )}
             </Button>
           </div>
+
+          {/* Existing Uploads */}
+          <div className="space-y-2">
+            <Label>Previously Uploaded</Label>
+            {uploadsLoading ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : existingUploads.length === 0 ? (
+              <div className="text-sm text-gray-500">No files uploaded yet.</div>
+            ) : (
+              <div className="max-h-48 overflow-auto border rounded">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted">
+                      <th className="text-left p-2">Name</th>
+                      <th className="text-left p-2">Type</th>
+                      <th className="text-left p-2">Size</th>
+                      <th className="text-left p-2">Phase</th>
+                      <th className="text-left p-2">Uploaded</th>
+                      <th className="text-left p-2">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {existingUploads.map((u: UploadRow) => (
+                      <tr key={u.id} className="border-t">
+                        <td className="p-2 break-all">{u.file_name}</td>
+                        <td className="p-2">{u.data_type}</td>
+                        <td className="p-2">{(u.file_size_bytes / 1024 / 1024).toFixed(2)} MB</td>
+                        <td className="p-2">
+                          {getPhaseLabel((u.metadata?.f100_phase as F100Phase | undefined) ?? (u.phase as F100Phase))}
+                        </td>
+                        <td className="p-2">{new Date(u.created_at).toLocaleString()}</td>
+                        <td className="p-2 flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            title="Download"
+                            onClick={async () => {
+                              const { data } = await supabase
+                                .storage
+                                .from('farmer-documents')
+                                .createSignedUrl(u.file_path, 3600);
+                              if (data?.signedUrl) {
+                                window.open(data.signedUrl, '_blank');
+                              }
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                              <path fillRule="evenodd" d="M11.25 3a.75.75 0 0 1 1.5 0v9.19l2.47-2.47a.75.75 0 1 1 1.06 1.06l-3.75 3.75a.75.75 0 0 1-1.06 0L6.72 10.78a.75.75 0 1 1 1.06-1.06l2.47 2.47V3z" clipRule="evenodd" />
+                              <path d="M4.5 15.75a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75V18A2.25 2.25 0 0 1 17.25 20.25H6.75A2.25 2.25 0 0 1 4.5 18v-2.25z" />
+                            </svg>
+                          </Button>
+                          {profile?.role === 'admin' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              title="Delete"
+                              onClick={() => {
+                                setUploadToDelete({
+                                  id: u.id,
+                                  file_name: u.file_name,
+                                  file_path: u.file_path
+                                });
+                                setDeleteConfirmOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </form>
       </DialogContent>
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={(open) => {
+        setDeleteConfirmOpen(open);
+        if (!open) {
+          setUploadToDelete(null);
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Uploaded File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this uploaded file? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!uploadToDelete) {
+                  setDeleteConfirmOpen(false);
+                  return;
+                }
+                try {
+                  const { error: delErr } = await supabase
+                    .from('farmer_data_uploads')
+                    .delete()
+                    .eq('id', uploadToDelete.id);
+                  if (delErr) {
+                    toast({ title: 'Delete failed', description: delErr.message, variant: 'destructive' });
+                    return;
+                  }
+                  await supabase.storage.from('farmer-documents').remove([uploadToDelete.file_path]);
+                  queryClient.invalidateQueries({ queryKey: ['farmer-data-uploads', farmerId] });
+                  toast({ title: 'Deleted', description: `${uploadToDelete.file_name} removed.` });
+                } finally {
+                  setUploadToDelete(null);
+                  setDeleteConfirmOpen(false);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete File
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

@@ -18,7 +18,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { FileViewer } from "@/components/FileViewer";
 import { useAuth } from "@/hooks/useAuth";
-import { useCrops } from "@/hooks/useCrops";
 import ServiceCostCalculator from "@/components/ServiceCostCalculator";
 import { calculate, type Selection } from "@/lib/serviceCost";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -31,12 +30,6 @@ interface Bank {
   name: string;
 }
 
-interface Crop {
-  id: string;
-  name: string;
-  image_url: string;
-  country_code: string;
-}
 
 interface FarmerDocument {
   id?: string;
@@ -96,7 +89,6 @@ interface FarmerModalProps {
 
 export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
   const { profile } = useAuth();
-  const { data: crops = [], isLoading: cropsLoading, error: cropsError } = useCrops() as { data: Crop[], isLoading: boolean, error: Error | null };
   const [formData, setFormData] = useState<Farmer>({
     bank_id: '',
     type: 'person',

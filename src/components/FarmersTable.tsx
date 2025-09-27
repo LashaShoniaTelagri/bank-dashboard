@@ -447,6 +447,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                           <DataUploadModal
                             farmerId={farmer.farmer_id}
                             farmerName={farmer.name}
+                            bankId={farmer.bank_id}
                             onUploadComplete={() => {
                               // Refresh data if needed
                             }}

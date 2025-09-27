@@ -8,6 +8,7 @@ import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { 
   Users, 
@@ -22,8 +23,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "./ui/use-toast";
-import { SpecialistAssignmentForm, AnalysisPhase } from "../types/specialist";
-import { ANALYSIS_PHASES } from "../types/specialist";
+import { SpecialistAssignmentForm, F100Phase, getPhaseLabel } from "../types/specialist";
 
 interface SpecialistAssignmentModalProps {
   farmerId: string;
@@ -50,10 +50,12 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
   const [assignmentData, setAssignmentData] = useState<SpecialistAssignmentForm>({
     farmer_id: farmerId,
     specialist_id: '',
-    phase: 'initial_assessment',
+    phase: 1 as F100Phase,
     notes: ''
   });
   const [selectedSpecialists, setSelectedSpecialists] = useState<string[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -91,6 +93,37 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
     enabled: !!farmerId,
   });
 
+  // Delete assignment mutation
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const { data, error } = await supabase
+        .rpc('delete_specialist_assignment', { p_assignment_id: assignmentId });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Assignment deleted",
+        description: "Specialist assignment has been removed",
+      });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['specialist-assignments', farmerId] });
+      queryClient.invalidateQueries({ queryKey: ['specialist-assignments'] });
+      
+      onAssignmentComplete?.();
+    },
+    onError: (error) => {
+      console.error('Delete assignment error:', error);
+      toast({
+        title: "Delete failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   // Assignment mutation
   const assignmentMutation = useMutation({
     mutationFn: async (assignments: SpecialistAssignmentForm[]) => {
@@ -119,7 +152,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
       setAssignmentData({
         farmer_id: farmerId,
         specialist_id: '',
-        phase: 'initial_assessment',
+        phase: 1 as F100Phase,
         notes: ''
       });
       setSelectedSpecialists([]);
@@ -148,6 +181,20 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
         ? prev.filter(id => id !== specialistId)
         : [...prev, specialistId]
     );
+  };
+
+  // Handle delete confirmation
+  const handleDeleteClick = (assignmentId: string) => {
+    setAssignmentToDelete(assignmentId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (assignmentToDelete) {
+      deleteAssignmentMutation.mutate(assignmentToDelete);
+    }
+    setDeleteConfirmOpen(false);
+    setAssignmentToDelete(null);
   };
 
   // Handle form submission
@@ -188,27 +235,11 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
   };
 
   // Get phase icon
-  const getPhaseIcon = (phase: AnalysisPhase) => {
-    switch (phase) {
-      case 'initial_assessment':
-        return <CheckCircle className="h-4 w-4" />;
-      case 'crop_analysis':
-        return <Brain className="h-4 w-4" />;
-      case 'soil_analysis':
-        return <Brain className="h-4 w-4" />;
-      case 'irrigation_analysis':
-        return <Brain className="h-4 w-4" />;
-      case 'harvest_analysis':
-        return <CheckCircle className="h-4 w-4" />;
-      case 'financial_analysis':
-        return <Brain className="h-4 w-4" />;
-      case 'compliance_review':
-        return <AlertCircle className="h-4 w-4" />;
-      case 'final_report':
-        return <CheckCircle className="h-4 w-4" />;
-      default:
-        return <Brain className="h-4 w-4" />;
-    }
+  const getPhaseIcon = (phase: F100Phase) => {
+    if (phase <= 4) return <CheckCircle className="h-4 w-4" />;
+    if (phase <= 8) return <Brain className="h-4 w-4" />;
+    if (phase <= 11) return <AlertCircle className="h-4 w-4" />;
+    return <CheckCircle className="h-4 w-4" />;
   };
 
   // Get existing assignments for current phase
@@ -237,20 +268,19 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
           <div className="space-y-2">
             <Label htmlFor="phase">Analysis Phase</Label>
             <Select
-              value={assignmentData.phase}
-              onValueChange={(value) => setAssignmentData(prev => ({ ...prev, phase: value as AnalysisPhase }))}
+              value={assignmentData.phase.toString()}
+              onValueChange={(value) => setAssignmentData(prev => ({ ...prev, phase: parseInt(value) as F100Phase }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select analysis phase" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(ANALYSIS_PHASES).map(([key, phase]) => (
-                  <SelectItem key={key} value={key}>
+                {([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as F100Phase[]).map((phase) => (
+                  <SelectItem key={phase} value={phase.toString()}>
                     <div className="flex items-center gap-2">
-                      {getPhaseIcon(key as AnalysisPhase)}
+                      {getPhaseIcon(phase)}
                       <div>
-                        <div className="font-medium">{phase.name}</div>
-                        <div className="text-xs text-gray-500">{phase.description}</div>
+                        <div className="font-medium">{getPhaseLabel(phase)}</div>
                       </div>
                     </div>
                   </SelectItem>
@@ -263,7 +293,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
           {currentPhaseAssignments.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Current Assignments for {ANALYSIS_PHASES[assignmentData.phase].name}</CardTitle>
+                <CardTitle className="text-sm">Current Assignments for {getPhaseLabel(assignmentData.phase)}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -275,9 +305,23 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                           {specialists.find(s => s.id === assignment.specialist_id)?.email || 'Unknown Specialist'}
                         </span>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        {assignment.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {assignment.status}
+                        </Badge>
+                        {profile?.role === 'admin' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteClick(assignment.id)}
+                            disabled={deleteAssignmentMutation.isPending}
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -418,6 +462,27 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
           </div>
         </form>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Specialist Assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this specialist assignment? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Assignment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

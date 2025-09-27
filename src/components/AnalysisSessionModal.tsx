@@ -30,7 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "./ui/use-toast";
 import { AnalysisSessionForm, AnalysisResult, FarmerDataUpload, LLMProvider } from "../types/specialist";
 import { llmService, AnalysisPrompts } from "../lib/llm-service";
-import { ANALYSIS_PHASES, LLM_PROVIDERS } from "../types/specialist";
+import { LLM_PROVIDERS, getPhaseLabel } from "../types/specialist";
 
 interface AnalysisSessionModalProps {
   farmerId: string;
@@ -298,8 +298,8 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
 
   // Get suggested prompts based on phase
   const getSuggestedPrompts = () => {
-    const phaseData = ANALYSIS_PHASES[phase as keyof typeof ANALYSIS_PHASES];
-    if (!phaseData) return [];
+    const phaseNum = parseInt(phase);
+    if (isNaN(phaseNum) || phaseNum < 1 || phaseNum > 12) return [];
 
     switch (phase) {
       case 'crop_analysis':
@@ -347,7 +347,7 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
         <DialogHeader>
           <DialogTitle>AI Analysis Session - {farmerName}</DialogTitle>
           <DialogDescription>
-            {ANALYSIS_PHASES[phase as keyof typeof ANALYSIS_PHASES]?.name || phase} Analysis
+            {getPhaseLabel(parseInt(phase) as any) || phase} Analysis
           </DialogDescription>
         </DialogHeader>
 

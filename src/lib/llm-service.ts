@@ -2,7 +2,7 @@
 // Secure AI analysis integration with banking-grade security
 
 import { supabase } from '../integrations/supabase/client';
-import { LLMProvider, AnalysisResult, LLMApiKey } from '../types/specialist';
+import { LLMProvider, AnalysisResult, LLMApiKey, FarmerDataUpload } from '../types/specialist';
 
 // LLM Service class for managing AI analysis
 export class LLMService {
@@ -71,7 +71,8 @@ export class LLMService {
   async analyzeWithOpenAI(
     prompt: string,
     contextData: Record<string, unknown>,
-    model: string = 'gpt-4'
+    model: string = 'gpt-4',
+    attachedFiles?: FarmerDataUpload[]
   ): Promise<AnalysisResult> {
     try {
       // Call secured proxy (Edge Function) that injects OpenAI key server-side
@@ -83,7 +84,8 @@ export class LLMService {
               role: 'user',
               content: `Context Data: ${JSON.stringify(contextData, null, 2)}\n\nAnalysis Request: ${prompt}`
             }
-          ]
+          ],
+          attachedFiles: attachedFiles || []
         }
       });
 
@@ -128,9 +130,10 @@ export class LLMService {
   async analyzeData(
     prompt: string,
     contextData: Record<string, unknown>,
-    preferredProvider?: LLMProvider
+    preferredProvider?: LLMProvider,
+    attachedFiles?: FarmerDataUpload[]
   ): Promise<AnalysisResult> {
-    return await this.analyzeWithOpenAI(prompt, contextData);
+    return await this.analyzeWithOpenAI(prompt, contextData, 'gpt-4', attachedFiles);
   }
 
   // Extract recommendations from analysis text
