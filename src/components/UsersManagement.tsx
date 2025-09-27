@@ -6,7 +6,7 @@ import { Input } from "./ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
-import { UserX, Trash2, RefreshCw, AlertTriangle, Shield, Clock } from "lucide-react";
+import { UserX, Trash2, RefreshCw, AlertTriangle, Shield, Clock, Brain } from "lucide-react";
 import { toast } from "./ui/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -78,7 +78,7 @@ export const UsersManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
       toast({
         title: "Invitation sent!",
-        description: `${inviteData.role === 'admin' ? 'Administrator' : 'Bank viewer'} invitation has been sent to ${inviteData.email}`,
+        description: `${inviteData.role === 'admin' ? 'Administrator' : inviteData.role === 'specialist' ? 'Specialist' : 'Bank viewer'} invitation has been sent to ${inviteData.email}`,
       });
       
       setIsInviting(false);
@@ -262,12 +262,18 @@ export const UsersManagement = () => {
                         <Badge variant="outline">Bank Viewer</Badge>
                       </div>
                     </SelectItem>
+                    <SelectItem value="specialist">
+                      <div className="flex items-center gap-2">
+                        <Brain className="h-4 w-4" />
+                        Specialist
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {inviteData.role === 'bank_viewer' && (
+            {(inviteData.role === 'bank_viewer') && (
               <div className="space-y-2">
                 <Label htmlFor="bank">Bank</Label>
                 <Select
@@ -293,7 +299,7 @@ export const UsersManagement = () => {
               disabled={inviteMutation.isPending}
               className="w-full md:w-auto"
             >
-              {inviteMutation.isPending ? "Sending..." : `Invite ${inviteData.role === 'admin' ? 'Administrator' : 'Bank Viewer'}`}
+              {inviteMutation.isPending ? "Sending..." : `Invite ${inviteData.role === 'admin' ? 'Administrator' : inviteData.role === 'specialist' ? 'Specialist' : 'Bank Viewer'}`}
             </Button>
           </form>
         </CardContent>
@@ -360,12 +366,15 @@ const RecentInvitations = ({
     return badges[status as keyof typeof badges] || <Badge variant="outline">{status}</Badge>;
   };
 
-     const getRoleBadge = (role: string) => {
-     if (role === 'admin') {
-       return <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-300"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
-     }
-     return <Badge variant="outline">Bank Viewer</Badge>;
-   };
+  const getRoleBadge = (role: string) => {
+    if (role === 'admin') {
+      return <Badge variant="default" className="bg-purple-100 text-purple-800 border-purple-300"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
+    }
+    if (role === 'specialist') {
+      return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-300"><Brain className="w-3 h-3 mr-1" />Specialist</Badge>;
+    }
+    return <Badge variant="outline">Bank Viewer</Badge>;
+  };
 
   if (isLoading) {
     return (

@@ -94,7 +94,7 @@ const AdminDashboard = () => {
       </div>
 
       <header className="relative z-10 border-b bg-white/60 backdrop-blur-md border-white/30 shadow-lg">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container-fluid mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-700">TelAgri Admin</h1>
           <Button variant="outline" onClick={handleSignOut} className="border-2 border-emerald-300 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-500 hover:text-emerald-700 hover:shadow-lg active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-md">
             <LogOut className="mr-2 h-4 w-4" />
@@ -103,7 +103,7 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <div className="relative z-10 container mx-auto px-4 py-6">
+      <div className="relative z-10 container-fluid mx-auto px-6 py-6">
         <div className="space-y-6">
           {/* Navigation */}
           <div className="border-b border-white/30 bg-white/40 backdrop-blur-sm rounded-t-lg shadow-lg">

@@ -184,6 +184,8 @@ const Auth = () => {
         return <Navigate to="/admin/dashboard" replace />;
       } else if (profile.role === 'bank_viewer') {
         return <Navigate to="/bank" replace />;
+      } else if (profile.role === 'specialist') {
+        return <Navigate to="/specialist/dashboard" replace />;
       }
     }
     // If no profile found, stay on auth page to show error or loading

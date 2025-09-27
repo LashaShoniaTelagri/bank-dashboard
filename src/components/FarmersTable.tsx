@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Edit, Trash2, Upload, Eye, FileText, User, MoreVertical } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, Eye, FileText, User, MoreVertical, Brain, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +18,8 @@ import { F100Modal } from "@/components/F100Modal";
 import { FarmerProfileModal } from "@/components/FarmerProfileModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FileViewer } from "@/components/FileViewer";
+import { DataUploadModal } from "@/components/DataUploadModal";
+import { SpecialistAssignmentModal } from "@/components/SpecialistAssignmentModal";
 
 interface FarmerWithF100 {
   farmer_id: string;
@@ -442,6 +444,22 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     {canEditFarmers && (
                       <td className="md:sticky md:right-0 bg-background p-2 md:z-10 border-l">
                         <div className="flex gap-1 justify-center">
+                          <DataUploadModal
+                            farmerId={farmer.farmer_id}
+                            farmerName={farmer.name}
+                            bankId={farmer.bank_id}
+                            onUploadComplete={() => {
+                              // Refresh data if needed
+                            }}
+                          />
+                          <SpecialistAssignmentModal
+                            farmerId={farmer.farmer_id}
+                            farmerName={farmer.name}
+                            bankId={farmer.bank_id}
+                            onAssignmentComplete={() => {
+                              // Refresh data if needed
+                            }}
+                          />
                           <Button 
                             variant="ghost" 
                             size="sm"

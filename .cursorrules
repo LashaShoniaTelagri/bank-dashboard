@@ -279,6 +279,7 @@ interface AuditEntry {
 - Implement proper error boundaries
 - **Banking-Grade Security**: Always validate permissions and log sensitive operations
 - **Performance Optimization**: Use React.memo, useMemo, and useCallback for large datasets
+- **Delete Operations**: ALWAYS require user confirmation for delete actions using AlertDialog component to prevent accidental data loss
 
 ### State Management
 - Use React hooks for local state
@@ -513,6 +514,41 @@ const form = useForm<FormType>({
     </Button>
   </form>
 </Form>
+
+// REQUIRED: Delete confirmation pattern
+const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+
+const handleDeleteClick = (itemId: string) => {
+  setItemToDelete(itemId);
+  setDeleteConfirmOpen(true);
+};
+
+const handleDeleteConfirm = () => {
+  if (itemToDelete) {
+    deleteMutation.mutate(itemToDelete);
+  }
+  setDeleteConfirmOpen(false);
+  setItemToDelete(null);
+};
+
+// Always wrap delete buttons with confirmation
+<AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete this item? This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
+        Delete
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
 ```
 
 ## 📊 DATA MANAGEMENT
@@ -577,12 +613,39 @@ Storage:
 └── AWS S3 backup for critical data
 ```
 
-### Environment Configuration
+### Environment Configuration & Multi-Environment Support
+- **NEVER** hardcode environment-specific values (URLs, project IDs, domains, API endpoints)
+- **ALWAYS** use environment detection or configuration for dev/staging/prod environments
 - **ALWAYS** use AWS Parameter Store for environment variables
 - **NEVER** commit real environment values to repository
 - **ALWAYS** separate frontend (VITE_*) and backend variables
 - **ALWAYS** use KMS encryption for sensitive parameters
+- **ALWAYS** implement environment-aware logic that works across dev/staging/prod
 
+#### Environment Detection Patterns:
+```typescript
+// ✅ GOOD: Environment-aware URL detection
+const getSupabaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    if (origin.includes('localhost')) return process.env.VITE_SUPABASE_URL_DEV;
+    if (origin.includes('staging')) return process.env.VITE_SUPABASE_URL_STAGING;
+    return process.env.VITE_SUPABASE_URL_PROD;
+  }
+  return process.env.SUPABASE_URL; // Server-side
+};
+
+// ✅ GOOD: Edge Function environment detection
+const origin = req.headers.get("origin");
+const supabaseUrl = origin?.includes("localhost") 
+  ? "dev-project-url" 
+  : "prod-project-url";
+
+// ❌ BAD: Hardcoded values
+const supabaseUrl = "https://specific-project.supabase.co";
+```
+
+#### Environment Variables Structure:
 ```bash
 # Frontend variables (public, safe in builds)
 VITE_SUPABASE_URL=https://your-project.supabase.co

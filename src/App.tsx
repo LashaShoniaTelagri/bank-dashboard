@@ -8,6 +8,7 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import BankDashboard from "./pages/BankDashboard";
+import { SpecialistDashboard } from "./pages/SpecialistDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,8 @@ const App = () => (
           <Route path="/admin/users" element={<AdminDashboard />} />
           <Route path="/admin/debug" element={<AdminDashboard />} />
           <Route path="/bank" element={<BankDashboard />} />
+          <Route path="/specialist" element={<Navigate to="/specialist/dashboard" replace />} />
+          <Route path="/specialist/dashboard" element={<SpecialistDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
