@@ -264,40 +264,17 @@ jobs:
           if supabase db push --linked; then
             echo "✅ Migrations applied successfully"
           else
-            echo "❌ Initial migration failed, checking for ordering issues..."
+            echo "❌ Migration failed"
             
-            # Check if the error is related to migration ordering
-            migration_output=$(supabase db push --linked 2>&1 || true)
-            if echo "$migration_output" | grep -q "local migration files to be inserted before the last migration"; then
-              echo "🔄 Detected migration ordering issue, retrying with --include-all flag..."
-              if supabase db push --linked --include-all; then
-                echo "✅ Migrations applied successfully with --include-all flag"
-              else
-                echo "❌ Migration failed even with --include-all flag"
-                
-                # Post-failure diagnostics
-                echo "🔍 Post-failure diagnostics..."
-                echo "Migration status after failure:"
-                supabase migration list --linked || echo "Could not retrieve migration status"
-                
-                echo "Database diff (if any):"
-                supabase db diff --linked || echo "Could not retrieve database diff"
-                
-                exit 1
-              fi
-            else
-              echo "❌ Migration failed for reasons other than ordering"
-              
-              # Post-failure diagnostics
-              echo "🔍 Post-failure diagnostics..."
-              echo "Migration status after failure:"
-              supabase migration list --linked || echo "Could not retrieve migration status"
-              
-              echo "Database diff (if any):"
-              supabase db diff --linked || echo "Could not retrieve database diff"
-              
-              exit 1
-            fi
+            # Post-failure diagnostics
+            echo "🔍 Post-failure diagnostics..."
+            echo "Migration status after failure:"
+            supabase migration list || echo "Could not retrieve migration status"
+            
+            echo "Database diff (if any):"
+            supabase db diff || echo "Could not retrieve database diff"
+            
+            exit 1
           fi
           
           # Post-migration validation
