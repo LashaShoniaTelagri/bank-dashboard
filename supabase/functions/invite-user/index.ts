@@ -16,7 +16,7 @@ const createInvitationEmail = (
   const isAdmin = role === 'admin';
   const isSpecialist = role === 'specialist';
   const roleTitle = isAdmin ? 'Administrator' : isSpecialist ? 'Specialist' : 'Bank Viewer';
-  const bankSection = isAdmin ? '' : ` for <strong>${bankName}</strong>`;
+  const bankSection = isAdmin ? '' : (bankName && bankName !== 'N/A' ? ` for <strong>${bankName}</strong>` : '');
   
   const adminPermissions = `
     <li>Manage all farmers across all banks</li>
@@ -27,21 +27,21 @@ const createInvitationEmail = (
   `;
   
   const bankViewerPermissions = `
-    <li>View farmers associated with ${bankName}</li>
+    <li>View farmers associated with ${bankName && bankName !== 'N/A' ? bankName : 'your bank'}</li>
     <li>Access F-100 agricultural assessment reports</li>
     <li>Monitor farmer performance metrics and scores</li>
     <li>Generate reports for your bank's portfolio</li>
   `;
 
   const specialistPermissions = `
-    <li>Access assigned farmers for ${bankName}</li>
+    <li>Access assigned farmers${bankName && bankName !== 'N/A' ? ` for ${bankName}` : ''}</li>
     <li>Upload and manage analysis data per phase</li>
     <li>Run analysis sessions and record results</li>
     <li>Communicate via secure messages with farmers and admins</li>
   `;
 
   // Text versions for plain text email
-  const textIntroSuffix = isAdmin ? '' : ` for ${bankName}`;
+  const textIntroSuffix = isAdmin ? '' : (bankName && bankName !== 'N/A' ? ` for ${bankName}` : '');
   const textPermissions = isAdmin 
     ? `• Manage all farmers across all banks
 • View and manage all F-100 reports  
@@ -49,11 +49,11 @@ const createInvitationEmail = (
 • Access comprehensive system analytics
 • Configure bank partnerships and settings`
     : isSpecialist 
-    ? `• Access assigned farmers for ${bankName}
+    ? `• Access assigned farmers${bankName && bankName !== 'N/A' ? ` for ${bankName}` : ''}
 • Upload and manage analysis data per phase
 • Run analysis sessions and record results
 • Communicate via secure messages with farmers and admins`
-    : `• View farmers associated with ${bankName}
+    : `• View farmers associated with ${bankName && bankName !== 'N/A' ? bankName : 'your bank'}
 • Access F-100 agricultural assessment reports
 • Monitor farmer performance metrics and scores
 • Generate reports for your bank's portfolio`;
@@ -64,14 +64,14 @@ const htmlContent = `
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>TelAgri Bank Dashboard Invitation</title>
+        <title>TelAgri Invitation</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0; }
           .content { background: #ffffff; padding: 30px 20px; border: 1px solid #e5e7eb; }
           .footer { background: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; }
-          .btn { display: inline-block; background: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+          .btn { display: inline-block; background: #10b981; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
           .btn:hover { background: #059669; }
           .info-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 20px 0; }
           .warning { background: #fef3c7; border: 1px solid #fcd34d; padding: 15px; border-radius: 6px; margin: 20px 0; }
@@ -80,14 +80,14 @@ const htmlContent = `
       <body>
         <div class="container">
           <div class="header">
-            <h1>🌱 TelAgri Bank Dashboard</h1>
+            <h1>🌱 TelAgri</h1>
             <p>Agricultural Finance Management System</p>
           </div>
           
           <div class="content">
             <h2>Welcome to TelAgri Bank Dashboard!</h2>
             <p>Hello!</p>
-            <p>You have been invited to join the <strong>TelAgri Bank Dashboard</strong> as a <strong>${roleTitle}</strong>${bankSection}.</p>
+            <p>You have been invited to join <strong>TelAgri</strong> as a <strong>${roleTitle}</strong>${bankSection}.</p>
             
             <div class="info-box">
               <h3>${isAdmin ? '🔐' : '🏦'} Your Role: ${roleTitle}</h3>
@@ -118,7 +118,7 @@ const htmlContent = `
           </div>
           
           <div class="footer">
-            <p>This email was sent by TelAgri Bank Dashboard</p>
+            <p>This email was sent by TelAgri</p>
             <p style="font-size: 12px; color: #6b7280;">
               If you didn't expect this invitation, please ignore this email or contact support.
             </p>
@@ -131,7 +131,7 @@ const htmlContent = `
   const textContent = `
 Welcome to TelAgri Bank Dashboard!
 
-You have been invited to join TelAgri Bank Dashboard as a ${roleTitle}${textIntroSuffix}.
+You have been invited to join TelAgri as a ${roleTitle}${textIntroSuffix}.
 
 As a ${roleTitle}, you'll have access to:
 ${textPermissions}
@@ -143,7 +143,7 @@ This link expires in 24 hours.
 If you have any questions, please contact your administrator.
 
 ---
-TelAgri Bank Dashboard
+TelAgri
 Agricultural Finance Management System
     `;
 
@@ -151,7 +151,7 @@ Agricultural Finance Management System
   return {
     personalizations: [{
       to: [{ email: userEmail }],
-      subject: `Invitation to TelAgri Bank Dashboard${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : ` - ${bankName}`}`
+      subject: `Invitation to TelAgri${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : (bankName && bankName !== 'N/A' ? ` - ${bankName}` : '')}`
     }],
     from: { 
       email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com',

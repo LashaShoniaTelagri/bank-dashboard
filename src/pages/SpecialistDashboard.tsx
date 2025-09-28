@@ -220,11 +220,15 @@ export const SpecialistDashboard = () => {
 
   useEffect(() => {
     if (error) {
-      toast({
-        title: "Error loading assignments",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Only show toast for actual errors, not for "function not found" when no assignments exist
+      if (!error.message?.includes("Could not find the function") && 
+          !error.message?.includes("get_specialist_assignments")) {
+        toast({
+          title: "Error loading assignments",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
     }
   }, [error]);
 
@@ -677,11 +681,11 @@ export const SpecialistDashboard = () => {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               </div>
             ) : filteredAssignments.length === 0 ? (
-              <Card>
+              <Card className="border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20">
                 <CardContent className="p-8 text-center">
-                  <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No assignments found</h3>
-                  <p className="text-gray-600">
+                  <Brain className="h-12 w-12 text-rose-500 dark:text-rose-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-rose-900 dark:text-rose-100 mb-2">No assignments found</h3>
+                  <p className="text-rose-700 dark:text-rose-300">
                     {assignments.length === 0 
                       ? "You don't have any assignments yet. Contact your administrator to get started."
                       : "No assignments match your current filters. Try adjusting your search criteria."}
