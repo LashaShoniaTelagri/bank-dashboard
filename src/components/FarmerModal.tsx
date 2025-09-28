@@ -18,7 +18,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { FileViewer } from "@/components/FileViewer";
 import { useAuth } from "@/hooks/useAuth";
-import { useCrops } from "@/hooks/useCrops";
+
+// Extended file type for farmer files
+interface FarmerFile {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_mime: string;
+  file_size_bytes: number;
+  created_at: string;
+  isExisting?: boolean;
+}
 import ServiceCostCalculator from "@/components/ServiceCostCalculator";
 import { calculate, type Selection } from "@/lib/serviceCost";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -31,12 +41,6 @@ interface Bank {
   name: string;
 }
 
-interface Crop {
-  id: string;
-  name: string;
-  image_url: string;
-  country_code: string;
-}
 
 interface FarmerDocument {
   id?: string;
@@ -96,7 +100,6 @@ interface FarmerModalProps {
 
 export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
   const { profile } = useAuth();
-  const { data: crops = [], isLoading: cropsLoading, error: cropsError } = useCrops() as { data: Crop[], isLoading: boolean, error: Error | null };
   const [formData, setFormData] = useState<Farmer>({
     bank_id: '',
     type: 'person',
@@ -165,10 +168,10 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     }
     
     // Only upload new files (not existing ones)
-    const newIrrigationFiles = irrigationFiles.filter(f => !(f as any).isExisting);
-    const newAnalysisFiles = analysisFiles.filter(f => !(f as any).isExisting);
-    const newOtherFiles = otherFiles.filter(f => !(f as any).isExisting);
-    const newKmzFiles = kmzFiles.filter(f => !(f as any).isExisting);
+    const newIrrigationFiles = irrigationFiles.filter((f: FarmerFile) => !f.isExisting);
+    const newAnalysisFiles = analysisFiles.filter((f: FarmerFile) => !f.isExisting);
+    const newOtherFiles = otherFiles.filter((f: FarmerFile) => !f.isExisting);
+    const newKmzFiles = kmzFiles.filter((f: FarmerFile) => !f.isExisting);
     
     if (newIrrigationFiles.length > 0) await uploadFiles(currentFarmerId!, newIrrigationFiles, 'irrigation_diagram');
     if (newAnalysisFiles.length > 0) await uploadFiles(currentFarmerId!, newAnalysisFiles, 'current_analysis');
@@ -231,6 +234,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
       if (newLoans.length > 0) {
         const newLoanRows = newLoans.map(l => ({
           farmer_id: currentFarmerId!,
+          bank_id: profile?.bank_id || '',
           amount: l.amount as number,
           currency: l.currency as 'GEL' | 'USD' | 'EUR',
           start_date: l.start_date,
@@ -344,19 +348,20 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           const mockFile = new File([''], doc.file_name, { type: inferredType });
           
           // Add a property to track that this is an existing file
-          (mockFile as any).isExisting = true;
-          (mockFile as any).documentId = doc.id;
-          (mockFile as any).filePath = doc.file_path;
+          const extendedFile = mockFile as FarmerFile & { documentId: string; filePath: string };
+          extendedFile.isExisting = true;
+          extendedFile.documentId = doc.id;
+          extendedFile.filePath = doc.file_path;
           
           if (doc.document_type === 'irrigation_diagram') {
-            irrigationDocs.push(mockFile);
+            irrigationDocs.push(extendedFile);
           } else if (doc.document_type === 'current_analysis') {
-            analysisDocs.push(mockFile);
+            analysisDocs.push(extendedFile);
           } else if (doc.document_type === 'other') {
             if (doc.file_name.toLowerCase().endsWith('.kml') || doc.file_name.toLowerCase().endsWith('.kmz')) {
-              kmzDocs.push(mockFile);
+              kmzDocs.push(extendedFile);
             } else {
-              otherDocs.push(mockFile);
+              otherDocs.push(extendedFile);
             }
           }
         });
@@ -494,6 +499,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         loadFarmerDocuments(farmer.id);
       }
       
+      // For editing, default to details but allow access to calculator
       setStep('details');
       isInitialized.current = true;
     } else if (!farmer && (!isInitialized.current || farmerChanged)) {
@@ -786,13 +792,14 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
 
   // FileViewer state and helpers for consistent UX with profile modal
   const [fileViewerOpen, setFileViewerOpen] = useState(false)
-  const [fileViewerFiles, setFileViewerFiles] = useState<any[]>([])
+  const [fileViewerFiles, setFileViewerFiles] = useState<FarmerFile[]>([])
   const [fileViewerInitialIndex, setFileViewerInitialIndex] = useState(0)
   const [fileViewerSectionName, setFileViewerSectionName] = useState('')
 
   const buildViewerDocsFromFiles = (files: File[]) => {
     return files.map((f, idx) => {
-      const isExisting = (f as any).isExisting
+      const farmerFile = f as FarmerFile & { documentId?: string; filePath?: string };
+      const isExisting = farmerFile.isExisting
       const fileName = f.name
       const lower = fileName.toLowerCase()
       const derivedMime =
@@ -807,11 +814,11 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         lower.endsWith('.kmz') ? 'application/vnd.google-earth.kmz' :
         'application/octet-stream'
       const fileMime = f.type || derivedMime
-      const filePath = isExisting ? (f as any).filePath : `local/${fileName}`
-      const id = isExisting ? `existing-${(f as any).documentId}` : `local-${idx}-${fileName}`
+      const filePath = isExisting ? farmerFile.filePath : `local/${fileName}`
+      const id = isExisting ? `existing-${farmerFile.documentId}` : `local-${idx}-${fileName}`
       const createdAt = new Date().toISOString()
-      const size = (f as any).size ?? 0
-      const base: any = {
+      const size = f.size ?? 0
+      const base: FarmerFile = {
         id,
         file_name: fileName,
         file_path: filePath,
@@ -847,9 +854,9 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-7xl w-[95vw] h-[95vh] flex flex-col p-0" aria-describedby="farmer-modal-description">
         {/* Fixed Header */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-lg">
+        <div className="flex-shrink-0 bg-card border-b border-border px-6 py-4 rounded-t-lg">
         <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-900">
+            <DialogTitle className="text-xl font-semibold text-heading-primary">
             {farmer?.id ? 'Edit Farmer' : 'Add New Farmer'}
           </DialogTitle>
           <div id="farmer-modal-description" className="sr-only">
@@ -882,40 +889,134 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           {/* Hidden submit button to prevent browser from creating its own */}
           <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
           
-          {/* Step switcher */}
-          {!farmer?.id && (
-            <div className="space-y-4">
-              {step === 'calculator' && (
-                <ServiceCostCalculator
-                  value={calcSelection}
-                  onChange={(next, res) => {
-                    setCalcSelection(next);
-                    if (res) {
-                      setCalcTariff(res.tariff);
-                      setCalcTotal(res.total);
-                      // mirror into formData for submission
-                      setFormData(prev => ({
-                        ...prev,
-                        service_cost_tariff: res.tariff,
-                        service_cost_total_eur: res.total,
-                        service_cost_breakdown: calculate(next).parts,
-                        service_cost_selections: next,
-                        crop: next.crop,
-                      }));
-                    }
-                  }}
-                  onNext={() => setStep('details')}
-                />
-              )}
+          {/* Professional Wizard Navigation - Banking Grade */}
+          <div className="mb-8">
+            <div className="relative px-6">
+              {/* Step Indicators - 2-Step Layout - Full Width Symmetric */}
+              <div className="flex items-center justify-between w-full relative">
+                {/* Progress Line - Full width between step circles, vertically centered */}
+                <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 z-0">
+                  <div className="mx-[120px] h-0.5 bg-border rounded-full">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary via-primary to-primary/90 rounded-full transition-all duration-700 ease-out shadow-sm"
+                      style={{ width: step === 'calculator' ? '0%' : '100%' }}
+                    />
+                  </div>
+                </div>
+                {/* Step 1: Service Cost */}
+                <div className="flex flex-col items-center bg-card rounded-lg p-6 w-60 relative z-10">
+                  <button
+                    type="button"
+                    onClick={() => setStep('calculator')}
+                    className={`w-12 h-12 rounded-full border-2 font-bold text-sm transition-all duration-300 relative ${
+                      step === 'calculator'
+                        ? 'bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/25 scale-110'
+                        : 'bg-background border-primary text-primary hover:bg-primary/5 hover:scale-105 hover:shadow-md'
+                    }`}
+                  >
+                    <span className="relative z-10">1</span>
+                    {step === 'calculator' && (
+                      <div className="absolute inset-0 bg-primary/20 rounded-full animate-pulse" />
+                    )}
+                  </button>
+                  <div className="mt-3 text-center">
+                    <p className={`text-sm font-semibold transition-colors ${
+                      step === 'calculator' ? 'text-primary' : 'text-foreground'
+                    }`}>
+                      Service Cost
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Calculate pricing</p>
+                  </div>
+                </div>
+
+                {/* Step 2: Farmer Details */}
+                <div className="flex flex-col items-center bg-card rounded-lg p-6 w-60 relative z-10">
+                  <button
+                    type="button"
+                    onClick={() => setStep('details')}
+                    className={`w-12 h-12 rounded-full border-2 font-bold text-sm transition-all duration-300 relative ${
+                      step === 'details'
+                        ? 'bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/25 scale-110'
+                        : calcTotal || farmer?.id
+                          ? 'bg-background border-primary text-primary hover:bg-primary/5 hover:scale-105 hover:shadow-md'
+                          : 'bg-muted border-muted-foreground text-muted-foreground cursor-not-allowed'
+                    }`}
+                    disabled={!farmer?.id && !calcTotal}
+                  >
+                    <span className="relative z-10">2</span>
+                    {step === 'details' && (
+                      <div className="absolute inset-0 bg-primary/20 rounded-full animate-pulse" />
+                    )}
+                  </button>
+                  <div className="mt-3 text-center">
+                    <p className={`text-sm font-semibold transition-colors ${
+                      step === 'details' ? 'text-primary' : 
+                      calcTotal || farmer?.id ? 'text-foreground' : 'text-muted-foreground'
+                    }`}>
+                      Farmer Details
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Personal & agricultural info</p>
+                  </div>
+                </div>
+
+              </div>
             </div>
-          )}
+
+            {/* Step Summary - Only show for Farmer Details step */}
+            {step !== 'calculator' && (
+              <div className="mt-6 p-4 bg-muted/30 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-foreground">Farmer Information</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Complete farmer profile and agricultural details
+                    </p>
+                  </div>
+                  {calcTotal && (
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Calculated Cost</p>
+                      <p className="text-lg font-bold text-emerald-600">€{calcTotal.toLocaleString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Service Cost Calculator - Available for both new and existing farmers */}
+          <div className="space-y-4">
+            {step === 'calculator' && (
+              <div className="wizard-step-enter">
+                <ServiceCostCalculator
+                value={calcSelection}
+                onChange={(next, res) => {
+                  setCalcSelection(next);
+                  if (res) {
+                    setCalcTariff(res.tariff);
+                    setCalcTotal(res.total);
+                    // mirror into formData for submission
+                    setFormData(prev => ({
+                      ...prev,
+                      service_cost_tariff: res.tariff,
+                      service_cost_total_eur: res.total,
+                      service_cost_breakdown: calculate(next).parts,
+                      service_cost_selections: next,
+                      crop: next.crop,
+                    }));
+                  }
+                }}
+                onNext={() => setStep('details')}
+              />
+              </div>
+            )}
+          </div>
 
           {step === 'details' && (
-          <>
+          <div className="wizard-step-enter">
           {/* Bank Selection - Only show for admins */}
           {profile?.role === 'admin' && (
           <div className="space-y-2 mb-6">
-            <Label className="text-sm font-medium text-gray-700">Bank <span className="text-red-500">*</span></Label>
+            <Label className="text-sm font-medium text-foreground">Bank <span className="text-red-500">*</span></Label>
             <Select
               value={formData.bank_id}
               onValueChange={(value) => {
@@ -970,17 +1071,25 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
           )}
 
-          {/* 1. Personal Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              1. Personal Information <span className="text-red-500">*</span>
-            </h3>
+           {/* 1. Personal Information */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-lg">
+                 <span className="text-primary font-bold text-sm">1</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Personal Information <span className="text-destructive">*</span>
+                 </h3>
+                 <p className="text-sm text-body-secondary">Company and director details</p>
+               </div>
+             </div>
             
-            <div className="space-y-4">
-              <h4 className="text-md font-medium text-gray-800">About Company</h4>
+            <div className="pt-6 space-y-4">
+              <h4 className="text-md font-medium text-heading-secondary">About Company</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-                  <Label htmlFor="company_name" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="company_name" className="text-sm font-medium text-foreground">
                     Company Name <span className="text-red-500">*</span>
             </Label>
             <Input
@@ -994,7 +1103,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
 
           <div className="space-y-2">
-                  <Label htmlFor="identification_code" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="identification_code" className="text-sm font-medium text-foreground">
                     Identification Code <span className="text-red-500">*</span>
             </Label>
             <Input
@@ -1008,7 +1117,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
 
           <div className="space-y-2">
-                  <Label htmlFor="company_email" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="company_email" className="text-sm font-medium text-foreground">
                     Company Email <span className="text-red-500">*</span>
                   </Label>
             <Input
@@ -1023,10 +1132,10 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
           </div>
 
-              <h4 className="text-md font-medium text-gray-800 mt-6">Company Director</h4>
+              <h4 className="text-md font-medium text-heading-secondary mt-6">Company Director</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="director_name" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="director_name" className="text-sm font-medium text-foreground">
                     First/Last Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -1040,7 +1149,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
               </div>
               
               <div className="space-y-2">
-                  <Label htmlFor="director_mobile" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="director_mobile" className="text-sm font-medium text-foreground">
                   Mobile <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -1055,10 +1164,10 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 </div>
               </div>
               
-              <h4 className="text-md font-medium text-gray-800 mt-6">Contact Person</h4>
+              <h4 className="text-md font-medium text-heading-secondary mt-6">Contact Person</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                  <Label htmlFor="contact_name" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="contact_name" className="text-sm font-medium text-foreground">
                     First/Last Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -1072,7 +1181,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
               </div>
               
               <div className="space-y-2">
-                  <Label htmlFor="contact_mobile" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="contact_mobile" className="text-sm font-medium text-foreground">
                     Mobile <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -1088,15 +1197,22 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
               </div>
               </div>
             </div>
-            
-          <Separator className="my-6" />
 
-          {/* 2. Farm Overview */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              2. Farm Overview <span className="text-red-500">*</span>
-            </h3>
+           {/* 2. Farm Overview */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 mt-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg">
+                 <span className="text-emerald-600 dark:text-emerald-400 font-bold text-sm">2</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Farm Overview <span className="text-destructive">*</span>
+                 </h3>
+                 <p className="text-sm text-body-secondary">Location and agricultural details</p>
+               </div>
+             </div>
             
+            <div className="pt-6 space-y-4">
               <LocationInput
                 label="Location"
                 value={{ name: formData.location_name || '', lat: formData.location_lat, lng: formData.location_lng }}
@@ -1112,7 +1228,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
               />
             
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700">Cadastral Codes</Label>
+            <Label className="text-sm font-medium text-foreground">Cadastral Codes</Label>
             <div className="flex gap-2">
                 <Input 
                   placeholder="Enter code and press Enter" 
@@ -1133,9 +1249,13 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
             {cadastralCodes.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {cadastralCodes.map((c, i) => (
-                    <div key={i} className="px-2 py-1 rounded border text-xs flex items-center gap-2 bg-emerald-50">
+                    <div key={i} className="px-3 py-2 rounded-lg border text-sm flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200">
                     <span>{c}</span>
-                    <button type="button" onClick={() => setCadastralCodes(prev => prev.filter((_, idx) => idx !== i))}>
+                    <button 
+                      type="button" 
+                      onClick={() => setCadastralCodes(prev => prev.filter((_, idx) => idx !== i))}
+                      className="hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded p-0.5 transition-colors"
+                    >
                       <X className="h-3 w-3" />
                     </button>
                   </div>
@@ -1145,7 +1265,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Upload (KML/KMZ Files)</Label>
+              <Label className="text-sm font-medium text-foreground">Upload (KML/KMZ Files)</Label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-emerald-400 transition-colors">
                 <input
                   type="file"
@@ -1161,17 +1281,17 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                   id="kml-upload"
                 />
                 <label htmlFor="kml-upload" className="cursor-pointer">
-                  <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">Click to upload KML/KMZ files</p>
-                  <p className="text-xs text-gray-400">Supports .kml and .kmz formats</p>
+                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-body-secondary">Click to upload KML/KMZ files</p>
+                  <p className="text-xs text-muted-foreground">Supports .kml and .kmz formats</p>
                 </label>
                 </div>
                 
               {kmzFiles.length > 0 && (
-                <div className="mt-3">
-                    <p className="text-sm font-medium text-gray-700">Selected files:</p>
+                <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">Selected files:</p>
                   {kmzFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                       <div className="flex items-center gap-2">
                         <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => openFilesInViewer(kmzFiles, index, 'Farm Overview')}>
                           {file.name}
@@ -1222,16 +1342,23 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 )}
               </div>
             </div>
-            
-          <Separator className="my-6" />
+          </div>
 
-          {/* 3. Historical soil Analyses */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              3. Historical soil Analyses <span className="text-red-500">*</span>
-            </h3>
+           {/* 3. Historical soil Analyses */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 mt-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                 <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">3</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Historical Soil Analyses <span className="text-destructive">*</span>
+                 </h3>
+                 <p className="text-sm text-body-secondary">Previous soil analysis data</p>
+               </div>
+             </div>
             
-            <div className="space-y-2">
+            <div className="pt-6 space-y-2">
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-emerald-400 transition-colors">
                 <input
                   type="file"
@@ -1247,16 +1374,16 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                   id="analysis-upload"
                 />
                 <label htmlFor="analysis-upload" className="cursor-pointer">
-                  <FileText className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">Click to upload soil analysis documents</p>
-                  <p className="text-xs text-gray-400">Supports PDF, Word, Excel, and Image formats</p>
+                  <FileText className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-body-secondary">Click to upload soil analysis documents</p>
+                  <p className="text-xs text-muted-foreground">Supports PDF, Word, Excel, and Image formats</p>
                 </label>
                 </div>
                 {analysisFiles.length > 0 && (
                 <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Selected files:</p>
+                    <p className="text-sm font-medium text-foreground">Selected files:</p>
                     {analysisFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                       <div className="flex items-center gap-2">
                         <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => openFilesInViewer(analysisFiles, index, 'Historical soil Analyses')}>
                           {file.name}
@@ -1308,16 +1435,22 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
               </div>
             </div>
 
-          <Separator className="my-6" />
-
-          {/* 4. Last Yield */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              4. Last Yield <span className="text-red-500">*</span>
-            </h3>
+           {/* 4. Last Yield */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 mt-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-amber-100 dark:bg-amber-900/20 rounded-lg">
+                 <span className="text-amber-600 dark:text-amber-400 font-bold text-sm">4</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Last Yield <span className="text-destructive">*</span>
+                 </h3>
+                 <p className="text-sm text-body-secondary">Previous harvest information</p>
+               </div>
+             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="last_yield" className="text-sm font-medium text-gray-700">
+            <div className="pt-6 space-y-2">
+              <Label htmlFor="last_yield" className="text-sm font-medium text-foreground">
                 Last Yield Amount <span className="text-red-500">*</span>
               </Label>
               <div className="flex items-center gap-2">
@@ -1332,34 +1465,49 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                   className="focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   required
                 />
-                <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-2 rounded border">Tone</span>
+                <span className="text-sm font-medium text-body-secondary bg-muted px-3 py-2 rounded border">Tone</span>
               </div>
             </div>
           </div>
 
-          <Separator className="my-6" />
-
-          {/* 5. Loan Details */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              5. Loan Details
-            </h3>
+           {/* 5. Loan Details */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 mt-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                 <span className="text-purple-600 dark:text-purple-400 font-bold text-sm">5</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Loan Details
+                 </h3>
+                 <p className="text-sm text-body-secondary">Financial arrangements and terms</p>
+               </div>
+             </div>
             
-            <LoansEditor
+            <div className="pt-6">
+              <LoansEditor
               loans={loans}
               onChange={setLoans}
             />
+            </div>
           </div>
 
-          <Separator className="my-6" />
-
-          {/* 6. Comment about the farm */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              6. Comment about the farm
-            </h3>
+           {/* 6. Comment about the farm */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 mt-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
+                 <span className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">6</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Farm Comments
+                 </h3>
+                 <p className="text-sm text-body-secondary">Additional observations and notes</p>
+               </div>
+             </div>
             
-            <Textarea
+            <div className="pt-6">
+              <Textarea
               id="bank_comment"
               value={formData.bank_comment || ''}
               onChange={(e) => updateFormData('bank_comment', e.target.value)}
@@ -1367,17 +1515,24 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
               rows={4}
               className="focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
             />
+            </div>
           </div>
 
-          <Separator className="my-6" />
-
-          {/* 7. Other (Upload files) */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-emerald-700 border-b border-emerald-200 pb-2">
-              7. Other (Upload files)
-            </h3>
+           {/* 7. Other (Upload files) */}
+           <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 mt-6">
+             <div className="flex items-center gap-3 pb-4 border-b border-border">
+               <div className="flex items-center justify-center w-8 h-8 bg-slate-100 dark:bg-slate-900/20 rounded-lg">
+                 <span className="text-slate-600 dark:text-slate-400 font-bold text-sm">7</span>
+               </div>
+               <div>
+                 <h3 className="text-lg font-semibold text-heading-primary">
+                   Supporting Documents
+                 </h3>
+                 <p className="text-sm text-body-secondary">Additional files and documentation</p>
+               </div>
+             </div>
             
-            <div className="space-y-2">
+            <div className="pt-6 space-y-2">
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-emerald-400 transition-colors">
                 <input
                   type="file"
@@ -1392,18 +1547,18 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                   id="other-upload"
                 />
                 <label htmlFor="other-upload" className="cursor-pointer">
-                  <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">Click to upload additional files</p>
-                  <p className="text-xs text-gray-400">Any file format accepted</p>
+                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-body-secondary">Click to upload additional files</p>
+                  <p className="text-xs text-muted-foreground">Any file format accepted</p>
                 </label>
                 </div>
                 {otherFiles.length > 0 && (
                 <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Selected files:</p>
+                    <p className="text-sm font-medium text-foreground">Selected files:</p>
                     {otherFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                       <div className="flex items-center gap-2">
-                        <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => openFilesInViewer(otherFiles, index, 'Other')}>
+                        <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => openFilesInViewer(otherFiles, index, 'Supporting Documents')}>
                           {file.name}
                         </button>
                         {(file as any).isExisting && (
@@ -1452,36 +1607,78 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 )}
             </div>
           </div>
-          </>
+          </div>
           )}
 
         </form>
         </ErrorBoundary>
         </div>
 
-        {/* Fixed Footer */}
-        <div className="flex-shrink-0 bg-white border-t border-gray-200 px-6 py-4 rounded-b-lg">
-          <div className="flex justify-end gap-3">
-            <Button 
-              type="button" 
-              disabled={farmerMutation.isPending || (step === 'calculator' && !isCalculatorComplete)}
-              className="px-8 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              onClick={() => {
-                const form = document.querySelector('form') as HTMLFormElement;
-                if (form) form.requestSubmit();
-              }}
-            >
-              {farmerMutation.isPending ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {farmer?.id ? 'Updating Farmer...' : 'Creating Farmer...'}
-                </>
-              ) : (
-                <>
-                  {farmer?.id ? 'Update Farmer' : step === 'calculator' ? 'Next' : 'Register Farmer'}
-                </>
+        {/* Professional Wizard Footer */}
+        <div className="flex-shrink-0 bg-card border-t border-border px-6 py-4 rounded-b-lg">
+          <div className="flex justify-between items-center">
+            {/* Previous Button */}
+            <div>
+              {step === 'details' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep('calculator')}
+                  className="px-6 py-2 flex items-center gap-2"
+                >
+                  ← Previous
+                </Button>
               )}
-            </Button>
+            </div>
+
+            {/* Progress Indicator */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                Step {step === 'calculator' ? '1' : '2'} of 2
+              </span>
+              {calcTotal && step !== 'calculator' && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 dark:bg-emerald-900/20 rounded-full">
+                  <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                    Cost: €{calcTotal.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Next/Submit Button */}
+            <div>
+              {step === 'calculator' ? (
+                <Button
+                  type="button"
+                  disabled={!isCalculatorComplete || (!calcTotal && !farmer?.id)}
+                  onClick={() => setStep('details')}
+                  className="px-6 py-2 bg-primary hover:bg-primary/90 flex items-center gap-2"
+                >
+                  Next →
+                </Button>
+              ) : (
+                <Button 
+                  type="button" 
+                  disabled={farmerMutation.isPending}
+                  className="px-8 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
+                  onClick={() => {
+                    const form = document.querySelector('form') as HTMLFormElement;
+                    if (form) form.requestSubmit();
+                  }}
+                >
+                  {farmerMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      {farmer?.id ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    <>
+                      ✓ {farmer?.id ? 'Update Farmer' : 'Create Farmer'}
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

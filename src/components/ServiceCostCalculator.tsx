@@ -137,7 +137,7 @@ export function ServiceCostCalculator({ value, onChange, onNext }: Props) {
           </div>
         </div>
 
-        <div className="border rounded-lg p-4 bg-muted/30 sticky bottom-0 bg-white/95 backdrop-blur-sm">
+        <div className="border rounded-lg p-4 sticky bottom-0 bg-card/95 backdrop-blur-sm">
           <div className="text-sm font-medium text-muted-foreground mb-2">Service Cost</div>
           {result ? (
             <div className="space-y-1">

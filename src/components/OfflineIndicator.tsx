@@ -65,14 +65,14 @@ export const OfflineIndicator = () => {
 
       {/* Offline Page Content */}
       {!isOnline && window.location.pathname !== '/offline' && (
-        <div className="fixed inset-0 z-40 bg-white/95 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-40 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="max-w-md text-center">
             <div className="mb-6">
               <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
                 <AlertTriangle className="h-8 w-8 text-red-600" />
               </div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-2">You're Offline</h2>
-              <p className="text-slate-600 mb-4">
+              <h2 className="text-xl font-semibold text-heading-primary mb-2">You're Offline</h2>
+              <p className="text-body-secondary mb-4">
                 TelAgri Bank Dashboard requires an internet connection for security and real-time data access.
               </p>
             </div>
@@ -90,7 +90,7 @@ export const OfflineIndicator = () => {
               </ul>
             </div>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Please check your internet connection and try again.
             </p>
           </div>

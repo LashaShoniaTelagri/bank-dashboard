@@ -12,14 +12,16 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   if (!SUPABASE_URL) missingVars.push('VITE_SUPABASE_URL');
   if (!SUPABASE_PUBLISHABLE_KEY) missingVars.push('VITE_SUPABASE_ANON_KEY');
   
-  // Developer error logging
-  console.error('🔥 SUPABASE CONFIGURATION ERROR');
-  console.error('Missing required environment variables:', missingVars);
-  console.error('Please check your .env file and ensure these variables are set:');
-  missingVars.forEach(varName => {
-    console.error(`  - ${varName}`);
-  });
-  console.error('See env.template for required variables.');
+  // Log configuration error for debugging (only in development)
+  if (import.meta.env.DEV) {
+    console.error('🔥 SUPABASE CONFIGURATION ERROR');
+    console.error('Missing required environment variables:', missingVars);
+    console.error('Please check your .env file and ensure these variables are set:');
+    missingVars.forEach(varName => {
+      console.error(`  - ${varName}`);
+    });
+    console.error('See env.template for required variables.');
+  }
   
   // User-friendly error for production
   const errorMessage = 'Application configuration error. Please contact support.';

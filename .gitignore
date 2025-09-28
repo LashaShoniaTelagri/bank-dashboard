@@ -56,4 +56,4 @@ Thumbs.db
 
 # Cursor/AI generated files with potential secrets
 .specstory/
-.cursorindexingignore 
+.cursorindexingignore env.backend.prod
