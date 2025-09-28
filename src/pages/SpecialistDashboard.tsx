@@ -215,7 +215,12 @@ export const SpecialistDashboard = () => {
         last_activity: item.last_activity
       })) as SpecialistAssignmentWithData[];
     },
-    enabled: !!user?.id
+    enabled: !!user?.id,
+    staleTime: 30 * 1000, // 30 seconds - assignments can change frequently
+    cacheTime: 2 * 60 * 1000, // 2 minutes cache
+    refetchOnWindowFocus: false, // Prevent excessive refetching
+    refetchOnMount: true, // Refetch on component mount
+    retry: 1, // Reduce retry attempts for failed queries
   });
 
   useEffect(() => {

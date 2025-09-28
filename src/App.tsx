@@ -12,7 +12,24 @@ import BankDashboard from "./pages/BankDashboard";
 import { SpecialistDashboard } from "./pages/SpecialistDashboard";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Optimized QueryClient configuration to prevent network spam
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Global defaults to prevent excessive requests
+      staleTime: 30 * 1000, // 30 seconds - data is fresh for 30s
+      cacheTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 minutes
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      refetchOnReconnect: true, // Refetch when network reconnects
+      refetchOnMount: true, // Refetch when component mounts
+      retry: 1, // Only retry failed requests once
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    },
+    mutations: {
+      retry: 1, // Only retry failed mutations once
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

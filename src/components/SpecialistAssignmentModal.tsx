@@ -75,7 +75,9 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
         bank_id: row.bank_id as string | null,
       })) as Specialist[];
     },
-    enabled: true,
+    enabled: isOpen && !!profile?.user_id, // Only fetch when modal is open and user is authenticated
+    staleTime: 5 * 60 * 1000, // 5 minutes - specialists don't change frequently
+    cacheTime: 10 * 60 * 1000, // 10 minutes cache
   });
 
   // Fetch existing assignments for this farmer
@@ -90,7 +92,9 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
       if (error) throw error;
       return data;
     },
-    enabled: !!farmerId,
+    enabled: isOpen && !!farmerId, // Only fetch when modal is open
+    staleTime: 2 * 60 * 1000, // 2 minutes - assignments change more frequently
+    cacheTime: 5 * 60 * 1000, // 5 minutes cache
   });
 
   // Delete assignment mutation
@@ -355,25 +359,35 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                   return (
                     <div
                       key={specialist.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                      className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
                         isSelected 
-                          ? 'border-primary bg-primary/10' 
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-400' 
                           : isAlreadyAssigned
-                          ? 'border-border bg-muted/50 cursor-not-allowed'
-                          : 'border-border hover:border-border/80'
+                          ? 'border-border bg-muted/50 cursor-not-allowed opacity-60'
+                          : 'border-border hover:border-emerald-300 dark:hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
                       }`}
                       onClick={() => !isAlreadyAssigned && handleSpecialistToggle(specialist.id)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                            isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                            isSelected 
+                              ? 'border-emerald-500 bg-emerald-500 dark:border-emerald-400 dark:bg-emerald-400' 
+                              : 'border-muted-foreground dark:border-muted-foreground'
                           }`}>
-                            {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
+                            {isSelected && <CheckCircle className="h-3 w-3 text-white dark:text-emerald-950" />}
                           </div>
                           <div>
-                            <p className="font-medium text-sm">{specialist.email}</p>
-                            <p className="text-xs text-muted-foreground">Agricultural Data Specialist</p>
+                            <p className={`font-medium text-sm transition-colors ${
+                              isSelected 
+                                ? 'text-emerald-900 dark:text-emerald-100' 
+                                : 'text-foreground'
+                            }`}>{specialist.email}</p>
+                            <p className={`text-xs transition-colors ${
+                              isSelected 
+                                ? 'text-emerald-700 dark:text-emerald-300' 
+                                : 'text-muted-foreground'
+                            }`}>Agricultural Data Specialist</p>
                           </div>
                         </div>
                         {isAlreadyAssigned && (
@@ -400,10 +414,10 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                   {selectedSpecialists.map((specialistId) => {
                     const specialist = specialists.find(s => s.id === specialistId);
                     return (
-                      <div key={specialistId} className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                      <div key={specialistId} className="flex items-center justify-between p-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded">
                         <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium">{specialist?.email}</span>
+                          <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">{specialist?.email}</span>
                         </div>
                         <Button
                           type="button"
