@@ -190,7 +190,7 @@ serve(async (req) => {
     const thread = await createThread(apiKey);
 
     // Upload attached files to OpenAI if provided
-    let attachments: any[] = [];
+    const attachments: any[] = [];
     console.log(`📋 Received attachedFiles:`, JSON.stringify(attachedFiles, null, 2));
     
     if (attachedFiles && Array.isArray(attachedFiles) && attachedFiles.length > 0) {

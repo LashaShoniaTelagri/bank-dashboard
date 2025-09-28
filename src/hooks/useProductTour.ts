@@ -153,7 +153,7 @@ export const useProductTour = () => {
     const driverObj = driver(driverConfig);
     setDriverInstance(driverObj);
     return driverObj;
-  }, [markTourCompleted]);
+  }, [markTourCompleted, fixTourElements]);
 
   // Start the product tour
   const startTour = useCallback((config: ProductTourConfig) => {
@@ -180,7 +180,7 @@ export const useProductTour = () => {
       console.error('🎯 Error starting tour:', error);
       setIsActive(false);
     }
-  }, [isActive, initializeDriver]);
+  }, [isActive, initializeDriver, fixTourElements]);
 
   // Stop the current tour
   const stopTour = useCallback(() => {

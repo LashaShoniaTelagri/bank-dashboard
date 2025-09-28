@@ -18,6 +18,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { FileViewer } from "@/components/FileViewer";
 import { useAuth } from "@/hooks/useAuth";
+
+// Extended file type for farmer files
+interface FarmerFile {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_mime: string;
+  file_size_bytes: number;
+  created_at: string;
+  isExisting?: boolean;
+}
 import ServiceCostCalculator from "@/components/ServiceCostCalculator";
 import { calculate, type Selection } from "@/lib/serviceCost";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -157,10 +168,10 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
     }
     
     // Only upload new files (not existing ones)
-    const newIrrigationFiles = irrigationFiles.filter(f => !(f as any).isExisting);
-    const newAnalysisFiles = analysisFiles.filter(f => !(f as any).isExisting);
-    const newOtherFiles = otherFiles.filter(f => !(f as any).isExisting);
-    const newKmzFiles = kmzFiles.filter(f => !(f as any).isExisting);
+    const newIrrigationFiles = irrigationFiles.filter((f: FarmerFile) => !f.isExisting);
+    const newAnalysisFiles = analysisFiles.filter((f: FarmerFile) => !f.isExisting);
+    const newOtherFiles = otherFiles.filter((f: FarmerFile) => !f.isExisting);
+    const newKmzFiles = kmzFiles.filter((f: FarmerFile) => !f.isExisting);
     
     if (newIrrigationFiles.length > 0) await uploadFiles(currentFarmerId!, newIrrigationFiles, 'irrigation_diagram');
     if (newAnalysisFiles.length > 0) await uploadFiles(currentFarmerId!, newAnalysisFiles, 'current_analysis');
@@ -337,19 +348,20 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           const mockFile = new File([''], doc.file_name, { type: inferredType });
           
           // Add a property to track that this is an existing file
-          (mockFile as any).isExisting = true;
-          (mockFile as any).documentId = doc.id;
-          (mockFile as any).filePath = doc.file_path;
+          const extendedFile = mockFile as FarmerFile & { documentId: string; filePath: string };
+          extendedFile.isExisting = true;
+          extendedFile.documentId = doc.id;
+          extendedFile.filePath = doc.file_path;
           
           if (doc.document_type === 'irrigation_diagram') {
-            irrigationDocs.push(mockFile);
+            irrigationDocs.push(extendedFile);
           } else if (doc.document_type === 'current_analysis') {
-            analysisDocs.push(mockFile);
+            analysisDocs.push(extendedFile);
           } else if (doc.document_type === 'other') {
             if (doc.file_name.toLowerCase().endsWith('.kml') || doc.file_name.toLowerCase().endsWith('.kmz')) {
-              kmzDocs.push(mockFile);
+              kmzDocs.push(extendedFile);
             } else {
-              otherDocs.push(mockFile);
+              otherDocs.push(extendedFile);
             }
           }
         });
@@ -780,13 +792,14 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
 
   // FileViewer state and helpers for consistent UX with profile modal
   const [fileViewerOpen, setFileViewerOpen] = useState(false)
-  const [fileViewerFiles, setFileViewerFiles] = useState<any[]>([])
+  const [fileViewerFiles, setFileViewerFiles] = useState<FarmerFile[]>([])
   const [fileViewerInitialIndex, setFileViewerInitialIndex] = useState(0)
   const [fileViewerSectionName, setFileViewerSectionName] = useState('')
 
   const buildViewerDocsFromFiles = (files: File[]) => {
     return files.map((f, idx) => {
-      const isExisting = (f as any).isExisting
+      const farmerFile = f as FarmerFile & { documentId?: string; filePath?: string };
+      const isExisting = farmerFile.isExisting
       const fileName = f.name
       const lower = fileName.toLowerCase()
       const derivedMime =
@@ -801,11 +814,11 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         lower.endsWith('.kmz') ? 'application/vnd.google-earth.kmz' :
         'application/octet-stream'
       const fileMime = f.type || derivedMime
-      const filePath = isExisting ? (f as any).filePath : `local/${fileName}`
-      const id = isExisting ? `existing-${(f as any).documentId}` : `local-${idx}-${fileName}`
+      const filePath = isExisting ? farmerFile.filePath : `local/${fileName}`
+      const id = isExisting ? `existing-${farmerFile.documentId}` : `local-${idx}-${fileName}`
       const createdAt = new Date().toISOString()
-      const size = (f as any).size ?? 0
-      const base: any = {
+      const size = f.size ?? 0
+      const base: FarmerFile = {
         id,
         file_name: fileName,
         file_path: filePath,

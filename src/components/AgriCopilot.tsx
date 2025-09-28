@@ -153,7 +153,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
       console.error('Failed to ensure session:', error);
       return null;
     }
-  }, [profile?.user_id, farmerId, assignmentId, farmerIdNumber, crop, phaseLabel]);
+  }, [profile?.user_id, farmerId, assignmentId, farmerIdNumber, crop, phaseLabel, phase]);
 
   // Load chat history
   const loadChatHistory = useCallback(async (sessionId: string) => {

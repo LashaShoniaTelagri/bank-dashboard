@@ -143,7 +143,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     if (unreadMessages.length > 0) {
       markAsReadMutation.mutate(unreadMessages);
     }
-  }, [messages, profile?.user_id]);
+  }, [messages, profile?.user_id, markAsReadMutation]);
 
   // Get sender avatar
   const getSenderAvatar = (senderRole: UserRole, senderId: string) => {
