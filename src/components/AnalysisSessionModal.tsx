@@ -502,7 +502,7 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
                         </div>
                       )}
                       
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-4 text-sm text-body-secondary">
                         <span>Model: {analysisResult.data?.model_used}</span>
                         <span>Confidence: {Math.round((analysisResult.data?.confidence_score || 0) * 100)}%</span>
                       </div>
@@ -533,9 +533,9 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
                   </div>
                 ) : dataUploads.length === 0 ? (
                   <div className="text-center py-8">
-                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No data files available for this phase</p>
-                    <p className="text-sm text-gray-500">Upload data files to enable analysis</p>
+                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-body-secondary">No data files available for this phase</p>
+                    <p className="text-sm text-muted-foreground">Upload data files to enable analysis</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -563,11 +563,11 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
                             {getDataTypeIcon(upload.data_type)}
                             <div>
                               <p className="font-medium text-sm">{upload.file_name}</p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-muted-foreground">
                                 {upload.data_type} • {(upload.file_size_bytes / 1024 / 1024).toFixed(2)} MB
                               </p>
                               {upload.description && (
-                                <p className="text-xs text-gray-600 mt-1">{upload.description}</p>
+                                <p className="text-xs text-body-secondary mt-1">{upload.description}</p>
                               )}
                             </div>
                           </div>
@@ -610,9 +610,9 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
               <CardContent>
                 {existingSessions.length === 0 ? (
                   <div className="text-center py-8">
-                    <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No previous analysis sessions</p>
-                    <p className="text-sm text-gray-500">Start your first analysis above</p>
+                    <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-body-secondary">No previous analysis sessions</p>
+                    <p className="text-sm text-muted-foreground">Start your first analysis above</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -624,8 +624,8 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
                             {session.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600 mb-2">{session.analysis_prompt}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <p className="text-sm text-body-secondary mb-2">{session.analysis_prompt}</p>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>Created: {new Date(session.created_at).toLocaleDateString()}</span>
                           {session.llm_model && <span>Model: {session.llm_model}</span>}
                         </div>

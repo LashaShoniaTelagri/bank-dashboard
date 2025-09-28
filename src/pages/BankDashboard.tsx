@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
 import { BankFilters } from "@/components/BankFilters";
 import { supabase } from "@/integrations/supabase/client";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Bank {
   id: string;
@@ -29,7 +30,6 @@ const BankDashboard = () => {
     const fetchBank = async () => {
       if (profile?.bank_id) {
         // Set the bank filter for bank users to only see their own farmers
-        console.log('🏦 Setting bank filter for bank user:', profile.bank_id);
         setFilters(prev => ({ ...prev, bankId: profile.bank_id }));
   
         const { data } = await supabase
@@ -92,28 +92,35 @@ const BankDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Futuristic Agri-Finance Background - Same as Login */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-blue-50 to-green-50"></div>
+    <div className="min-h-screen relative overflow-hidden bg-background transition-colors">
+      {/* Futuristic Agri-Finance Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-primary/10 dark:via-accent/10 dark:to-primary/20"></div>
+      
       {/* Geometric Pattern Overlay */}
-      <div className="absolute inset-0 opacity-20" style={{
-        backgroundImage: `
-          radial-gradient(circle at 20% 50%, rgba(5, 150, 105, 0.3) 0%, transparent 50%),
-          radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.3) 0%, transparent 50%),
-          radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.3) 0%, transparent 50%),
-          linear-gradient(90deg, rgba(5, 150, 105, 0.1) 1px, transparent 1px),
-          linear-gradient(rgba(5, 150, 105, 0.1) 1px, transparent 1px)
-        `,
-        backgroundSize: '100% 100%, 100% 100%, 100% 100%, 50px 50px, 50px 50px'
-      }}></div>
+      <div className="absolute inset-0 opacity-20 dark:opacity-20">
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `
+              radial-gradient(circle at 20% 50%, hsl(var(--primary) / 0.3) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, hsl(var(--accent) / 0.3) 0%, transparent 50%),
+              radial-gradient(circle at 40% 80%, hsl(var(--primary) / 0.3) 0%, transparent 50%),
+              linear-gradient(90deg, hsl(var(--primary) / 0.1) 1px, transparent 1px),
+              linear-gradient(hsl(var(--primary) / 0.1) 1px, transparent 1px)
+            `,
+            backgroundSize: '100% 100%, 100% 100%, 100% 100%, 50px 50px, 50px 50px'
+          }}
+        />
+      </div>
+      
       {/* Floating Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-emerald-400/30 rounded-full animate-pulse"></div>
-        <div className="absolute top-3/4 right-1/3 w-3 h-3 bg-blue-400/20 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-1 h-1 bg-teal-500/40 rounded-full animate-pulse" style={{animationDelay: '2s'}}></div>
+        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-emerald-400/30 dark:bg-primary/30 rounded-full animate-pulse"></div>
+        <div className="absolute top-3/4 right-1/3 w-3 h-3 bg-green-400/30 dark:bg-accent/30 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute bottom-1/4 left-1/3 w-1 h-1 bg-emerald-500/40 dark:bg-primary/40 rounded-full animate-pulse" style={{animationDelay: '2s'}}></div>
       </div>
 
-      <header className="relative z-10 border-b bg-white/60 backdrop-blur-md border-white/30 shadow-lg">
+      <header className="relative z-10 border-b bg-card/60 dark:bg-card/40 backdrop-blur-md border-border/30 shadow-lg">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             {bank?.logo_url && (
@@ -123,19 +130,33 @@ const BankDashboard = () => {
                 className="h-10 w-auto"
               />
             )}
-            <h1 className="text-2xl font-bold text-slate-700">
+            <h1 className="text-2xl font-bold text-heading-primary">
               {bank?.name || 'TelAgri'}
             </h1>
           </div>
-          <Button variant="outline" onClick={handleSignOut} className="border-2 border-emerald-300 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-500 hover:text-emerald-700 hover:shadow-lg active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-md">
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-4">
+            <ThemeToggle variant="icon" size="sm" />
+            <Button 
+              variant="outline" 
+              onClick={handleSignOut} 
+              className="
+                bg-gradient-to-r from-emerald-600 to-green-600 
+                hover:from-emerald-500 hover:to-green-500
+                text-white font-medium border-emerald-400/30
+                shadow-lg shadow-emerald-500/25 
+                hover:shadow-xl hover:shadow-emerald-400/40
+                transform transition-all duration-200 hover:scale-105
+              "
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
       <div className="relative z-10 container mx-auto px-4 py-6">
-        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-lg shadow-xl p-6 space-y-6">
+        <div className="bg-card/60 dark:bg-card/40 backdrop-blur-md border border-border/30 rounded-lg shadow-xl p-6 space-y-6">
           <BankFilters 
             filters={{ search: filters.search, fromDate: filters.fromDate, toDate: filters.toDate }} 
             onFiltersChange={handleFiltersChange} 

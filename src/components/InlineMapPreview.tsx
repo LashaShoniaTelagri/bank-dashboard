@@ -24,13 +24,11 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
 
     const initMap = () => {
       if (!mapRef.current) {
-        console.log('Map ref not available, retrying...');
         setTimeout(initMap, 100);
         return;
       }
 
       try {
-        console.log('Initializing Google Maps with location:', location);
         
         const map = new google.maps.Map(mapRef.current, {
           center: { lat: location.lat, lng: location.lng },
@@ -58,7 +56,6 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
         mapInstanceRef.current = map;
         setIsLoading(false);
         setError(null);
-        console.log('Google Maps initialized successfully');
       } catch (err) {
         console.error('Error initializing inline map:', err);
         setError('Failed to load map preview');
@@ -71,10 +68,8 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
       setTimeout(() => {
         // Check if Google Maps is loaded
         if (typeof google !== 'undefined' && google.maps) {
-          console.log('Google Maps API already loaded');
           initMap();
         } else {
-          console.log('Loading Google Maps API...');
           // Load Google Maps if not already loaded
           const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
           
@@ -83,7 +78,6 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
             script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
             script.async = true;
             script.onload = () => {
-              console.log('Google Maps script loaded');
               initMap();
             };
             script.onerror = (err) => {
@@ -93,7 +87,6 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
             };
             document.head.appendChild(script);
           } else {
-            console.log('Google Maps script exists, waiting for load...');
             // Script exists, wait for it to load
             let attempts = 0;
             const maxAttempts = 50; // 5 seconds max
@@ -101,7 +94,6 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
             const checkGoogleMaps = () => {
               attempts++;
               if (typeof google !== 'undefined' && google.maps) {
-                console.log('Google Maps API ready after', attempts, 'attempts');
                 initMap();
               } else if (attempts < maxAttempts) {
                 setTimeout(checkGoogleMaps, 100);
@@ -127,7 +119,7 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
   if (error) {
     return (
       <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-        <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Location</label>
+        <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Location</label>
         <div className="flex items-center gap-2 text-red-600">
           <MapPin className="h-4 w-4" />
           <span className="text-sm">{error}</span>
@@ -141,7 +133,7 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
 
   return (
     <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-      <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Location</label>
+      <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Location</label>
       
       {/* Location Text */}
       <p className="text-sm font-semibold text-gray-900 mb-3">
@@ -180,7 +172,7 @@ export const InlineMapPreview: React.FC<InlineMapPreviewProps> = ({
             className="absolute top-2 right-2 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-lg p-2 shadow-md transition-all duration-200 opacity-0 group-hover:opacity-100"
             title="View full map"
           >
-            <Maximize2 className="h-4 w-4 text-gray-700" />
+            <Maximize2 className="h-4 w-4 text-foreground" />
           </button>
         )}
 

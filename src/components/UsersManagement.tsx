@@ -361,7 +361,7 @@ const RecentInvitations = ({
       pending: <Badge variant="outline" className="text-yellow-600 border-yellow-300"><Clock className="w-3 h-3 mr-1" />Pending</Badge>,
       accepted: <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">✅ Active</Badge>,
       expired: <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300"><AlertTriangle className="w-3 h-3 mr-1" />Expired</Badge>,
-      cancelled: <Badge variant="outline" className="text-gray-600 border-gray-300">❌ Cancelled</Badge>
+      cancelled: <Badge variant="outline" className="text-muted-foreground border-border">❌ Cancelled</Badge>
     };
     return badges[status as keyof typeof badges] || <Badge variant="outline">{status}</Badge>;
   };

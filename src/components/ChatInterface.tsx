@@ -289,8 +289,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   <div
                     className={`rounded-lg px-3 py-2 ${
                       msg.sender_id === profile?.user_id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-foreground'
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
@@ -303,8 +303,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             key={index}
                             className={`flex items-center gap-2 p-2 rounded ${
                               msg.sender_id === profile?.user_id
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-200 text-gray-700'
+                                ? 'bg-primary/90 text-primary-foreground'
+                                : 'bg-muted text-foreground'
                             }`}
                           >
                             {getAttachmentIcon(attachment)}

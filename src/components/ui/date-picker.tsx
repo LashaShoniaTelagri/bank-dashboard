@@ -1,10 +1,5 @@
-import { useState } from "react";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
+import { forwardRef, useRef } from "react";
+import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DatePickerProps {
@@ -17,167 +12,62 @@ interface DatePickerProps {
   className?: string;
 }
 
-export function DatePicker({ 
-  value, 
-  onChange, 
-  placeholder = "Pick a date",
-  minDate,
-  maxDate,
-  disabled = false,
-  className
-}: DatePickerProps) {
-  const [open, setOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState<Date>(() => {
-    if (value) return new Date(value);
-    return new Date();
-  });
-  
-  const selectedDate = value ? new Date(value) : undefined;
+export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
+  ({ 
+    value, 
+    onChange, 
+    placeholder = "Pick a date",
+    minDate,
+    maxDate,
+    disabled = false,
+    className
+  }, forwardedRef) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const ref = forwardedRef || inputRef;
+    
+    const formatDateForInput = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
 
-  // Generate year options (10 years back to 10 years forward)
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i);
-  
-  // Month names
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      onChange(e.target.value);
+    };
 
-  const handleYearChange = (year: number) => {
-    const newDate = new Date(currentMonth);
-    newDate.setFullYear(year);
-    setCurrentMonth(newDate);
-  };
+    const handleContainerClick = () => {
+      if (!disabled) {
+        const input = typeof ref === 'function' ? inputRef.current : ref?.current;
+        if (input && input.showPicker) {
+          input.showPicker();
+        }
+      }
+    };
 
-  const handleMonthChange = (month: number) => {
-    const newDate = new Date(currentMonth);
-    newDate.setMonth(month);
-    setCurrentMonth(newDate);
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      // Validate against min/max dates
-      if (minDate && date < minDate) return;
-      if (maxDate && date > maxDate) return;
-      
-      onChange(format(date, 'yyyy-MM-dd'));
-      setOpen(false);
-    }
-  };
-
-  const clearDate = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange('');
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "w-full justify-start text-left font-normal overflow-hidden",
-            !value && "text-muted-foreground",
-            disabled && "opacity-50 cursor-not-allowed",
-            className
-          )}
+    return (
+      <div 
+        className={cn("relative cursor-pointer", className)}
+        onClick={handleContainerClick}
+      >
+        <input
+          ref={ref}
+          type="date"
+          value={value}
+          onChange={handleChange}
           disabled={disabled}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          <span className="flex-1 truncate">
-            {value ? format(new Date(value), 'dd MMM yyyy') : placeholder}
-          </span>
-          {value && (
-            <button
-              onClick={clearDate}
-              className="ml-auto h-4 w-4 opacity-50 hover:opacity-100"
-              type="button"
-            >
-              ×
-            </button>
+          min={minDate ? formatDateForInput(minDate) : undefined}
+          max={maxDate ? formatDateForInput(maxDate) : undefined}
+          className={cn(
+            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            // Hide the native calendar icon to prevent duplication
+            "[&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer",
+            "pr-10", // Add padding for our custom icon
+            disabled && "opacity-50 cursor-not-allowed"
           )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <div className="flex items-center justify-between p-3 border-b">
-          <div className="flex items-center space-x-2">
-            {/* Month Navigation */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const newDate = new Date(currentMonth);
-                newDate.setMonth(newDate.getMonth() - 1);
-                setCurrentMonth(newDate);
-              }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            
-            {/* Month Selector */}
-            <Select
-              value={currentMonth.getMonth().toString()}
-              onValueChange={(value) => handleMonthChange(parseInt(value))}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {monthNames.map((month, index) => (
-                  <SelectItem key={index} value={index.toString()}>
-                    {month}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const newDate = new Date(currentMonth);
-                newDate.setMonth(newDate.getMonth() + 1);
-                setCurrentMonth(newDate);
-              }}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          {/* Year Selector */}
-          <Select
-            value={currentMonth.getFullYear().toString()}
-            onValueChange={(value) => handleYearChange(parseInt(value))}
-          >
-            <SelectTrigger className="w-20">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {yearOptions.map((year) => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <Calendar
-          mode="single"
-          selected={selectedDate}
-          onSelect={handleDateSelect}
-          month={currentMonth}
-          onMonthChange={setCurrentMonth}
-          disabled={(date) => {
-            if (minDate && date < minDate) return true;
-            if (maxDate && date > maxDate) return true;
-            return false;
-          }}
-          initialFocus
+          placeholder={placeholder}
         />
-      </PopoverContent>
-    </Popover>
-  );
-}
+        <CalendarIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      </div>
+    );
+  }
+);
+
+DatePicker.displayName = "DatePicker";

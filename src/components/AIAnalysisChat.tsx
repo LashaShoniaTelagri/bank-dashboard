@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { Brain, Send, Loader2, MinusCircle } from "lucide-react";
+import { Brain, Send, Loader2, MinusCircle, Eye, Image } from "lucide-react";
 import { llmService, AnalysisPrompts } from "@/lib/llm-service";
 import { FarmerDataUpload, F100Phase, AIChatMessage } from "@/types/specialist";
 import { formatFileSize } from "@/lib/formatters";
@@ -61,6 +61,7 @@ export const AIAnalysisChat: React.FC<AIAnalysisChatProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [attachedUploads, setAttachedUploads] = useState<FarmerDataUpload[]>(uploads);
+  const [analyzingImages, setAnalyzingImages] = useState<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement>(null);
   const lastContextRef = useRef<FarmerDataUpload[]>(uploads);
 
@@ -305,6 +306,33 @@ export const AIAnalysisChat: React.FC<AIAnalysisChatProps> = ({
     [assignmentId, attachedUploads, ensureSession, farmerId, farmerName, phase, phaseLabel, persistMessage, sessionId]
   );
 
+  const analyzeSpecificImage = useCallback(
+    async (upload: FarmerDataUpload) => {
+      // Prevent duplicate analysis requests
+      if (analyzingImages.has(upload.id) || isLoading) {
+        return;
+      }
+
+      setAnalyzingImages(prev => new Set(prev).add(upload.id));
+      
+      try {
+        const prompt = `Please analyze this specific image: ${upload.file_name}. ${upload.ai_description ? `AI Description: ${upload.ai_description}` : ''} Focus on agricultural aspects, crop health, soil conditions, and any issues that might affect farming operations or F-100 reporting.`;
+        await runAnalysis(prompt);
+      } finally {
+        setAnalyzingImages(prev => {
+          const next = new Set(prev);
+          next.delete(upload.id);
+          return next;
+        });
+      }
+    },
+    [runAnalysis, analyzingImages, isLoading]
+  );
+
+  const getImageUrl = useCallback((upload: FarmerDataUpload) => {
+    return supabase.storage.from('farmer-documents').getPublicUrl(upload.file_path).data.publicUrl;
+  }, []);
+
   const suggestedUploads = useMemo(() => attachedUploads, [attachedUploads]);
 
   const renderRichText = (content: string) => {
@@ -394,22 +422,90 @@ export const AIAnalysisChat: React.FC<AIAnalysisChatProps> = ({
         <div className="px-4 pb-3 flex items-center justify-between">
           <div className="flex-1">
             {suggestedUploads.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {suggestedUploads.map((upload) => (
-                  <span
-                    key={upload.id}
-                    className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700"
-                  >
-                    {upload.file_name} • {formatFileSize(upload.file_size_bytes)}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveUpload(upload.id)}
-                      className="text-blue-600 hover:text-blue-800"
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-700">Attached Files ({suggestedUploads.length})</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {suggestedUploads.map((upload) => (
+                    <div
+                      key={upload.id}
+                      className="border border-gray-200 rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                     >
-                      <MinusCircle className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+                      <div className="flex items-start gap-3">
+                        {upload.data_type === 'photo' && upload.file_mime?.startsWith('image/') ? (
+                          <div className="relative">
+                            <img
+                              src={getImageUrl(upload)}
+                              alt={upload.file_name}
+                              className="w-16 h-16 object-cover rounded border"
+                              onError={(e) => {
+                                // Fallback to icon if image fails to load
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                            <div className="hidden w-16 h-16 bg-gray-200 rounded border flex items-center justify-center">
+                              <Image className="h-6 w-6 text-gray-400" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-blue-100 rounded border flex items-center justify-center">
+                            <Image className="h-6 w-6 text-blue-600" />
+                          </div>
+                        )}
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-sm font-medium text-gray-900 truncate">
+                              {upload.file_name}
+                            </h5>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUpload(upload.id)}
+                              className="text-gray-400 hover:text-red-600 ml-2"
+                              title="Remove from context"
+                            >
+                              <MinusCircle className="h-4 w-4" />
+                            </button>
+                          </div>
+                          
+                          <p className="text-xs text-gray-500 mt-1">
+                            {formatFileSize(upload.file_size_bytes)} • Phase {upload.phase}
+                          </p>
+                          
+                          {upload.ai_description && (
+                            <p className="text-xs text-gray-600 mt-2 line-clamp-2">
+                              <span className="font-medium">AI Analysis:</span> {upload.ai_description}
+                            </p>
+                          )}
+                          
+                          <div className="flex gap-2 mt-2">
+                            {upload.data_type === 'photo' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => analyzeSpecificImage(upload)}
+                                className="text-xs h-6 px-2"
+                                disabled={isLoading || analyzingImages.has(upload.id)}
+                              >
+                                {analyzingImages.has(upload.id) ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    Analyzing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    Analyze Image
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -452,8 +548,8 @@ export const AIAnalysisChat: React.FC<AIAnalysisChatProps> = ({
                     <div
                       className={`rounded-lg px-3 py-2 max-w-[85%] break-words ${
                         message.role === "user"
-                          ? "bg-blue-50 text-blue-900 border border-blue-200"
-                          : "bg-gray-50 text-gray-900 border border-gray-200"
+                          ? "bg-primary/10 text-primary-foreground border border-primary/20"
+                          : "bg-muted text-foreground border border-border"
                       }`}
                     >
                       {message.role === "assistant" ? renderRichText(message.content) : (
@@ -464,11 +560,11 @@ export const AIAnalysisChat: React.FC<AIAnalysisChatProps> = ({
                 ))}
                 {isLoading && (
                   <div className="flex">
-                    <div className="rounded-lg px-3 py-2 bg-gray-50 text-gray-600 border border-gray-200">
+                    <div className="rounded-lg px-3 py-2 bg-muted text-muted-foreground border border-border">
                       <span className="inline-flex items-center gap-2">
-                        <span className="relative inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                        <span className="relative inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                        <span className="relative inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                        <span className="relative inline-block w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                        <span className="relative inline-block w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                        <span className="relative inline-block w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
                         <span>Thinking...</span>
                       </span>
                     </div>

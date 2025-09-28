@@ -191,7 +191,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
           .remove([phaseData.file_path]);
         
         if (storageError) {
-          console.warn('Error deleting file from storage:', storageError);
+          // Storage cleanup error - non-critical
           // Continue with database deletion even if storage deletion fails
         }
       }
@@ -310,7 +310,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
                 </p>
               </div>
 
-              <div className="space-y-2 text-left bg-gray-50 p-3 rounded-md">
+              <div className="space-y-2 text-left bg-muted/50 p-3 rounded-md">
                 <div className="text-sm">
                   <span className="font-medium">Phase:</span> {phaseData?.phase}
                 </div>
@@ -341,7 +341,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
                 variant="outline" 
                 onClick={onClose}
                 disabled={deleteMutation.isPending}
-                className="border-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-800 transform transition-all duration-200 hover:scale-[1.02] shadow-md"
+                className="border-2 border-border text-foreground hover:bg-muted hover:border-border/80 hover:text-foreground transform transition-all duration-200 hover:scale-[1.02] shadow-md"
               >
                 Cancel
               </Button>
@@ -407,7 +407,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
                 type="button" 
                 variant="outline" 
                 onClick={onClose} 
-                className="flex-1 border-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-800 transform transition-all duration-200 hover:scale-[1.02] shadow-md"
+                className="flex-1 border-2 border-border text-foreground hover:bg-muted hover:border-border/80 hover:text-foreground transform transition-all duration-200 hover:scale-[1.02] shadow-md"
               >
                 Close
               </Button>
@@ -431,7 +431,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
                   <SelectItem 
                     key={phase} 
                     value={phase.toString()}
-                    className="focus:bg-slate-100 focus:text-slate-900 hover:bg-slate-50 hover:text-slate-900"
+                    className="focus:bg-muted focus:text-foreground hover:bg-muted hover:text-foreground"
                   >
                     Phase {phase}
                   </SelectItem>
@@ -480,7 +480,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
               <Button
                 type="button"
                 variant="outline"
-                className="w-full border-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-800 transform transition-all duration-200 hover:scale-[1.02] shadow-md"
+                className="w-full border-2 border-border text-foreground hover:bg-muted hover:border-border/80 hover:text-foreground transform transition-all duration-200 hover:scale-[1.02] shadow-md"
                 onClick={() => document.getElementById('file')?.click()}
               >
                 <Upload className="mr-2 h-4 w-4" />
@@ -537,7 +537,7 @@ export const F100Modal = ({ isOpen, onClose, farmerId, farmerName, editMode = fa
               type="button" 
               variant="outline" 
               onClick={onClose}
-              className="border-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-800 transform transition-all duration-200 hover:scale-[1.02] shadow-md"
+              className="border-2 border-border text-foreground hover:bg-muted hover:border-border/80 hover:text-foreground transform transition-all duration-200 hover:scale-[1.02] shadow-md"
             >
               Cancel
             </Button>

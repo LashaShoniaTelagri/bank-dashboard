@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,9 +47,8 @@ export default function LoansEditor({ loans, onChange }: Props) {
 
   return (
     <TooltipProvider>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>Loan Details</CardTitle>
+      <div className="space-y-6">
+        <div className="flex justify-end">
           <Button 
             type="button" 
             onClick={addLoan} 
@@ -60,14 +58,16 @@ export default function LoansEditor({ loans, onChange }: Props) {
             <Plus className="h-4 w-4" />
             Add Another Loan
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {displayLoans.map((loan, idx) => (
-            <div key={idx} className="space-y-3 p-6 border border-gray-200 rounded-lg bg-gray-50">
+        </div>
+        
+        {displayLoans.map((loan, idx) => (
+          <div key={idx}>
+            {idx > 0 && <hr className="border-border mb-6" />}
+            <div className="space-y-3">
               {/* Input fields in one horizontal line */}
               <div className="grid grid-cols-1 lg:grid-cols-6 gap-6 items-end">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Amount</Label>
+                  <Label className="text-sm font-medium text-foreground">Amount</Label>
                   <Input 
                     type="number" 
                     min="0" 
@@ -78,7 +78,7 @@ export default function LoansEditor({ loans, onChange }: Props) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Currency</Label>
+                  <Label className="text-sm font-medium text-foreground">Currency</Label>
                   <Select value={loan.currency} onValueChange={(v: any) => updateLoan(idx, { currency: v })}>
                     <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select currency" />
@@ -91,7 +91,7 @@ export default function LoansEditor({ loans, onChange }: Props) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Start date</Label>
+                  <Label className="text-sm font-medium text-foreground">Start date</Label>
                   <DatePicker
                     value={loan.start_date}
                     onChange={(date) => {
@@ -106,7 +106,7 @@ export default function LoansEditor({ loans, onChange }: Props) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">End date</Label>
+                  <Label className="text-sm font-medium text-foreground">End date</Label>
                   <DatePicker
                     value={loan.end_date}
                     onChange={(date) => updateLoan(idx, { end_date: date })}
@@ -116,7 +116,7 @@ export default function LoansEditor({ loans, onChange }: Props) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Issuance date</Label>
+                  <Label className="text-sm font-medium text-foreground">Issuance date</Label>
                   <DatePicker
                     value={loan.issuance_date}
                     onChange={(date) => updateLoan(idx, { issuance_date: date })}
@@ -145,9 +145,9 @@ export default function LoansEditor({ loans, onChange }: Props) {
                 </div>
               </div>
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          </div>
+        ))}
+      </div>
     </TooltipProvider>
   )
 }

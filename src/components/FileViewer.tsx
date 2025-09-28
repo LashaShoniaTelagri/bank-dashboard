@@ -51,13 +51,34 @@ export const FileViewer: React.FC<FileViewerProps> = ({
       // Determine the storage bucket based on file path or type
       const bucket = file.file_path.startsWith('bank/') ? 'f100' : 'farmer-documents';
       
-      const { data } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(file.file_path, 3600); // 1 hour expiry
-      
-      if (data?.signedUrl) {
-        setFileUrls(prev => ({ ...prev, [file.id]: data.signedUrl }));
-        return data.signedUrl;
+      // Use Edge Function for farmer-documents to handle specialist permissions
+      if (bucket === 'farmer-documents') {
+        const { data, error } = await supabase.functions.invoke('get-file-url', {
+          body: {
+            filePath: file.file_path,
+            bucket: 'farmer-documents'
+          }
+        });
+        
+        if (error) {
+          console.error('Edge Function error:', error);
+          throw error;
+        }
+        
+        if (data?.signedUrl) {
+          setFileUrls(prev => ({ ...prev, [file.id]: data.signedUrl }));
+          return data.signedUrl;
+        }
+      } else {
+        // Use direct storage access for other buckets (f100, etc.)
+        const { data } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(file.file_path, 3600); // 1 hour expiry
+        
+        if (data?.signedUrl) {
+          setFileUrls(prev => ({ ...prev, [file.id]: data.signedUrl }));
+          return data.signedUrl;
+        }
       }
     } catch (error) {
       console.error('Error generating file URL:', error);
@@ -73,20 +94,13 @@ export const FileViewer: React.FC<FileViewerProps> = ({
     return null;
   }, [fileUrls]);
 
-  // Preload current and adjacent files
+  // Preload current file only (adjacent files loaded on navigation)
   useEffect(() => {
     if (!isOpen || !currentFile) return;
 
-    const preloadFiles = [
-      currentFile,
-      files[currentIndex - 1],
-      files[currentIndex + 1]
-    ].filter(Boolean);
-
-    preloadFiles.forEach(file => {
-      getFileUrl(file);
-    });
-  }, [currentIndex, isOpen, currentFile, files, getFileUrl]);
+    // Only preload the current file to avoid multiple XHR requests
+    getFileUrl(currentFile);
+  }, [currentIndex, isOpen, currentFile, getFileUrl]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -258,8 +272,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({
           </object>
           
           {/* Fallback message if neither works */}
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100" style={{ zIndex: -1 }}>
-            <div className="text-center text-gray-600">
+          <div className="absolute inset-0 flex items-center justify-center bg-muted" style={{ zIndex: -1 }}>
+            <div className="text-center text-body-secondary">
               <p className="mb-4">PDF viewer not available</p>
               <button
                 onClick={() => downloadFile(currentFile)}
@@ -278,7 +292,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
       <div className="flex flex-col items-center justify-center h-96 text-white space-y-4">
         <div className="text-center">
           <h3 className="text-xl font-semibold mb-2">{currentFile.file_name}</h3>
-          <p className="text-gray-300 mb-4">Preview not available for this file type</p>
+          <p className="text-muted-foreground mb-4">Preview not available for this file type</p>
           <div className="flex gap-3">
             <button
               onClick={() => downloadFile(currentFile)}
@@ -289,7 +303,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </button>
             <button
               onClick={() => openInNewTab(currentFile)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 rounded-lg transition-colors"
             >
               <ExternalLink className="h-4 w-4" />
               Open in New Tab
@@ -311,7 +325,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             <div className="flex items-center space-x-2">
               {sectionName && (
                 <>
-                  <span className="text-lg font-medium text-gray-300">{sectionName}</span>
+                  <span className="text-lg font-medium text-muted-foreground">{sectionName}</span>
                   <span className="text-gray-500">-</span>
                 </>
               )}
@@ -326,7 +340,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
               )}
               <h3 className="text-lg font-semibold">{currentFile?.file_name}</h3>
             </div>
-            <span className="text-sm text-gray-300">
+            <span className="text-sm text-muted-foreground">
               {currentIndex + 1} of {files.length}
             </span>
           </div>

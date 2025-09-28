@@ -88,16 +88,16 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   }, [isOpen]);
 
   // Load previously uploaded data for this farmer
-  const { data: existingUploads = [], isLoading: uploadsLoading } = useQuery<UploadRow[]>({
+  const { data: existingUploads = [], isLoading: uploadsLoading } = useQuery({
     queryKey: ['farmer-data-uploads', farmerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<UploadRow[]> => {
       const { data, error } = await supabase
-        .from<UploadRow>('farmer_data_uploads')
+        .from('farmer_data_uploads')
         .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata')
         .eq('farmer_id', farmerId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data as unknown as UploadRow[]) ?? [];
     }
   });
 
@@ -133,7 +133,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       let dbResponse: UploadRow | null = null;
       let dbError: Error | null = null;
       if (profile?.role === 'admin') {
-        const { data: rpcData, error: rpcError } = await supabase.rpc<UploadRow>('admin_insert_farmer_data_upload', {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('admin_insert_farmer_data_upload', {
           p_farmer_id: farmerId,
           p_bank_id: bankId,
           p_data_type: uploadData.data_type,
@@ -151,11 +151,11 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             f100_phase: f100Phase
           }
         });
-        dbResponse = rpcData ?? null;
+        dbResponse = rpcData as unknown as UploadRow ?? null;
         dbError = rpcError ? new Error(rpcError.message) : null;
       } else {
         const { data: insertData, error: insertError } = await supabase
-          .from<UploadRow>('farmer_data_uploads')
+          .from('farmer_data_uploads')
           .insert({
             farmer_id: farmerId,
             bank_id: bankId,
@@ -177,13 +177,38 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           })
           .select()
           .single();
-        dbResponse = insertData ?? null;
+        dbResponse = insertData as UploadRow ?? null;
         dbError = insertError ? new Error(insertError.message) : null;
       }
 
       if (dbError) {
         await supabase.storage.from('farmer-documents').remove([filePath]);
         throw dbError;
+      }
+
+      // Generate AI description for image files
+      if (uploadData.data_type === 'photo' && file.type.startsWith('image/')) {
+        try {
+          console.log(`🖼️ Generating AI description for image: ${file.name}`);
+          const { error: descriptionError } = await supabase.functions.invoke('generate-image-description', {
+            body: {
+              filePath,
+              fileName: file.name,
+              farmerId,
+              farmerName: farmerName || 'Unknown Farmer'
+            }
+          });
+          
+          if (descriptionError) {
+            console.error('Failed to generate image description:', descriptionError);
+            // Don't fail the upload if description generation fails
+          } else {
+            console.log(`✅ AI description generated for: ${file.name}`);
+          }
+        } catch (error) {
+          console.error('Error generating image description:', error);
+          // Don't fail the upload if description generation fails
+        }
       }
 
       return dbResponse;
@@ -485,7 +510,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             <Label htmlFor="f100-phase">Phase</Label>
             <Select
               value={f100Phase ? String(f100Phase) : ''}
-              onValueChange={(value) => setF100Phase(Number(value))}
+              onValueChange={(value) => setF100Phase(Number(value) as F100Phase)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Phases (1-12)" />
@@ -544,9 +569,9 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload className="h-8 w-8 text-gray-400 mx-auto" />
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
                   <div>
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className="text-sm font-medium text-foreground">
                       Drop your file here, or click to browse
                     </p>
                     <p className="text-xs text-gray-500">
@@ -687,7 +712,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             <Label>Previously Uploaded</Label>
             {uploadsLoading ? (
               <div className="text-sm text-gray-500">Loading...</div>
-            ) : existingUploads.length === 0 ? (
+            ) : (existingUploads as UploadRow[]).length === 0 ? (
               <div className="text-sm text-gray-500">No files uploaded yet.</div>
             ) : (
               <div className="max-h-48 overflow-auto border rounded">
@@ -703,7 +728,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {existingUploads.map((u: UploadRow) => (
+                    {(existingUploads as UploadRow[]).map((u: UploadRow) => (
                       <tr key={u.id} className="border-t">
                         <td className="p-2 break-all">{u.file_name}</td>
                         <td className="p-2">{u.data_type}</td>

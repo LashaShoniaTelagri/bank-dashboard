@@ -298,9 +298,9 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
               <CardContent>
                 <div className="space-y-2">
                   {currentPhaseAssignments.map((assignment) => (
-                    <div key={assignment.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div key={assignment.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                       <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-gray-500" />
+                        <Users className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">
                           {specialists.find(s => s.id === assignment.specialist_id)?.email || 'Unknown Specialist'}
                         </span>
@@ -339,9 +339,9 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
             ) : specialists.length === 0 ? (
               <Card>
                 <CardContent className="p-4 text-center">
-                  <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">No specialists available</p>
-                  <p className="text-xs text-gray-500">Contact your administrator to add specialists</p>
+                  <Users className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-body-secondary">No specialists available</p>
+                  <p className="text-xs text-muted-foreground">Contact your administrator to add specialists</p>
                 </CardContent>
               </Card>
             ) : (
@@ -357,10 +357,10 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                       key={specialist.id}
                       className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                         isSelected 
-                          ? 'border-blue-500 bg-blue-50' 
+                          ? 'border-primary bg-primary/10' 
                           : isAlreadyAssigned
-                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-border bg-muted/50 cursor-not-allowed'
+                          : 'border-border hover:border-border/80'
                       }`}
                       onClick={() => !isAlreadyAssigned && handleSpecialistToggle(specialist.id)}
                     >
@@ -373,7 +373,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                           </div>
                           <div>
                             <p className="font-medium text-sm">{specialist.email}</p>
-                            <p className="text-xs text-gray-500">Agricultural Data Specialist</p>
+                            <p className="text-xs text-muted-foreground">Agricultural Data Specialist</p>
                           </div>
                         </div>
                         {isAlreadyAssigned && (

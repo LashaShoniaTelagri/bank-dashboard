@@ -149,7 +149,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
   const { data: documents = [], isLoading: documentsLoading, error: documentsError } = useQuery({
     queryKey: ['farmer-documents', farmerId],
     queryFn: async () => {
-      console.log('🔍 Fetching documents for farmer:', farmerId);
       const { data, error } = await supabase
         .from('farmer_documents')
         .select('*')
@@ -160,7 +159,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
         console.error('❌ Error fetching documents:', error);
         throw error;
       }
-      console.log('📄 Documents fetched:', data?.length || 0, 'documents');
       return data as FarmerDocument[];
     },
     enabled: isOpen && !!farmerId,
@@ -170,7 +168,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
   const { data: f100Reports = [] } = useQuery({
     queryKey: ['farmer-f100', farmerId],
     queryFn: async () => {
-      console.log('🔍 Fetching F-100 reports for farmer:', farmerId);
       const { data, error } = await supabase
         .from('f100')
         .select('*')
@@ -181,7 +178,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
         console.error('❌ Error fetching F-100 reports:', error);
         throw error;
       }
-      console.log('📊 F-100 reports fetched:', data?.length || 0, 'reports');
       return data as F100Report[];
     },
     enabled: isOpen && !!farmerId,
@@ -190,9 +186,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
   // Debug logging
   useEffect(() => {
     if (isOpen && farmerId) {
-      console.log('📋 FarmerProfileModal opened for farmer:', farmerId);
-      console.log('📄 Documents:', documents?.length || 0);
-      console.log('🔄 Documents loading:', documentsLoading);
       if (documentsError) {
         console.error('❌ Documents error:', documentsError);
       }
@@ -213,7 +206,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
   };
 
   const openFileViewer = (clickedDocument: FarmerDocument, documentsGroup: FarmerDocument[], sectionName: string) => {
-    console.log('🎯 Opening file viewer for:', clickedDocument.file_name, 'in section:', sectionName);
     const index = documentsGroup.findIndex(doc => doc.id === clickedDocument.id);
     setFileViewerFiles(documentsGroup);
     setFileViewerInitialIndex(index >= 0 ? index : 0);
@@ -223,7 +215,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
 
   const openF100InLightbox = async (report: F100Report) => {
     try {
-      console.log('🔍 Opening F-100 report in lightbox:', report.file_path);
       
       // Set loading state for this specific file
       setIsLoadingF100(report.file_path);
@@ -242,7 +233,6 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
       }
       
       if (data?.signedUrl) {
-        console.log('✅ Successfully generated signed URL for F-100 report');
         
         // Create a mock document object for the FileViewer
         const fileName = `F-100_Phase_${report.phase}_${farmerName}.pdf`;
@@ -282,19 +272,16 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
   };
 
   const handleFileViewerClose = () => {
-    console.log('🔒 Closing file viewer');
     setFileViewerOpen(false);
     // Don't close the main modal, just the file viewer
   };
 
   const openMapViewer = (locationName: string, lat: number, lng: number) => {
-    console.log('🗺️ Opening map viewer for:', locationName);
     setMapLocation({ name: locationName, lat, lng });
     setMapViewerOpen(true);
   };
 
   const handleMapViewerClose = () => {
-    console.log('🔒 Closing map viewer');
     setMapViewerOpen(false);
     setMapLocation(null);
   };
@@ -329,13 +316,12 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
       <Dialog open={isOpen} onOpenChange={(open) => {
         // Don't close the modal if the file viewer or map viewer is open
         if (!open && (fileViewerOpen || mapViewerOpen)) {
-          console.log('🚫 Preventing modal close because viewer is open');
           return;
         }
         onClose();
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="flex-shrink-0 p-6 border-b bg-white">
+        <DialogHeader className="flex-shrink-0 p-6 border-b bg-card">
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
             {farmerName} - Profile Details
@@ -384,19 +370,19 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
               </CardHeader>
         <CardContent className="space-y-6">
           {/* Basic Company Information */}
-          <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
+          <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Company Name</label>
-                <p className="text-sm font-semibold text-gray-900">{farmer.name}</p>
+                <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Company Name</label>
+                <p className="text-sm font-semibold text-heading-primary">{farmer.name}</p>
                   </div>
               <div>
-                <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Identification Code</label>
-                <p className="text-sm font-semibold text-gray-900">{farmer.id_number}</p>
+                <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Identification Code</label>
+                <p className="text-sm font-semibold text-heading-primary">{farmer.id_number}</p>
                 </div>
               {farmer.contact_email && (
                 <div>
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Company Email</label>
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Company Email</label>
                   <a 
                     href={`mailto:${farmer.contact_email}`}
                     className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
@@ -411,18 +397,18 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
 
           {/* Company Director */}
           {(farmer.full_name || farmer.mobile) && (
-            <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-1">Company Director</h4>
+            <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+              <h4 className="text-sm font-semibold text-foreground mb-3 border-b pb-1">Company Director</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {farmer.full_name && (
                   <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-1">First/Last Name</label>
-                    <p className="text-sm font-semibold text-gray-900">{farmer.full_name}</p>
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-1">First/Last Name</label>
+                    <p className="text-sm font-semibold text-heading-primary">{farmer.full_name}</p>
                   </div>
                 )}
                 {farmer.mobile && (
                   <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-1">Mobile</label>
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-1">Mobile</label>
                     <a 
                       href={`tel:${farmer.mobile}`}
                       className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
@@ -438,18 +424,18 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
 
           {/* Contact Person */}
           {(farmer.ltd_name || farmer.contact_phone) && (
-            <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-1">Contact Person</h4>
+            <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+              <h4 className="text-sm font-semibold text-foreground mb-3 border-b pb-1">Contact Person</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {farmer.ltd_name && (
                   <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-1">First/Last Name</label>
-                    <p className="text-sm font-semibold text-gray-900">{farmer.ltd_name}</p>
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-1">First/Last Name</label>
+                    <p className="text-sm font-semibold text-heading-primary">{farmer.ltd_name}</p>
                   </div>
                 )}
                 {farmer.contact_phone && (
                   <div>
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-1">Mobile</label>
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-1">Mobile</label>
                     <a 
                       href={`tel:${farmer.contact_phone}`}
                       className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
@@ -485,8 +471,8 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                   />
                 )}
                 {farmer.cadastral_codes && farmer.cadastral_codes.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Cadastral Codes</label>
+                  <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Cadastral Codes</label>
                     <div className="flex flex-wrap gap-2">
                       {farmer.cadastral_codes.map((c, i) => (
                         <span key={i} className="px-3 py-1 rounded-full border text-xs bg-gray-100 text-gray-800 font-medium">{c}</span>
@@ -497,12 +483,12 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 
                 {/* Upload (KML/KMZ Files) */}
                 {documents.filter(doc => doc.file_name.toLowerCase().endsWith('.kml') || doc.file_name.toLowerCase().endsWith('.kmz')).length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Upload (KML/KMZ Files)</label>
+                  <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+                    <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Upload (KML/KMZ Files)</label>
                     <div className="space-y-2">
                       {documents.filter(doc => doc.file_name.toLowerCase().endsWith('.kml') || doc.file_name.toLowerCase().endsWith('.kmz')).map((document) => (
-                        <div key={document.id} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
-                          <MapPin className="h-5 w-5 text-gray-600" />
+                        <div key={document.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card">
+                          <MapPin className="h-5 w-5 text-body-secondary" />
                           <div className="flex-1">
                             <button
                               onClick={() => {
@@ -544,17 +530,17 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                   <div className="space-y-4">
                     {/* Total Cost */}
                     {typeof farmer.service_cost_total_eur === 'number' && (
-                      <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-                        <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Total Service Cost</label>
+                      <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+                        <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Total Service Cost</label>
                         <p className="text-2xl font-bold text-green-600">€{(farmer.service_cost_total_eur || 0).toLocaleString()}</p>
                       </div>
                     )}
 
                     {/* Calculation Details - Show to all users */}
                     {farmer.service_cost_selections && (
-                      <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-                        <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-3">Calculation Details</label>
-                        <div className="bg-white rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+                        <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-3">Calculation Details</label>
+                        <div className="bg-card rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                           {Object.entries(farmer.service_cost_selections).map(([key, value]) => {
                             // Format the field names to be more user-friendly
                             const fieldLabels: Record<string, string> = {
@@ -571,8 +557,8 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                             
                             return (
                               <div key={key} className="flex flex-col">
-                                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">{label}</span>
-                                <span className="text-sm font-semibold text-gray-900 mt-1">{String(value)}</span>
+                                <span className="text-xs font-medium text-body-secondary uppercase tracking-wide">{label}</span>
+                                <span className="text-sm font-semibold text-heading-primary mt-1">{String(value)}</span>
                               </div>
                             );
                           })}
@@ -582,13 +568,13 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
 
                     {/* Detailed Breakdown - Only show to admins */}
                     {profile?.role === 'admin' && farmer.service_cost_breakdown && Object.keys(farmer.service_cost_breakdown).length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-green-500">
-                        <label className="text-xs font-bold text-gray-700 uppercase tracking-wide underline block mb-2">Cost Breakdown (Admin Only)</label>
-                        <div className="bg-white rounded-lg p-3 space-y-2">
+                      <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-green-500">
+                        <label className="text-xs font-bold text-foreground uppercase tracking-wide underline block mb-2">Cost Breakdown (Admin Only)</label>
+                        <div className="bg-card rounded-lg p-3 space-y-2">
                           {Object.entries(farmer.service_cost_breakdown).map(([key, value]) => (
                             <div key={key} className="flex justify-between items-center text-sm">
-                              <span className="capitalize font-medium text-gray-700">{key.replace(/_/g, ' ')}</span>
-                              <span className="font-semibold text-gray-900">€{value.toLocaleString()}</span>
+                              <span className="capitalize font-medium text-foreground">{key.replace(/_/g, ' ')}</span>
+                              <span className="font-semibold text-heading-primary">€{value.toLocaleString()}</span>
                             </div>
                           ))}
                         </div>
@@ -610,7 +596,7 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 </CardHeader>
                 <CardContent>
                     <div>
-                    <label className="text-sm font-medium text-gray-600">Last Yield Amount</label>
+                    <label className="text-sm font-medium text-body-secondary">Last Yield Amount</label>
                     <p className="mt-1 text-lg font-semibold">{farmer.last_year_harvest_amount} Tone</p>
                     </div>
                 </CardContent>
@@ -649,7 +635,7 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                   ) : (
                     <div className="space-y-2">
                       {documents.filter(doc => doc.document_type === 'current_analysis').map((document) => (
-                        <div key={document.id} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                        <div key={document.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
                           {getFileIcon(document.file_mime)}
                           <div className="flex-1">
                             <button
@@ -688,7 +674,7 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 <CardContent>
                   <div className="space-y-2">
                     {documents.filter(doc => doc.document_type === 'other').map((document) => (
-                      <div key={document.id} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                      <div key={document.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
                         {getFileIcon(document.file_mime)}
                         <div className="flex-1">
                           <button
@@ -726,29 +712,29 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 <CardContent>
                   <div className="space-y-3">
                     {loans.map((loan, i) => (
-                      <div key={i} className="border rounded-lg p-4 bg-gray-50">
+                      <div key={i} className="border rounded-lg p-4 bg-muted/50">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="text-xs font-medium text-gray-600">Amount</label>
+                            <label className="text-xs font-medium text-body-secondary">Amount</label>
                             <p className="text-lg font-bold text-green-600">
                               {loan.amount.toLocaleString()} {loan.currency}
                             </p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-gray-600">Currency</label>
-                            <p className="text-sm">{loan.currency}</p>
+                            <label className="text-xs font-medium text-body-secondary">Currency</label>
+                            <p className="text-sm text-foreground">{loan.currency}</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-gray-600">Start date</label>
-                            <p className="text-sm">{new Date(loan.start_date).toLocaleDateString()}</p>
+                            <label className="text-xs font-medium text-body-secondary">Start date</label>
+                            <p className="text-sm text-foreground">{new Date(loan.start_date).toLocaleDateString()}</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-gray-600">End date</label>
-                            <p className="text-sm">{new Date(loan.end_date).toLocaleDateString()}</p>
+                            <label className="text-xs font-medium text-body-secondary">End date</label>
+                            <p className="text-sm text-foreground">{new Date(loan.end_date).toLocaleDateString()}</p>
                           </div>
                           <div>
-                            <label className="text-xs font-medium text-gray-600">Issuance date</label>
-                            <p className="text-sm">{new Date(loan.issuance_date).toLocaleDateString()}</p>
+                            <label className="text-xs font-medium text-body-secondary">Issuance date</label>
+                            <p className="text-sm text-foreground">{new Date(loan.issuance_date).toLocaleDateString()}</p>
                           </div>
                         </div>
                       </div>
@@ -772,7 +758,7 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
           <div className="flex justify-end pt-6 border-t">
             <button 
               onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-foreground bg-card hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
             Close
             </button>

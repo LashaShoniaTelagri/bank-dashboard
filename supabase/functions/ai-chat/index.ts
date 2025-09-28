@@ -239,8 +239,27 @@ serve(async (req) => {
       .map((m: any) => m.content)
       .join("\n\n");
 
-    const contextualized = context
-      ? `Context Data: ${JSON.stringify(context, null, 2)}\n\n${userText}`
+    // Enhance context with AI descriptions for images
+    let enhancedContext = context;
+    if (attachedFiles && Array.isArray(attachedFiles) && attachedFiles.length > 0) {
+      const imageDescriptions = attachedFiles
+        .filter(file => file.data_type === 'photo' && file.ai_description)
+        .map(file => ({
+          fileName: file.file_name,
+          description: file.ai_description,
+          phase: file.phase
+        }));
+      
+      if (imageDescriptions.length > 0) {
+        enhancedContext = {
+          ...context,
+          imageAnalysis: imageDescriptions
+        };
+      }
+    }
+
+    const contextualized = enhancedContext
+      ? `Context Data: ${JSON.stringify(enhancedContext, null, 2)}\n\n${userText}`
       : userText;
 
     await addMessage(apiKey, thread.id, "user", contextualized || "", attachments.length > 0 ? attachments : undefined);

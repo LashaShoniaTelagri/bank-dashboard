@@ -8,7 +8,9 @@ export type DataType =
   | 'climate'
   | 'text'
   | 'document'
-  | 'video';
+  | 'video'
+  | 'geospatial' // Legacy support - will be migrated to 'maps'
+  | 'audio'; // Legacy support - removed from UI
 
 // F-100 phases are now represented as numbers 1-12
 export type F100Phase = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
@@ -17,7 +19,7 @@ export type AnalysisStatus =
   | 'pending'
   | 'in_progress'
   | 'completed'
-  | 'requires_review'
+  | 'pending_review'
   | 'cancelled';
 
 export type LLMProvider = 
@@ -46,6 +48,8 @@ export interface FarmerDataUpload {
   description?: string;
   tags: string[];
   phase: F100Phase;
+  ai_description?: string;
+  ai_description_generated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -170,9 +174,8 @@ export interface SpecialistDashboardData {
 export interface SpecialistAssignmentWithData {
   assignment_id: string;
   farmer_id: string;
-  farmer_name: string;
   farmer_id_number: string;
-  bank_name: string;
+  crop: string;
   phase: F100Phase;
   status: AnalysisStatus;
   assigned_at: string;
@@ -269,6 +272,76 @@ export interface SpecialistProfile {
 
 // F-100 phase utility functions
 export const getPhaseLabel = (phase: F100Phase): string => `Phase ${phase}`;
+
+// Status management utilities
+export const getStatusLabel = (status: AnalysisStatus): string => {
+  switch (status) {
+    case 'pending':
+      return 'Pending';
+    case 'in_progress':
+      return 'In Progress';
+    case 'completed':
+      return 'Completed';
+    case 'pending_review':
+      return 'Pending Review';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return status;
+  }
+};
+
+export const getStatusColor = (status: AnalysisStatus): string => {
+  switch (status) {
+    case 'pending':
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+    case 'in_progress':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'completed':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'pending_review':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800 border-red-200';
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+  }
+};
+
+export const getStatusIcon = (status: AnalysisStatus): string => {
+  switch (status) {
+    case 'pending':
+      return 'Clock';
+    case 'in_progress':
+      return 'Play';
+    case 'completed':
+      return 'CheckCircle';
+    case 'pending_review':
+      return 'AlertCircle';
+    case 'cancelled':
+      return 'XCircle';
+    default:
+      return 'Clock';
+  }
+};
+
+// Define allowed status transitions for specialists
+export const getAllowedStatusTransitions = (currentStatus: AnalysisStatus): AnalysisStatus[] => {
+  switch (currentStatus) {
+    case 'pending':
+      return ['in_progress', 'cancelled'];
+    case 'in_progress':
+      return ['completed', 'pending_review', 'pending', 'cancelled'];
+    case 'completed':
+      return ['pending_review']; // Can request review even after completion
+    case 'pending_review':
+      return ['in_progress', 'completed']; // Can go back to work or mark as final
+    case 'cancelled':
+      return ['pending']; // Can reactivate cancelled tasks
+    default:
+      return [];
+  }
+};
 
 export const getPhaseDescription = (phase: F100Phase): string => {
   const descriptions: Record<F100Phase, string> = {
@@ -400,7 +473,7 @@ export class DataUploadError extends SpecialistError {
 }
 
 export class AnalysisError extends SpecialistError {
-  constructor(message: string, public phase: AnalysisPhase) {
+  constructor(message: string, public phase: F100Phase) {
     super(
       message,
       'ANALYSIS_ERROR',

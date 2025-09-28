@@ -478,11 +478,55 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ## 🎨 UI/UX STANDARDS
 
+### Theme Compliance (CRITICAL REQUIREMENT)
+**MANDATORY: All components MUST work perfectly in both light and dark themes**
+
+#### Theme-Aware Color Classes (ALWAYS USE THESE):
+```typescript
+// ✅ CORRECT - Theme-aware classes
+bg-card           // Card backgrounds
+bg-background     // Main backgrounds  
+bg-muted          // Subtle backgrounds
+bg-primary        // Primary actions
+text-foreground   // Primary text
+text-muted-foreground  // Secondary text
+text-heading-primary   // Main headings
+text-body-secondary    // Body text
+border-border     // All borders
+text-destructive  // Error states (instead of text-red-500)
+
+// ❌ NEVER USE - Hardcoded colors
+bg-white, bg-gray-100, bg-emerald-50
+text-gray-900, text-gray-500, text-black
+border-gray-300, border-emerald-200
+```
+
+#### Dark Mode Patterns:
+```typescript
+// ✅ CORRECT - Conditional dark mode classes
+className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200"
+
+// ✅ CORRECT - Theme-aware hover states  
+className="hover:bg-muted dark:hover:bg-muted/80"
+
+// ❌ WRONG - Single theme only
+className="bg-white text-gray-900"
+```
+
+#### Theme Testing Checklist:
+- [ ] Component renders correctly in light theme
+- [ ] Component renders correctly in dark theme  
+- [ ] All text is readable in both themes
+- [ ] All borders are visible in both themes
+- [ ] Hover states work in both themes
+- [ ] Focus states are visible in both themes
+
 ### Component Library (shadcn/ui)
 - Always use provided UI components as base
 - Extend components with proper className patterns
 - Maintain consistent spacing using Tailwind classes
 - Follow the established design system
+- **CRITICAL**: All custom styling MUST be theme-compliant
 
 ### Responsive Design
 ```typescript

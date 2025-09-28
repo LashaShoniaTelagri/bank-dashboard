@@ -321,12 +321,12 @@ export const TwoFactorVerification = ({
             <div className="mx-auto mb-4 p-3 bg-emerald-100/50 backdrop-blur-sm rounded-full w-fit border border-emerald-200/30">
               <Shield className="h-8 w-8 text-emerald-600" />
             </div>
-            <CardTitle className="text-2xl font-bold text-slate-700">
+            <CardTitle className="text-2xl font-bold text-heading-primary">
               🔐 Two-Factor Authentication
             </CardTitle>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-body-secondary">
               We've sent a verification code to<br />
-              <span className="font-medium text-slate-700">{email}</span>
+              <span className="font-medium text-heading-primary">{email}</span>
             </p>
           </CardHeader>
 
@@ -359,7 +359,7 @@ export const TwoFactorVerification = ({
             
             {/* Fallback single input for testing */}
             <div className="mt-4">
-              <label className="block text-xs text-gray-500 mb-2 text-center">
+              <label className="block text-xs text-muted-foreground mb-2 text-center">
                 Or paste the full 6-digit code here:
               </label>
               <Input
@@ -403,7 +403,7 @@ export const TwoFactorVerification = ({
                   className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
                 />
                 <div className="flex-1">
-                  <label htmlFor="remember-device" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  <label htmlFor="remember-device" className="text-sm font-medium text-heading-primary cursor-pointer">
                     Remember this device for 30 days
                   </label>
                   <div className="flex items-center gap-2 mt-1">
@@ -459,7 +459,7 @@ export const TwoFactorVerification = ({
                 type="button"
                 variant="ghost"
                 onClick={onBack}
-                className="flex-1 h-12 text-base text-slate-600 hover:text-slate-800 hover:bg-slate-200 active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-sm hover:shadow-md"
+                className="flex-1 h-12 text-base text-body-secondary hover:text-slate-800 hover:bg-slate-200 active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-sm hover:shadow-md"
               >
                 Back to Login
               </Button>

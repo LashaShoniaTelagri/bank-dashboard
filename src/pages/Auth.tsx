@@ -9,6 +9,8 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TwoFactorVerification } from "@/components/TwoFactorVerification";
 import { generateDeviceFingerprint, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -230,7 +232,7 @@ const Auth = () => {
         .from('profiles')
         .select('role')
         .eq('user_id', authData.user.id)
-        .single();
+        .maybeSingle();
 
       if (profileError) {
         console.error('🔐 Profile fetch error:', profileError);
@@ -253,7 +255,6 @@ const Auth = () => {
           
           if (!trustError && trustedDevice) {
             deviceIsTrusted = true;
-            console.log('🔐 Device is trusted, skipping 2FA');
           }
         }
       } catch (error) {
@@ -593,125 +594,193 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4">
-      {/* Futuristic Agri-Finance Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-blue-50 to-green-50"></div>
-      
-      {/* Geometric Pattern Overlay - Representing Crop Fields & Financial Growth */}
-      <div 
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage: `
-            linear-gradient(90deg, rgba(34,197,94,0.1) 1px, transparent 1px),
-            linear-gradient(rgba(34,197,94,0.1) 1px, transparent 1px),
-            linear-gradient(45deg, rgba(59,130,246,0.05) 25%, transparent 25%),
-            linear-gradient(-45deg, rgba(59,130,246,0.05) 25%, transparent 25%)
-          `,
-          backgroundSize: '60px 60px, 60px 60px, 120px 120px, 120px 120px',
-          backgroundPosition: '0 0, 0 0, 0 0, 30px 30px'
-        }}
-      ></div>
-
-      {/* Floating Elements - Technology & Agriculture Symbols */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-2 h-2 bg-emerald-400/20 rounded-full animate-pulse"></div>
-        <div className="absolute top-40 right-20 w-3 h-3 bg-blue-400/20 rounded-full animate-pulse delay-1000"></div>
-        <div className="absolute bottom-32 left-16 w-1.5 h-1.5 bg-green-400/20 rounded-full animate-pulse delay-2000"></div>
-        <div className="absolute bottom-20 right-12 w-2.5 h-2.5 bg-teal-400/20 rounded-full animate-pulse delay-500"></div>
-        <div className="absolute top-1/3 left-1/4 w-1 h-1 bg-emerald-300/30 rounded-full animate-pulse delay-1500"></div>
-        <div className="absolute top-2/3 right-1/3 w-2 h-2 bg-blue-300/30 rounded-full animate-pulse delay-700"></div>
-      </div>
-
-      {/* Initial Loading Animation */}
-      {pageLoading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-emerald-50 via-blue-50 to-green-50">
-          <div className="text-center">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin mx-auto"></div>
-              <div className="w-12 h-12 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin absolute top-2 left-2 opacity-60" style={{ animationDirection: 'reverse' }}></div>
-            </div>
-            <p className="mt-4 text-slate-600 text-sm font-medium animate-pulse">Loading...</p>
-          </div>
+    <ThemeProvider>
+      <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-background transition-colors">
+        {/* Theme Toggle */}
+        <div className="absolute top-4 right-4 z-50">
+          <ThemeToggle variant="icon" size="sm" />
         </div>
-      )}
 
-      {/* Content Container with Glass Morphism Effect */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Logo outside the card */}
-        <div className="mb-8 text-center">
-          <div className={`bg-white/40 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 transition-all duration-1000 ${
+        {/* Futuristic Agri-Finance Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-primary/10 dark:via-accent/10 dark:to-primary/20"></div>
+      
+        {/* Geometric Pattern Overlay - Representing Crop Fields & Financial Growth */}
+        <div className="absolute inset-0 opacity-20 dark:opacity-20">
+          <div 
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `
+                linear-gradient(90deg, hsl(var(--primary) / 0.1) 1px, transparent 1px),
+                linear-gradient(hsl(var(--primary) / 0.1) 1px, transparent 1px),
+                linear-gradient(45deg, hsl(var(--accent) / 0.05) 25%, transparent 25%),
+                linear-gradient(-45deg, hsl(var(--accent) / 0.05) 25%, transparent 25%)
+              `,
+              backgroundSize: '60px 60px, 60px 60px, 120px 120px, 120px 120px',
+              backgroundPosition: '0 0, 0 0, 0 0, 30px 30px'
+            }}
+          />
+        </div>
+
+        {/* Floating Elements - Technology & Agriculture Symbols */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-2 h-2 bg-emerald-400/30 dark:bg-primary/30 rounded-full animate-pulse"></div>
+          <div className="absolute top-40 right-20 w-3 h-3 bg-green-400/30 dark:bg-accent/30 rounded-full animate-pulse delay-1000"></div>
+          <div className="absolute bottom-32 left-16 w-1.5 h-1.5 bg-emerald-500/25 dark:bg-primary/30 rounded-full animate-pulse delay-2000"></div>
+          <div className="absolute bottom-20 right-12 w-2.5 h-2.5 bg-green-500/25 dark:bg-accent/30 rounded-full animate-pulse delay-500"></div>
+          <div className="absolute top-1/3 left-1/4 w-1 h-1 bg-emerald-400/40 dark:bg-primary/40 rounded-full animate-pulse delay-1500"></div>
+          <div className="absolute top-2/3 right-1/3 w-2 h-2 bg-green-400/40 dark:bg-accent/40 rounded-full animate-pulse delay-700"></div>
+        </div>
+
+        {/* Initial Loading Animation */}
+        {pageLoading && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+            <div className="text-center">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
+                <div className="w-12 h-12 border-4 border-accent/20 border-t-accent rounded-full animate-spin absolute top-2 left-2 opacity-60" style={{ animationDirection: 'reverse' }}></div>
+              </div>
+              <p className="mt-4 text-foreground/80 text-sm font-medium animate-pulse">Loading...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Content Container with Glass Morphism Effect */}
+        <div className="relative z-10 w-full max-w-md">
+          {/* Logo outside the card */}
+          <div className="mb-8 text-center">
+            <div className={`
+              bg-white/10 dark:bg-white/5 
+              backdrop-blur-xl 
+              rounded-2xl p-6 
+              shadow-2xl shadow-black/10 dark:shadow-black/30
+              border border-white/20 dark:border-white/10
+              ring-1 ring-white/10 dark:ring-white/5
+              transition-all duration-1000 
+              hover:bg-white/15 dark:hover:bg-white/8
+              hover:shadow-3xl hover:shadow-primary/10
+              ${pageLoading ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}
+            `}>
+              <img 
+                src="https://cdn.telagri.com/assets/logo.png" 
+                alt="TelAgri Logo" 
+                className="h-12 w-auto mx-auto mb-4"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <p className="text-foreground/70 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
+            </div>
+          </div>
+
+          <Card className={`
+            bg-white/10 dark:bg-white/5 
+            backdrop-blur-2xl 
+            border border-white/20 dark:border-white/10
+            ring-1 ring-white/10 dark:ring-white/5
+            shadow-2xl shadow-black/10 dark:shadow-black/40
+            transition-all duration-1000 delay-300
+            hover:bg-white/15 dark:hover:bg-white/8
+            hover:shadow-3xl hover:shadow-primary/20
+            hover:ring-white/20 dark:hover:ring-white/10
+            hover:scale-[1.02]
+            ${pageLoading ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
+          `}>
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="text-xl font-semibold text-heading-secondary">Sign In</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div>
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="h-12 text-base 
+                      bg-white/20 dark:bg-white/5 
+                      backdrop-blur-sm 
+                      border border-white/30 dark:border-white/10
+                      focus:border-emerald-400/60 focus:ring-emerald-400/20 
+                      focus:bg-white/25 dark:focus:bg-white/8
+                      focus:shadow-lg focus:shadow-emerald-400/10
+                      placeholder:text-foreground/60
+                      shadow-inner shadow-black/5
+                      transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="h-12 text-base 
+                      bg-white/20 dark:bg-white/5 
+                      backdrop-blur-sm 
+                      border border-white/30 dark:border-white/10
+                      focus:border-emerald-400/60 focus:ring-emerald-400/20 
+                      focus:bg-white/25 dark:focus:bg-white/8
+                      focus:shadow-lg focus:shadow-emerald-400/10
+                      placeholder:text-foreground/60
+                      shadow-inner shadow-black/5
+                      transition-all duration-200"
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 text-base 
+                    bg-gradient-to-r from-emerald-600 to-green-600 
+                    hover:from-emerald-500 hover:to-green-500
+                    text-white font-medium
+                    backdrop-blur-sm
+                    shadow-xl shadow-emerald-500/25 
+                    border border-emerald-400/30
+                    ring-1 ring-emerald-400/20
+                    hover:shadow-2xl hover:shadow-emerald-400/40
+                    hover:ring-emerald-400/30
+                    hover:border-emerald-300/40
+                    transform transition-all duration-200 hover:scale-[1.02]
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    dark:shadow-emerald-400/30 dark:hover:shadow-emerald-400/50" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Copyright Footer */}
+          <footer className={`mt-8 text-center transition-all duration-1000 delay-500 ${
             pageLoading ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
           }`}>
-            <img 
-              src="https://cdn.telagri.com/assets/logo.png" 
-              alt="TelAgri Logo" 
-              className="h-12 w-auto mx-auto mb-4"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <p className="text-slate-600 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
-          </div>
+            <div className="
+              bg-white/10 dark:bg-white/5 
+              backdrop-blur-xl 
+              rounded-full px-4 py-2 
+              border border-white/20 dark:border-white/10
+              ring-1 ring-white/10 dark:ring-white/5
+              shadow-lg shadow-black/5 dark:shadow-black/20
+              hover:bg-white/15 dark:hover:bg-white/8
+              transition-all duration-300
+            ">
+              <p className="text-xs text-foreground/60">
+                © {new Date().getFullYear()} TelAgri. All rights reserved.
+              </p>
+            </div>
+          </footer>
         </div>
-
-        <Card className={`bg-white/60 backdrop-blur-md border-white/30 shadow-xl transition-all duration-1000 delay-300 ${
-          pageLoading ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'
-        }`}>
-          <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl font-semibold text-slate-700">Sign In</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSignIn} className="space-y-4">
-              <div>
-                <Input
-                  type="email"
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="h-12 text-base bg-white/80 border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-200"
-                />
-              </div>
-              <div>
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="h-12 text-base bg-white/80 border-slate-200 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-200"
-                />
-              </div>
-              <Button 
-                type="submit" 
-                className="w-full h-12 text-base bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]" 
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Copyright Footer */}
-        <footer className={`mt-8 text-center transition-all duration-1000 delay-500 ${
-          pageLoading ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
-        }`}>
-          <div className="bg-white/30 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20">
-            <p className="text-xs text-slate-600">
-              © {new Date().getFullYear()} TelAgri. All rights reserved.
-            </p>
-          </div>
-        </footer>
       </div>
-    </div>
+    </ThemeProvider>
   );
 };
 
