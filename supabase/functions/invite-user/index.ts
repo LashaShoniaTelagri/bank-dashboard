@@ -41,7 +41,25 @@ const createInvitationEmail = (
     <li>Communicate via secure messages with farmers and admins</li>
   `;
 
-  const htmlContent = `
+  // Text versions for plain text email
+  const textIntroSuffix = isAdmin ? '' : ` for ${bankName}`;
+  const textPermissions = isAdmin 
+    ? `• Manage all farmers across all banks
+• View and manage all F-100 reports  
+• Invite and manage bank viewers and specialists
+• Access comprehensive system analytics
+• Configure bank partnerships and settings`
+    : isSpecialist 
+    ? `• Access assigned farmers for ${bankName}
+• Upload and manage analysis data per phase
+• Run analysis sessions and record results
+• Communicate via secure messages with farmers and admins`
+    : `• View farmers associated with ${bankName}
+• Access F-100 agricultural assessment reports
+• Monitor farmer performance metrics and scores
+• Generate reports for your bank's portfolio`;
+
+const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
