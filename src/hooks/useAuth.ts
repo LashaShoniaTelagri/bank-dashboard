@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserProfile {
@@ -16,62 +17,52 @@ export interface UserProfile {
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchProfile = async (userId: string) => {
-    try {
-  
+  // Use React Query for profile data with proper caching
+  const { data: profile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .maybeSingle();
-      
-      
       
       if (error) {
         console.error('Profile fetch error:', error);
-        setProfile(null);
-        return;
+        return null;
       }
       
-      if (data) {
-        setProfile(data as UserProfile);
-      } else {
+      return data as UserProfile;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes - profile data doesn't change often
+    cacheTime: 10 * 60 * 1000, // 10 minutes cache
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    retry: 1, // Only retry once on failure
+  });
 
-        setProfile(null);
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      setProfile(null);
+  // Memoized auth state handler to prevent unnecessary re-renders
+  const handleAuthStateChange = useCallback((event: any, session: Session | null) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+    setLoading(false);
+    
+    // Invalidate profile query when user changes
+    if (event === 'SIGNED_OUT') {
+      queryClient.removeQueries({ queryKey: ['user-profile'] });
     }
-  };
+  }, [queryClient]);
 
   useEffect(() => {
     let mounted = true;
     
-
-    
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-        
-
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Fetch profile for the user
-          fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-        
-        setLoading(false);
-      }
-    );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     // Check for existing session immediately
     const initializeAuth = async () => {
@@ -80,17 +71,8 @@ export const useAuth = () => {
         
         if (!mounted) return;
         
-  
-        
         setSession(session);
         setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-        
         setLoading(false);
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -106,7 +88,7 @@ export const useAuth = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [handleAuthStateChange]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -117,6 +99,8 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
+    // Clear profile cache on sign out
+    queryClient.removeQueries({ queryKey: ['user-profile'] });
     const { error } = await supabase.auth.signOut();
     return { error };
   };
@@ -124,8 +108,8 @@ export const useAuth = () => {
   return {
     user,
     session,
-    profile,
-    loading,
+    profile: profile || null,
+    loading: loading || (!!user?.id && profile === undefined), // Loading if we have user but no profile yet
     signIn,
     signOut,
   };
