@@ -30,21 +30,18 @@ export const PWAInstallPrompt = () => {
 
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('🔔 PWA Install prompt available');
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
       // Stash the event so it can be triggered later
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       // Show install prompt after a delay (shorter for better UX)
       setTimeout(() => {
-        console.log('📱 Showing PWA install prompt');
         setShowPrompt(true);
       }, 2000);
     };
 
     // Listen for app installed event
     const handleAppInstalled = () => {
-      console.log('✅ PWA installed successfully');
       setIsInstalled(true);
       setShowPrompt(false);
       setDeferredPrompt(null);
@@ -54,7 +51,6 @@ export const PWAInstallPrompt = () => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
     if (isIOS && !isInStandaloneMode) {
       setTimeout(() => {
-        console.log('🍎 iOS detected, showing manual install prompt');
         setShowPrompt(true);
       }, 3000);
     }
@@ -116,7 +112,7 @@ export const PWAInstallPrompt = () => {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:max-w-sm">
-      <div className="bg-white/95 backdrop-blur-md border border-emerald-200 rounded-lg shadow-lg p-4">
+      <div className="bg-card/95 backdrop-blur-md border border-emerald-200 rounded-lg shadow-lg p-4">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 p-2 bg-emerald-100 rounded-lg">
             <Smartphone className="h-5 w-5 text-emerald-600" />

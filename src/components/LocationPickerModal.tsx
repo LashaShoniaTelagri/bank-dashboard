@@ -361,9 +361,9 @@ export default function LocationPickerModal({
         </DialogHeader>
 
         {/* Search Input */}
-        <div className="flex-shrink-0 p-4 border-b bg-gray-50">
+        <div className="flex-shrink-0 p-4 border-b bg-muted/50">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
               value={searchValue}
@@ -378,23 +378,23 @@ export default function LocationPickerModal({
         {/* Map Container */}
         <div className="flex-1 relative">
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+            <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-2"></div>
-                <p className="text-gray-600">Loading map...</p>
+                <p className="text-body-secondary">Loading map...</p>
               </div>
             </div>
           )}
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+            <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
               <div className="text-center max-w-md p-6">
                 <div className="text-red-500 mb-4">
                   <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Map Loading Error</h3>
-                <p className="text-gray-600 mb-4">{error}</p>
+                <h3 className="text-lg font-semibold text-heading-primary mb-2">Map Loading Error</h3>
+                <p className="text-body-secondary mb-4">{error}</p>
                 <Button 
                   onClick={() => {
                     setError(null);
@@ -411,8 +411,8 @@ export default function LocationPickerModal({
           <div ref={mapRef} className="w-full h-full" />
           
           {/* Instructions overlay */}
-          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg max-w-xs">
-            <p className="text-sm text-gray-700">
+          <div className="absolute top-4 left-4 bg-card/90 backdrop-blur-sm rounded-lg p-3 shadow-lg max-w-xs">
+            <p className="text-sm text-foreground">
               <strong>How to select:</strong><br />
               • Search in the box above<br />
               • Click anywhere on the map<br />
@@ -440,7 +440,7 @@ export default function LocationPickerModal({
         )}
 
         {/* Footer */}
-        <div className="flex-shrink-0 flex justify-end gap-3 p-4 border-t bg-white">
+        <div className="flex-shrink-0 flex justify-end gap-3 p-4 border-t bg-card">
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>

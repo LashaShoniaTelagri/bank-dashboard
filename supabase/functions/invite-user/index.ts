@@ -15,13 +15,14 @@ const createInvitationEmail = (
   resetUrl?: string
 ) => {
   const isAdmin = role === 'admin';
-  const roleTitle = isAdmin ? 'Administrator' : 'Bank Viewer';
+  const isSpecialist = role === 'specialist';
+  const roleTitle = isAdmin ? 'Administrator' : isSpecialist ? 'Specialist' : 'Bank Viewer';
   const bankSection = isAdmin ? '' : ` for <strong>${bankName}</strong>`;
   
   const adminPermissions = `
     <li>Manage all farmers across all banks</li>
     <li>View and manage all F-100 reports</li>
-    <li>Invite and manage bank viewers</li>
+    <li>Invite and manage bank viewers and specialists</li>
     <li>Access comprehensive system analytics</li>
     <li>Configure bank partnerships and settings</li>
   `;
@@ -31,6 +32,13 @@ const createInvitationEmail = (
     <li>Access F-100 agricultural assessment reports</li>
     <li>Monitor farmer performance metrics and scores</li>
     <li>Generate reports for your bank's portfolio</li>
+  `;
+
+  const specialistPermissions = `
+    <li>Access assigned farmers for ${bankName}</li>
+    <li>Upload and manage analysis data per phase</li>
+    <li>Run analysis sessions and record results</li>
+    <li>Communicate via secure messages with farmers and admins</li>
   `;
 
   const htmlContent = `
@@ -68,14 +76,14 @@ const createInvitationEmail = (
               <h3>${isAdmin ? '🔐' : '🏦'} Your Role: ${roleTitle}</h3>
               <p>As a ${roleTitle}, you will have access to:</p>
               <ul>
-                ${isAdmin ? adminPermissions : bankViewerPermissions}
+                ${isAdmin ? adminPermissions : isSpecialist ? specialistPermissions : bankViewerPermissions}
               </ul>
             </div>
             
             <h3>Next Steps:</h3>
             <p>1. Click the button below to set up your password and activate your account</p>
             <p>2. Complete your profile setup</p>
-            <p>3. Start ${isAdmin ? 'managing the TelAgri platform' : 'managing your bank\'s farmer portfolio'}</p>
+            <p>3. Start ${isAdmin ? 'managing the TelAgri platform' : isSpecialist ? 'performing farmer data analysis' : 'managing your bank\'s farmer portfolio'}</p>
             
             <div style="text-align: center;">
               <a href="${resetUrl}" class="btn">Set Up Your Account →</a>
@@ -106,19 +114,10 @@ const createInvitationEmail = (
   const textContent = `
 Welcome to TelAgri Bank Dashboard!
 
-${inviterName || 'TelAgri Admin'} has invited you to join as a ${roleTitle}${isAdmin ? '' : ` for ${bankName}`}.
+${inviterName || 'TelAgri Admin'} has invited you to join as a ${roleTitle}${textIntroSuffix}.
 
 As a ${roleTitle}, you'll have access to:
-${isAdmin ? 
-  `- Manage all farmers across all banks
-- View and manage all F-100 reports
-- Invite and manage bank viewers
-- Access comprehensive system analytics
-- Configure bank partnerships and settings` :
-  `- View farmers associated with ${bankName}
-- Access F-100 agricultural assessment reports  
-- Monitor farmer performance metrics
-- Generate reports for your bank's portfolio`}
+${textPermissions}
 
 To activate your account, visit: ${resetUrl}
 
@@ -135,7 +134,7 @@ Agricultural Finance Management System
   return {
     personalizations: [{
       to: [{ email: userEmail }],
-      subject: `Invitation to TelAgri Bank Dashboard${isAdmin ? ' - Administrator Access' : ` - ${bankName}`}`
+      subject: `Invitation to TelAgri Bank Dashboard${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : ` - ${bankName}`}`
     }],
     from: { 
       email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com',
@@ -171,12 +170,12 @@ serve(async (req) => {
       throw new Error('Email and role are required')
     }
 
-    if (role === 'bank_viewer' && !bankId) {
+    if ((role === 'bank_viewer') && !bankId) {
       throw new Error('Bank ID is required for bank viewer invitations')
     }
 
-    if (!['admin', 'bank_viewer'].includes(role)) {
-      throw new Error('Invalid role. Must be either "admin" or "bank_viewer"')
+    if (!['admin', 'bank_viewer', 'specialist'].includes(role)) {
+      throw new Error('Invalid role. Must be one of "admin", "bank_viewer", "specialist"')
     }
 
     // Validate SendGrid configuration
@@ -208,7 +207,7 @@ serve(async (req) => {
       if (existingProfile) {
         const hasConflict = role === 'admin' ? 
           (existingProfile.role === 'admin') :
-          (existingProfile.role === 'bank_viewer' && existingProfile.bank_id === bankId)
+          (existingProfile.role === role && existingProfile.bank_id === bankId)
 
         if (hasConflict) {
           const status = existingProfile.invitation_status || 'active'
@@ -287,9 +286,9 @@ serve(async (req) => {
       }
     }
 
-    // Get bank name for email (if role is bank_viewer)
+    // Get bank name for email (if role requires bank)
     let bankName = 'N/A'
-    if (role === 'bank_viewer' && bankId) {
+    if ((role === 'bank_viewer') && bankId) {
       const { data: bank } = await supabaseClient
         .from('banks')
         .select('name')
@@ -414,7 +413,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `${role === 'admin' ? 'Administrator' : 'Bank viewer'} invitation sent successfully to ${email}`,
+        message: `${role === 'admin' ? 'Administrator' : role === 'specialist' ? 'Specialist' : 'Bank viewer'} invitation sent successfully to ${email}`,
         userId: userId,
         role: role,
         bankName: bankName,

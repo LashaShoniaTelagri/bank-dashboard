@@ -1,3 +1,9 @@
+/* Driver.js CSS */
+@import 'driver.js/dist/driver.css';
+
+/* TelAgri Product Tour Styles */
+@import './styles/product-tour.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,99 +14,132 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* TelAgri Agricultural Theme */
-    --background: 0 0% 100%;
-    --foreground: 220 13% 18%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 220 13% 18%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 18%;
-
-    /* Agricultural green primary */
-    --primary: 142 71% 45%;
-    --primary-foreground: 0 0% 100%;
+    /* TelAgri Light Theme - Professional Banking Interface (Enhanced) */
+    /* Based on Material Design 3 and Apple HIG principles */
     
-    /* Light green secondary */
-    --secondary: 142 30% 96%;
-    --secondary-foreground: 142 71% 35%;
+    /* Surface System - Subtle elevation hierarchy */
+    --background: 0 0% 99%;              /* #FCFCFC - Softer than pure white */
+    --foreground: 220 9% 9%;             /* #161618 - High contrast text */
 
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
+    --card: 0 0% 100%;                   /* #FFFFFF - Pure white for cards */
+    --card-foreground: 220 9% 9%;        /* #161618 - Card text */
 
-    /* Accent golden yellow */
-    --accent: 45 93% 47%;
-    --accent-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;                /* #FFFFFF - Popover background */
+    --popover-foreground: 220 9% 9%;     /* #161618 - Popover text */
 
-    /* Financial red for destructive */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
+    /* Primary System - Professional blue with better contrast */
+    --primary: 217 89% 61%;              /* #3B82F6 - More accessible blue */
+    --primary-foreground: 0 0% 100%;     /* #FFFFFF - White text on blue */
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 142 71% 45%;
+    /* Surface variants for depth */
+    --secondary: 220 14% 96%;            /* #F1F5F9 - Subtle gray surface */
+    --secondary-foreground: 220 9% 9%;   /* #161618 - Secondary text */
 
-    /* Success/Warning states for F-100 scores */
-    --success: 142 71% 45%;
-    --warning: 45 93% 47%;
-    --danger: 0 84.2% 60.2%;
+    --muted: 220 14% 96%;                /* #F1F5F9 - Muted surface */
+    --muted-foreground: 220 9% 46%;      /* #64748B - Muted text */
+
+    --accent: 217 89% 61%;               /* #3B82F6 - Same as primary */
+    --accent-foreground: 0 0% 100%;      /* #FFFFFF - White on accent */
+
+    /* Status colors - Professional and accessible */
+    --destructive: 0 72% 51%;            /* #DC2626 - Accessible red */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF - White text */
+
+    /* Interactive elements */
+    --border: 220 13% 91%;               /* #E2E8F0 - Subtle borders */
+    --input: 220 13% 91%;                /* #E2E8F0 - Input borders */
+    --ring: 217 89% 61%;                 /* #3B82F6 - Focus ring */
+
+    /* Status system - Professional colors */
+    --success: 142 71% 45%;              /* #059669 - Professional green */
+    --warning: 45 93% 47%;               /* #D97706 - Professional amber */
+    --danger: 0 72% 51%;                 /* #DC2626 - Professional red */
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar - Enhanced hierarchy */
+    --sidebar-background: 220 14% 98%;   /* #F8FAFC - Slightly off-white */
+    --sidebar-foreground: 220 9% 9%;     /* #161618 - Sidebar text */
+    --sidebar-primary: 217 89% 61%;      /* #3B82F6 - Active items */
+    --sidebar-primary-foreground: 0 0% 100%; /* #FFFFFF - Active text */
+    --sidebar-accent: 220 14% 96%;       /* #F1F5F9 - Hover state */
+    --sidebar-accent-foreground: 220 9% 9%; /* #161618 - Hover text */
+    --sidebar-border: 220 13% 91%;       /* #E2E8F0 - Sidebar borders */
+    --sidebar-ring: 217 89% 61%;         /* #3B82F6 - Focus ring */
+    
+    /* AI Copilot specific colors for light mode */
+    --ai-surface: 0 0% 100%;             /* #FFFFFF - Clean white */
+    --ai-surface-elevated: 220 14% 98%;  /* #F8FAFC - Elevated surface */
+    --ai-text-primary: 220 9% 9%;        /* #161618 - Primary text */
+    --ai-text-secondary: 220 9% 46%;     /* #64748B - Secondary text */
+    --ai-text-muted: 220 9% 64%;         /* #94A3B8 - Muted text */
+    --ai-accent: 217 89% 61%;            /* #3B82F6 - Blue accent */
+    --ai-user-message: 217 89% 61%;      /* #3B82F6 - User message bg */
+    --ai-assistant-message: 220 14% 98%; /* #F8FAFC - Assistant message bg */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* TelAgri Dark Theme - Professional UX Design System */
+    /* Based on Material Design and Apple HIG best practices */
+    
+    /* Surface Hierarchy - Following Spotify's approach */
+    --background: 210 11% 4%;           /* #0A0B0D - Deep background */
+    --foreground: 210 6% 93%;           /* #EDEEEF - High contrast text */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 210 9% 7%;                  /* #101214 - Primary surface */
+    --card-foreground: 210 6% 93%;      /* #EDEEEF - Card text */
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 210 11% 6%;              /* #0D0F11 - Elevated surface */
+    --popover-foreground: 210 6% 93%;   /* #EDEEEF - Popover text */
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Desaturated Blue Primary - Better for dark mode */
+    --primary: 217 32% 65%;             /* #7BA7D9 - Desaturated blue */
+    --primary-foreground: 210 11% 4%;   /* #0A0B0D - Dark text on blue */
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Surface variants for depth */
+    --secondary: 210 8% 11%;            /* #191B1E - Secondary surface */
+    --secondary-foreground: 210 6% 80%; /* #C8CACC - Secondary text */
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 210 9% 9%;                 /* #141618 - Muted surface */
+    --muted-foreground: 210 4% 60%;     /* #969899 - Muted text */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent colors - Desaturated for comfort */
+    --accent: 217 32% 65%;              /* #7BA7D9 - Same as primary */
+    --accent-foreground: 210 11% 4%;    /* #0A0B0D - Dark on accent */
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status colors - Properly desaturated */
+    --destructive: 0 45% 60%;           /* #CC7A7A - Desaturated red */
+    --destructive-foreground: 210 6% 93%; /* #EDEEEF - Light text */
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Interactive elements */
+    --border: 210 6% 18%;               /* #2A2D31 - Subtle borders */
+    --input: 210 8% 11%;                /* #191B1E - Input background */
+    --ring: 217 32% 65%;                /* #7BA7D9 - Focus ring */
+    
+    /* Sidebar - Enhanced hierarchy */
+    --sidebar-background: 210 11% 5%;   /* #0B0D0F - Sidebar background */
+    --sidebar-foreground: 210 6% 87%;   /* #DADCDD - Sidebar text */
+    --sidebar-primary: 217 32% 65%;     /* #7BA7D9 - Active items */
+    --sidebar-primary-foreground: 210 11% 4%; /* #0A0B0D - Active text */
+    --sidebar-accent: 210 8% 13%;       /* #1E2124 - Hover state */
+    --sidebar-accent-foreground: 210 6% 87%; /* #DADCDD - Hover text */
+    --sidebar-border: 210 6% 16%;       /* #252830 - Sidebar borders */
+    --sidebar-ring: 217 32% 65%;        /* #7BA7D9 - Focus ring */
+
+    /* Status system - Accessible and comfortable */
+    --success: 142 35% 55%;             /* #6BB26B - Desaturated green */
+    --warning: 45 55% 65%;              /* #D4B574 - Desaturated amber */
+    --danger: 0 45% 60%;                /* #CC7A7A - Desaturated red */
+    
+    /* AI Copilot specific colors for enhanced readability */
+    --ai-surface: 210 9% 8%;            /* #131517 - AI chat surface */
+    --ai-surface-elevated: 210 8% 11%;  /* #191B1E - Elevated elements */
+    --ai-text-primary: 210 6% 90%;      /* #E1E3E4 - Primary AI text */
+    --ai-text-secondary: 210 4% 70%;    /* #AAADB0 - Secondary AI text */
+    --ai-text-muted: 210 4% 55%;        /* #868A8D - Muted AI text */
+    --ai-accent: 217 28% 70%;           /* #8BB4E0 - Lighter blue for AI */
+    --ai-user-message: 217 32% 65%;     /* #7BA7D9 - User message background */
+    --ai-assistant-message: 210 8% 13%; /* #1E2124 - Assistant message background */
   }
 }
 
@@ -110,6 +149,260 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
+  }
+
+  /* Smooth transitions for theme switching */
+  * {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+/* Light Mode Enhancements - Professional Shadows & Elevation */
+@layer components {
+  /* Light mode card shadows for depth */
+  .light-card-shadow {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  
+  .light-card-shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  
+  .light-elevated {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Light mode button enhancements */
+  .light-button-primary {
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .light-button-primary:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+  }
+  
+  /* Light mode input focus */
+  .light-input-focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+/* TelAgri Professional Typography System */
+@layer components {
+  /* Enhanced Typography Hierarchy - Following UX Best Practices */
+  
+  /* Primary Headings - High contrast for accessibility */
+  .text-heading-primary {
+    @apply text-gray-900 font-bold transition-colors;
+    color: hsl(var(--foreground));
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+  }
+
+  /* Secondary Headings - Balanced contrast */
+  .text-heading-secondary {
+    @apply text-gray-800 font-semibold transition-colors;
+    color: hsl(var(--card-foreground));
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+  }
+
+  /* Tertiary Headings - Subtle hierarchy */
+  .text-heading-tertiary {
+    @apply text-gray-700 font-medium transition-colors;
+    color: hsl(var(--secondary-foreground));
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* Body Text - Optimized for readability */
+  .text-body-primary {
+    @apply text-gray-900 transition-colors;
+    color: hsl(var(--foreground));
+    font-weight: 400;
+    line-height: 1.6;
+    font-size: 0.875rem;
+  }
+
+  /* Secondary Body Text - Reduced emphasis */
+  .text-body-secondary {
+    @apply text-gray-600 transition-colors;
+    color: hsl(var(--secondary-foreground));
+    font-weight: 400;
+    line-height: 1.5;
+    font-size: 0.8125rem;
+  }
+
+  /* Muted Text - Minimal emphasis */
+  .text-body-muted {
+    @apply text-gray-500 transition-colors;
+    color: hsl(var(--muted-foreground));
+    font-weight: 400;
+    line-height: 1.5;
+    font-size: 0.75rem;
+  }
+
+  /* Interactive Elements */
+  .text-accent-blue {
+    color: hsl(var(--primary));
+    @apply transition-colors;
+  }
+
+  .text-accent-interactive {
+    color: hsl(var(--primary));
+    @apply transition-all duration-200 hover:opacity-80 cursor-pointer;
+  }
+
+  /* AI Copilot Specific Typography - ChatGPT Best Practices */
+  .ai-text-primary {
+    color: hsl(var(--ai-text-primary));
+    font-weight: 400;
+    line-height: 1.8;  /* Increased from 1.7 for better readability */
+    font-size: 1rem;   /* Increased from 0.9375rem for better readability */
+    letter-spacing: 0.01em;
+  }
+
+  .ai-text-secondary {
+    color: hsl(var(--ai-text-secondary));
+    font-weight: 400;
+    line-height: 1.7;  /* Increased from 1.6 */
+    font-size: 0.9375rem; /* Slightly increased */
+  }
+
+  .ai-text-muted {
+    color: hsl(var(--ai-text-muted));
+    font-weight: 400;
+    line-height: 1.6;  /* Increased from 1.5 */
+    font-size: 0.875rem;
+  }
+
+  /* Enhanced readability for long-form content - ChatGPT Style */
+  .ai-content {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.8; /* ChatGPT-style generous line height */
+    word-spacing: 0.05em; /* Slight word spacing for better readability */
+  }
+
+  /* Neon Effects (kept for special cases) */
+  .neon-text {
+    @apply text-neon-glow;
+    text-shadow: 0 0 5px theme('colors.neon-glow'), 0 0 10px theme('colors.neon-glow');
+  }
+
+  .neon-border {
+    border: 1px solid theme('colors.neon-glow');
+    box-shadow: 0 0 5px theme('colors.neon-glow'), 0 0 10px theme('colors.neon-glow');
+  }
+
+  .neon-button {
+    @apply bg-neon-600 hover:bg-neon-500 text-white border border-neon-500;
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  .neon-button:hover {
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5), 0 0 25px rgba(0, 255, 65, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .dark .neon-card {
+    @apply bg-dark-card border-dark-border;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+  }
+
+  /* Enhanced glass morphism shadows */
+  .shadow-3xl {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .dark .shadow-3xl {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .dark .neon-card:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.2);
+  }
+
+  /* Theme toggle button styles */
+  .theme-toggle {
+    @apply relative inline-flex items-center justify-center w-12 h-6 rounded-full transition-colors duration-300;
+    background: linear-gradient(45deg, #22c55e, #16a34a);
+  }
+
+  .dark .theme-toggle {
+    background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+  }
+
+  .theme-toggle-thumb {
+    @apply absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300;
+    transform: translateX(-50%);
+  }
+
+  .dark .theme-toggle-thumb {
+    transform: translateX(50%);
+    background: #0a0a0a;
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+  }
+
+  /* Neon Brain Animation - Green Theme */
+  .neon-brain {
+    @apply text-green-600 dark:text-green-400 transition-all duration-300;
+    filter: drop-shadow(0 0 2px rgba(34, 197, 94, 0.3));
+  }
+
+  .dark .neon-brain {
+    filter: drop-shadow(0 0 4px rgba(74, 222, 128, 0.6));
+    animation: neon-pulse 2s ease-in-out infinite alternate;
+  }
+
+  .neon-brain:hover {
+    @apply scale-110;
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.8));
+  }
+
+  .dark .neon-brain:hover {
+    filter: drop-shadow(0 0 12px rgba(74, 222, 128, 0.9)) drop-shadow(0 0 20px rgba(74, 222, 128, 0.6));
+    animation: neon-glow 0.8s ease-in-out infinite alternate;
+  }
+
+  /* Professional Wizard Animations */
+  .wizard-step-enter {
+    animation: slideInFromRight 0.3s ease-out;
+  }
+
+  .wizard-step-exit {
+    animation: slideOutToLeft 0.3s ease-out;
+  }
+
+  @keyframes slideInFromRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slideOutToLeft {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
   }
 }

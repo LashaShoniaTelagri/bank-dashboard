@@ -39,7 +39,7 @@ const LocationInput = memo(function LocationInput({
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium text-gray-700">
+      <Label className="text-sm font-medium text-foreground">
         {label} <span className="text-red-500">*</span>
       </Label>
       
@@ -47,18 +47,18 @@ const LocationInput = memo(function LocationInput({
         type="button"
         variant="outline"
         onClick={openModal}
-        className="w-full h-10 justify-start text-left font-normal border-gray-300 hover:border-emerald-500 hover:bg-emerald-50 transition-colors focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+        className="w-full h-10 justify-start text-left font-normal border-border hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
         aria-label={value?.name ? `Selected location: ${value.name}. Click to change location` : "Click to select farm location"}
       >
-        <MapPin className="mr-2 h-4 w-4 text-emerald-600 flex-shrink-0" />
-        <span className={`flex-1 truncate ${value?.name ? "text-gray-900" : "text-gray-500"}`}>
+        <MapPin className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+        <span className={`flex-1 truncate ${value?.name ? "text-foreground" : "text-muted-foreground"}`}>
           {value?.name || placeholder}
         </span>
-        <Edit3 className="ml-2 h-4 w-4 text-gray-400 flex-shrink-0" />
+        <Edit3 className="ml-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
       </Button>
 
       {value?.lat && value?.lng && (
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Coordinates: {value.lat.toFixed(6)}, {value.lng.toFixed(6)}
         </p>
       )}
