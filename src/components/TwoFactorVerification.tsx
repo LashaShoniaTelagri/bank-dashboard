@@ -207,7 +207,7 @@ export const TwoFactorVerification = ({
     setAttempts(prev => prev + 1);
 
     try {
-      const requestBody = { email, code: verificationCode };
+      const requestBody: any = { email, code: verificationCode };
       
       // Add device trust information if remember device is enabled
       if (rememberDevice && deviceFingerprint && deviceFingerprintSupported) {
@@ -285,13 +285,13 @@ export const TwoFactorVerification = ({
   const codeDigits = code.padEnd(6, '').split('');
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4">
-      {/* Futuristic Agri-Finance Background - Same as Login */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-blue-50 to-green-50"></div>
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-background">
+      {/* Theme-aware Agri-Finance Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-blue-50 to-green-50 dark:from-emerald-950/20 dark:via-blue-950/20 dark:to-green-950/20"></div>
       
       {/* Geometric Pattern Overlay - Representing Crop Fields & Financial Growth */}
       <div 
-        className="absolute inset-0 opacity-20"
+        className="absolute inset-0 opacity-20 dark:opacity-10"
         style={{
           backgroundImage: `
             linear-gradient(90deg, rgba(34,197,94,0.1) 1px, transparent 1px),
@@ -306,37 +306,35 @@ export const TwoFactorVerification = ({
 
       {/* Floating Elements - Technology & Agriculture Symbols */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-2 h-2 bg-emerald-400/20 rounded-full animate-pulse"></div>
-        <div className="absolute top-40 right-20 w-3 h-3 bg-blue-400/20 rounded-full animate-pulse delay-1000"></div>
-        <div className="absolute bottom-32 left-16 w-1.5 h-1.5 bg-green-400/20 rounded-full animate-pulse delay-2000"></div>
-        <div className="absolute bottom-20 right-12 w-2.5 h-2.5 bg-teal-400/20 rounded-full animate-pulse delay-500"></div>
-        <div className="absolute top-1/3 left-1/4 w-1 h-1 bg-emerald-300/30 rounded-full animate-pulse delay-1500"></div>
-        <div className="absolute top-2/3 right-1/3 w-2 h-2 bg-blue-300/30 rounded-full animate-pulse delay-700"></div>
+        <div className="absolute top-20 left-10 w-2 h-2 bg-emerald-400/20 dark:bg-emerald-400/30 rounded-full animate-pulse"></div>
+        <div className="absolute top-40 right-20 w-3 h-3 bg-blue-400/20 dark:bg-blue-400/30 rounded-full animate-pulse delay-1000"></div>
+        <div className="absolute bottom-32 left-16 w-1.5 h-1.5 bg-green-400/20 dark:bg-green-400/30 rounded-full animate-pulse delay-2000"></div>
+        <div className="absolute bottom-20 right-12 w-2.5 h-2.5 bg-teal-400/20 dark:bg-teal-400/30 rounded-full animate-pulse delay-500"></div>
+        <div className="absolute top-1/3 left-1/4 w-1 h-1 bg-emerald-300/30 dark:bg-emerald-300/40 rounded-full animate-pulse delay-1500"></div>
+        <div className="absolute top-2/3 right-1/3 w-2 h-2 bg-blue-300/30 dark:bg-blue-300/40 rounded-full animate-pulse delay-700"></div>
       </div>
 
       {/* Content Container with Glass Morphism Effect */}
       <div className="relative z-10 w-full max-w-md">
-        <Card className="bg-white/60 backdrop-blur-md border-white/30 shadow-xl">
+        <Card className="bg-card/80 backdrop-blur-md border-border shadow-xl">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 p-3 bg-emerald-100/50 backdrop-blur-sm rounded-full w-fit border border-emerald-200/30">
-              <Shield className="h-8 w-8 text-emerald-600" />
+            <div className="mx-auto mb-4 p-3 bg-emerald-100/50 dark:bg-emerald-900/30 backdrop-blur-sm rounded-full w-fit border border-emerald-200/30 dark:border-emerald-700/50">
+              <Shield className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <CardTitle className="text-2xl font-bold text-heading-primary">
+            <CardTitle className="text-2xl font-bold text-foreground">
               🔐 Two-Factor Authentication
             </CardTitle>
-            <p className="text-sm text-body-secondary">
+            <p className="text-sm text-muted-foreground">
               We've sent a verification code to<br />
-              <span className="font-medium text-heading-primary">{email}</span>
+              <span className="font-medium text-foreground">{email}</span>
             </p>
           </CardHeader>
 
         <CardContent className="space-y-6">
           <div>
-            <label className="block text-sm font-medium mb-3 text-center">
+            <label className="block text-sm font-medium mb-3 text-center text-foreground">
               Enter your 6-digit verification code
             </label>
-            
-
             
             <div className="flex gap-3 justify-center mb-4">
               {codeDigits.map((digit, index) => (
@@ -350,7 +348,7 @@ export const TwoFactorVerification = ({
                   onChange={(e) => handleCodeChange(e.target.value, index)}
                   onKeyDown={(e) => handleKeyDown(e, index)}
                   onPaste={index === 0 ? handlePaste : undefined}
-                  className="w-14 h-14 text-center text-2xl font-bold border-2 border-emerald-200/50 rounded-lg focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-white/80 backdrop-blur-sm shadow-md"
+                  className="w-14 h-14 text-center text-2xl font-bold border-2 border-emerald-200/50 dark:border-emerald-700/50 rounded-lg focus:border-emerald-400 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 dark:focus:ring-emerald-500/20 bg-background/80 backdrop-blur-sm shadow-md"
                   placeholder="•"
                   disabled={isVerifying}
                 />
@@ -377,7 +375,7 @@ export const TwoFactorVerification = ({
                   }
                 }}
                 onPaste={handlePaste}
-                className="w-full text-center text-xl font-mono tracking-widest bg-white/80 backdrop-blur-sm border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="w-full text-center text-xl font-mono tracking-widest bg-background/80 backdrop-blur-sm border-emerald-200/50 dark:border-emerald-700/50 focus:border-emerald-400 dark:focus:border-emerald-500 focus:ring-emerald-400/20 dark:focus:ring-emerald-500/20"
                 placeholder="123456"
                 disabled={isVerifying}
               />
@@ -387,28 +385,31 @@ export const TwoFactorVerification = ({
           {timeLeft > 0 && (
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
-                Code expires in <span className="font-medium text-orange-600">{formatTime(timeLeft)}</span>
+                Code expires in <span className="font-medium text-orange-600 dark:text-orange-400">{formatTime(timeLeft)}</span>
               </p>
             </div>
           )}
 
           {/* Remember Device Option */}
           {deviceFingerprintSupported && (
-            <div className="bg-gradient-to-r from-emerald-50/80 to-teal-50/80 backdrop-blur-sm border border-emerald-200/50 rounded-lg p-4">
+            <div 
+              className="bg-gradient-to-r from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/30 dark:to-teal-950/30 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-700/50 rounded-lg p-4 cursor-pointer hover:bg-gradient-to-r hover:from-emerald-100/80 hover:to-teal-100/80 dark:hover:from-emerald-900/40 dark:hover:to-teal-900/40 transition-all duration-200"
+              onClick={() => setRememberDevice(!rememberDevice)}
+            >
               <div className="flex items-center space-x-3">
                 <Checkbox
                   id="remember-device"
                   checked={rememberDevice}
-                  onCheckedChange={setRememberDevice}
-                  className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                  onCheckedChange={(checked) => setRememberDevice(checked === true)}
+                  className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 dark:data-[state=checked]:bg-emerald-500 dark:data-[state=checked]:border-emerald-500 pointer-events-none"
                 />
                 <div className="flex-1">
-                  <label htmlFor="remember-device" className="text-sm font-medium text-heading-primary cursor-pointer">
+                  <div className="text-sm font-medium text-foreground cursor-pointer">
                     Remember this device for 30 days
-                  </label>
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <Smartphone className="h-3 w-3 text-slate-500" />
-                    <p className="text-xs text-slate-500">
+                    <Smartphone className="h-3 w-3 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
                       {deviceDescription} - You won't need 2FA on this device for 30 days
                     </p>
                   </div>
@@ -440,7 +441,7 @@ export const TwoFactorVerification = ({
                 variant="outline"
                 onClick={sendVerificationCode}
                 disabled={!canResend || isSendingCode}
-                className="group flex-1 h-12 text-base border-2 border-emerald-300 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-500 hover:text-emerald-700 hover:shadow-lg active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="group flex-1 h-12 text-base border-2 border-emerald-300 dark:border-emerald-600 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:border-emerald-500 dark:hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:shadow-lg active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {isSendingCode ? (
                   <>
@@ -459,19 +460,19 @@ export const TwoFactorVerification = ({
                 type="button"
                 variant="ghost"
                 onClick={onBack}
-                className="flex-1 h-12 text-base text-body-secondary hover:text-slate-800 hover:bg-slate-200 active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-sm hover:shadow-md"
+                className="flex-1 h-12 text-base text-muted-foreground hover:text-foreground hover:bg-muted active:scale-95 transform transition-all duration-300 hover:scale-105 shadow-sm hover:shadow-md"
               >
                 Back to Login
               </Button>
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <Mail className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
-                <p className="font-medium text-blue-800">Didn't receive the code?</p>
-                <ul className="text-blue-700 mt-1 space-y-1">
+                <p className="font-medium text-blue-800 dark:text-blue-200">Didn't receive the code?</p>
+                <ul className="text-blue-700 dark:text-blue-300 mt-1 space-y-1">
                   <li>• Check your spam/junk folder</li>
                   <li>• Wait a few minutes for delivery</li>
                   <li>• Click "Resend Code" if expired</li>
@@ -481,8 +482,8 @@ export const TwoFactorVerification = ({
           </div>
 
           {attempts >= 3 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-sm text-yellow-800">
+            <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
                 <strong>Need help?</strong> If you continue having issues, contact your administrator.
               </p>
             </div>
