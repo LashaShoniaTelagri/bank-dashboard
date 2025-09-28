@@ -11,7 +11,6 @@ const createInvitationEmail = (
   userEmail: string, 
   role: string,
   bankName?: string, 
-  inviterName?: string,
   resetUrl?: string
 ) => {
   const isAdmin = role === 'admin';
@@ -88,7 +87,7 @@ const htmlContent = `
           <div class="content">
             <h2>Welcome to TelAgri Bank Dashboard!</h2>
             <p>Hello!</p>
-            <p><strong>${inviterName || 'TelAgri Admin'}</strong> has invited you to join the TelAgri Bank Dashboard as a <strong>${roleTitle}</strong>${bankSection}.</p>
+            <p>You have been invited to join the <strong>TelAgri Bank Dashboard</strong> as a <strong>${roleTitle}</strong>${bankSection}.</p>
             
             <div class="info-box">
               <h3>${isAdmin ? '🔐' : '🏦'} Your Role: ${roleTitle}</h3>
@@ -132,7 +131,7 @@ const htmlContent = `
   const textContent = `
 Welcome to TelAgri Bank Dashboard!
 
-${inviterName || 'TelAgri Admin'} has invited you to join as a ${roleTitle}${textIntroSuffix}.
+You have been invited to join TelAgri Bank Dashboard as a ${roleTitle}${textIntroSuffix}.
 
 As a ${roleTitle}, you'll have access to:
 ${textPermissions}
@@ -389,7 +388,6 @@ serve(async (req) => {
       email,
       role,
       bankName,
-      inviterEmail || 'TelAgri Admin',
       resetUrl
     )
 
