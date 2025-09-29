@@ -120,8 +120,8 @@ export class TelAgriStack extends cdk.Stack {
             "font-src 'self' https://fonts.gstatic.com",
             "img-src 'self' data: https: blob:",
             "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com",
-            // Allow iframes for Office viewer and Supabase signed URLs in FileViewer
-            "frame-src https://*.supabase.co https://view.officeapps.live.com",
+            // Allow iframes for Office viewer, Supabase signed URLs, and Google Docs/Drive viewers
+            "frame-src https://*.supabase.co https://view.officeapps.live.com https://docs.google.com https://drive.google.com",
             // Allow PDF object embedding from Supabase (FileViewer primary renderer) and data/blob URLs
             "object-src https://*.supabase.co blob: data:",
             "base-uri 'self'",
