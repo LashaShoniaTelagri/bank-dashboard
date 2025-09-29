@@ -95,6 +95,8 @@ export const SpecialistDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState<string>(getActiveTabFromUrl() || 'assignments');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  // Pulse hint when collapsed (each time)
+  const [showCollapsePulse, setShowCollapsePulse] = useState(false);
   
   // Navigation items configuration
   const navigationItems = [
@@ -331,7 +333,14 @@ export const SpecialistDashboard = () => {
 
   // Toggle sidebar collapse
   const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    if (next) {
+      setShowCollapsePulse(true);
+      setTimeout(() => setShowCollapsePulse(false), 1800);
+    } else {
+      setShowCollapsePulse(false);
+    }
   };
 
   // Handle header click to refresh page with clean URL
@@ -448,8 +457,8 @@ export const SpecialistDashboard = () => {
       {/* Sidebar Navigation */}
       <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-sidebar dark:bg-dark-card border-r border-sidebar-border dark:border-dark-border transition-all duration-300 flex flex-col light-elevated dark:shadow-neon/20 h-screen sticky top-0`}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b dark:border-dark-border">
-      <div className="flex items-center justify-between">
+        <div className="h-[73px] px-4 border-b dark:border-dark-border flex items-center">
+          <div className="flex items-center justify-between w-full">
             {!sidebarCollapsed && (
               <div 
                 className="flex items-center gap-3 cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 -m-2 transition-all duration-200"
@@ -457,13 +466,13 @@ export const SpecialistDashboard = () => {
                 title="Return to start page"
               >
                 <Brain className="h-8 w-8 neon-brain" />
-        <div>
+                <div>
                   <h2 className="text-lg font-bold text-heading-primary">TelAgri</h2>
                   <p className="text-xs text-body-secondary">Specialist</p>
-        </div>
+                </div>
               </div>
             )}
-        <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               {sidebarCollapsed && (
                 <div 
                   className="cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 transition-all duration-200"
@@ -477,13 +486,27 @@ export const SpecialistDashboard = () => {
                 variant="ghost"
                 size="sm"
                 onClick={toggleSidebar}
-                className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-dark-border"
+                title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                className={`group h-8 w-8 p-0 transition-colors rounded-md ${
+                  sidebarCollapsed
+                    ? `text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 
+                       ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] 
+                       hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:ring-emerald-400 ${showCollapsePulse ? 'animate-pulse' : ''}`
+                    : `text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 
+                       ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] 
+                       hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:ring-emerald-400`
+                }`}
               >
-                {sidebarCollapsed ? <Menu className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                {sidebarCollapsed ? (
+                  <ChevronRight className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
+                ) : (
+                  <ChevronLeft className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400" />
+                )}
               </Button>
             </div>
+          </div>
         </div>
-      </div>
 
         {/* Navigation Items */}
         <nav className="flex-1 p-2 overflow-y-auto">
@@ -564,8 +587,8 @@ export const SpecialistDashboard = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Top Header */}
-        <header className="border-b bg-white dark:bg-dark-card shadow-sm dark:border-dark-border transition-colors" data-tour="welcome">
-          <div className="px-6 py-4 flex items-center justify-between">
+        <header className="relative h-[73px] border-b bg-white dark:bg-dark-card shadow-sm dark:border-dark-border transition-colors flex items-center" data-tour="welcome">
+          <div className={`flex items-center justify-between w-full px-6 ${sidebarCollapsed ? 'pl-14' : ''}`}>
             <div className="flex items-center gap-4">
               <div>
                 <h1 className="text-2xl text-heading-primary">Welcome back, Specialist</h1>
@@ -576,6 +599,22 @@ export const SpecialistDashboard = () => {
               <ThemeToggle variant="icon" size="sm" />
             </div>
           </div>
+          {sidebarCollapsed && (
+            <div className="absolute left-2 top-1/2 -translate-y-1/2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSidebar}
+                title="Expand navigation"
+                aria-label="Expand navigation"
+                className={`group h-8 w-8 p-0 text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 
+                            ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] rounded-md 
+                            hover:border-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/10 ${showCollapsePulse ? 'animate-pulse' : ''}`}
+              >
+                <ChevronRight className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
+              </Button>
+            </div>
+          )}
         </header>
 
         {/* Main Content Area */}
