@@ -9,6 +9,7 @@ interface F100ModalSpecialistProps {
   farmerIdNumber: string;
   phase: number;
   crop: string;
+  docUrl?: string;
 }
 
 export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
@@ -16,13 +17,28 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
   farmerName,
   farmerIdNumber,
   phase,
-  crop
+  crop,
+  docUrl
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Google Docs template URL - replace with your actual template
-  const googleDocsUrl = `https://docs.google.com/document/d/1hV7wNyeZGI8ZEkXE6lzJZb0kjErPCNaz/edit?usp=sharing&ouid=110097133754743241333&rtpof=true&sd=true`;
+  // Prefer assignment-specific URL, fallback to template
+  const baseUrl = docUrl && docUrl.trim().length > 0
+    ? docUrl
+    : `https://docs.google.com/document/d/1hV7wNyeZGI8ZEkXE6lzJZb0kjErPCNaz/edit?usp=sharing&ouid=110097133754743241333&rtpof=true&sd=true`;
+
+  const withEnglish = (url: string) => {
+    try {
+      const u = new URL(url);
+      if (!u.searchParams.has('hl')) u.searchParams.set('hl', 'en');
+      return u.toString();
+    } catch {
+      return url.includes('?') ? `${url}&hl=en` : `${url}?hl=en`;
+    }
+  };
+
+  const googleDocsUrl = withEnglish(baseUrl);
 
   const handleOpenExternal = () => {
     window.open(googleDocsUrl, '_blank', 'noopener,noreferrer');

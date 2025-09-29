@@ -53,6 +53,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
     phase: 1 as F100Phase,
     notes: ''
   });
+  const [f100DocUrl, setF100DocUrl] = useState<string>('');
   const [selectedSpecialists, setSelectedSpecialists] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null);
@@ -139,7 +140,8 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
           specialist_id: assignment.specialist_id,
           phase: assignment.phase,
           assigned_by: profile?.user_id || '',
-          notes: assignment.notes
+          notes: assignment.notes,
+          f100_doc_url: f100DocUrl || null
         })))
         .select();
 
@@ -159,6 +161,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
         phase: 1 as F100Phase,
         notes: ''
       });
+      setF100DocUrl('');
       setSelectedSpecialists([]);
       setIsOpen(false);
       
@@ -445,6 +448,19 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
               onChange={(e) => setAssignmentData(prev => ({ ...prev, notes: e.target.value }))}
               rows={3}
             />
+          </div>
+
+          {/* F-100 Google Doc URL */}
+          <div className="space-y-2">
+            <Label htmlFor="f100-url">F-100 Google Doc URL (Optional)</Label>
+            <Input
+              id="f100-url"
+              type="url"
+              placeholder="https://docs.google.com/document/d/..."
+              value={f100DocUrl}
+              onChange={(e) => setF100DocUrl(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">This document will open for the specialist in English interface.</p>
           </div>
 
           {/* Submit Button */}

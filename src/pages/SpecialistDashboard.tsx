@@ -850,12 +850,13 @@ export const SpecialistDashboard = () => {
                         </Button>
                         
                         <div className="mt-3">
-                          <F100ModalSpecialist
+                        <F100ModalSpecialist
                           farmerId={assignment.farmer_id}
                           farmerName={assignment.farmer_name}
                           farmerIdNumber={assignment.farmer_id_number}
                           phase={assignment.phase}
                           crop={assignment.crop}
+                          docUrl={(assignment as any).f100_doc_url}
                           />
                         </div>
                       </div>

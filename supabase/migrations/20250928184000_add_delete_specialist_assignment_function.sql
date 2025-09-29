@@ -107,3 +107,4 @@ GRANT EXECUTE ON FUNCTION public.delete_specialist_assignment(uuid) TO authentic
 
 -- Add comment
 COMMENT ON FUNCTION public.delete_specialist_assignment(uuid) IS 'Deletes a specialist assignment and related data. Only accessible by administrators.';
+

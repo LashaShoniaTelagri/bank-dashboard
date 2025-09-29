@@ -182,3 +182,4 @@ supabase/migrations/20250117000001_add_specialist_role_and_data_analysis.sql
 ---
 
 **🌾 TelAgri Bank Dashboard - Serving farmers with banking-grade reliability! 🏦**
+
