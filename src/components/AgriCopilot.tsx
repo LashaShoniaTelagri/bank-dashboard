@@ -26,7 +26,7 @@ import {
 import { FarmerDataUpload, F100Phase, AIChatMessage } from '@/types/specialist';
 import { formatFileSize } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, UserProfile } from '@/hooks/useAuth';
 import { FileViewer } from './FileViewer';
 import { toast } from './ui/use-toast';
 import { llmService, AnalysisPrompts } from '@/lib/llm-service';
@@ -69,6 +69,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   onClose
 }) => {
   const { profile } = useAuth();
+  const userProfile = profile as UserProfile | null;
   
   // Layout state
   const [isMaximized, setIsMaximized] = useState(false);
@@ -121,14 +122,14 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
 
   // Initialize session
   const ensureSession = useCallback(async () => {
-    if (!profile?.user_id) return null;
+    if (!userProfile?.user_id) return null;
     
     try {
       const { data, error } = await supabase
         .from('ai_chat_sessions')
         .select('id')
         .eq('farmer_id', farmerId)
-        .eq('specialist_id', profile.user_id)
+        .eq('specialist_id', userProfile.user_id)
         .eq('assignment_id', assignmentId)
         .maybeSingle();
 
@@ -140,7 +141,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
         .from('ai_chat_sessions')
         .insert({
           farmer_id: farmerId,
-          specialist_id: profile.user_id,
+          specialist_id: userProfile.user_id,
           assignment_id: assignmentId,
           phase: phase
         })
@@ -153,7 +154,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
       console.error('Failed to ensure session:', error);
       return null;
     }
-  }, [profile?.user_id, farmerId, assignmentId, farmerIdNumber, crop, phaseLabel, phase]);
+  }, [userProfile?.user_id, farmerId, assignmentId, farmerIdNumber, crop, phaseLabel, phase]);
 
   // Load chat history
   const loadChatHistory = useCallback(async (sessionId: string) => {
@@ -181,7 +182,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   // Initialize component
   useEffect(() => {
     const initialize = async () => {
-      if (!profile?.user_id) return;
+      if (!userProfile?.user_id) return;
       
       const session = await ensureSession();
       if (session) {
@@ -192,7 +193,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
     };
 
     initialize();
-  }, [profile?.user_id, ensureSession, loadChatHistory]);
+  }, [userProfile?.user_id, ensureSession, loadChatHistory]);
 
   // Sync uploads
   useEffect(() => {
@@ -619,10 +620,10 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentMessage(AnalysisPrompts.financialRisk({ farmerId, farmerIdNumber, crop, phase }).replace('Context Data:', '').trim())}
+                    onClick={() => setCurrentMessage(AnalysisPrompts.costEfficiency({ farmerId, farmerIdNumber, crop, phase }).replace('Context Data:', '').trim())}
                     className="justify-start text-xs h-8"
                   >
-                    💰 Financial Risk
+                    💰 Cost efficiency
                   </Button>
                 </div>
               </div>
@@ -690,10 +691,10 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setCurrentMessage("Evaluate financial risks and opportunities")}
+                      onClick={() => setCurrentMessage("Evaluate cost efficiency and ROI opportunities across inputs, water/energy, labor, and logistics")}
                       className="text-xs"
                     >
-                      💰 Financial Analysis
+                      💰 Cost efficiency
                     </Button>
                   </div>
                 </div>
@@ -781,7 +782,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
                 <Textarea
                   value={currentMessage}
                   onChange={(e) => setCurrentMessage(e.target.value)}
-                  placeholder="Ask about crop health, soil analysis, financial risks, or any agricultural insights..."
+                  placeholder="Ask about crop health, soil analysis, cost efficiency, or any agricultural insights..."
                   className="flex-1 min-h-[48px] max-h-[120px] resize-none text-sm bg-card border-input focus:border-primary focus:ring-1 focus:ring-primary/20 ai-text-primary placeholder:text-ai-text-muted"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {

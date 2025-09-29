@@ -42,7 +42,7 @@ export class LLMService {
         throw new Error(`Failed to list API keys: ${error.message}`);
       }
 
-      return data || [];
+      return (data as unknown as LLMApiKey[]) || [];
     } catch (error) {
       console.error('Error listing API keys:', error);
       throw error;
@@ -157,7 +157,8 @@ export class LLMService {
       const { error } = await supabase
         .from('llm_api_keys')
         .update({
-          usage_count: supabase.sql`usage_count + 1`,
+          // Fallback: increment on client without sql template tag
+          usage_count: (await this.getCurrentUsageCount(provider, keyName)) + 1,
           last_used_at: new Date().toISOString()
         })
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
@@ -169,6 +170,22 @@ export class LLMService {
       }
     } catch (error) {
       console.warn('Error updating API key usage:', error);
+    }
+  }
+
+  private async getCurrentUsageCount(provider: LLMProvider, keyName: string): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .from('llm_api_keys')
+        .select('usage_count')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('provider', provider)
+        .eq('key_name', keyName)
+        .maybeSingle();
+      if (error || !data) return 0;
+      return (data as any).usage_count ?? 0;
+    } catch {
+      return 0;
     }
   }
 
@@ -227,14 +244,14 @@ export const AnalysisPrompts = {
     Data: ${JSON.stringify(data, null, 2)}
   `,
 
-  financialRisk: (data: Record<string, unknown>) => `
-    Analyze the financial and risk data for agricultural lending. Focus on:
-    - Crop yield projections
-    - Market price trends
-    - Weather risk factors
-    - Farmer's financial capacity
-    - Loan repayment probability
-    - Risk mitigation strategies
+  costEfficiency: (data: Record<string, unknown>) => `
+    Analyze on-farm cost efficiency and ROI. Focus on:
+    - Input cost breakdown (seeds, fertilizer, crop protection) and usage efficiency
+    - Water and energy costs (irrigation, pumping, fuel) with savings opportunities
+    - Labor productivity and machinery utilization (idle time, scheduling, maintenance)
+    - Yield per unit cost (cost per hectare, cost per kg/ton) and break-even analysis
+    - Waste reduction (over-application, post-harvest losses) and logistics optimization
+    - Prioritized recommendations with estimated savings and quick wins vs long-term
     
     Data: ${JSON.stringify(data, null, 2)}
   `,
