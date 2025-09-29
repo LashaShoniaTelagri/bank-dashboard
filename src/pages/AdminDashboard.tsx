@@ -103,7 +103,17 @@ const AdminDashboard = () => {
 
       <header className="relative z-10 border-b bg-card/60 dark:bg-card/40 backdrop-blur-md border-border/30 shadow-lg">
         <div className="container-fluid mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-heading-primary">TelAgri Admin</h1>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-emerald-500 to-green-600 rounded-lg shadow-lg">
+              <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-heading-primary">TelAgri</h1>
+              <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">System Administrator</p>
+            </div>
+          </div>
           <div className="flex items-center gap-4">
             <ThemeToggle variant="icon" size="sm" />
             <Button 
@@ -132,40 +142,40 @@ const AdminDashboard = () => {
             <nav className="-mb-px flex space-x-8 p-4">
               <Link
                 to="/admin/dashboard"
-                className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-all duration-200 rounded-t-lg ${
                   activeSection === 'dashboard'
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'border-transparent text-body-secondary hover:text-body-primary hover:border-border'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                    : 'border-transparent text-body-secondary hover:text-body-primary hover:bg-muted/50 hover:scale-105'
                 }`}
               >
                 Dashboard
               </Link>
               <Link
                 to="/admin/banks"
-                className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-all duration-200 rounded-t-lg ${
                   activeSection === 'banks'
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'border-transparent text-body-secondary hover:text-body-primary hover:border-border'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                    : 'border-transparent text-body-secondary hover:text-body-primary hover:bg-muted/50 hover:scale-105'
                 }`}
               >
                 Banks
               </Link>
               <Link
                 to="/admin/users"
-                className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-all duration-200 rounded-t-lg ${
                   activeSection === 'users'
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'border-transparent text-body-secondary hover:text-body-primary hover:border-border'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                    : 'border-transparent text-body-secondary hover:text-body-primary hover:bg-muted/50 hover:scale-105'
                 }`}
               >
                 Users
               </Link>
               <Link
                 to="/admin/debug"
-                className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-all duration-200 rounded-t-lg ${
                   activeSection === 'debug'
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'border-transparent text-body-secondary hover:text-body-primary hover:border-border'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                    : 'border-transparent text-body-secondary hover:text-body-primary hover:bg-muted/50 hover:scale-105'
                 }`}
               >
                 Debug

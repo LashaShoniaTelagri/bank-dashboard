@@ -206,7 +206,7 @@ export const SpecialistDashboard = () => {
         assignment_id: item.assignment_id,
         farmer_id: item.farmer_id,
         farmer_id_number: item.farmer_id_number,
-        crop: item.crop || 'Not specified',
+        crop: item.farmer_crop || 'Not specified',
         phase: item.phase,
         status: item.status,
         assigned_at: item.assigned_at,

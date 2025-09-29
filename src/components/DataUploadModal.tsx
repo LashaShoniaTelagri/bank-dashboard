@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth, UserProfile } from "../hooks/useAuth";
 import { supabase } from "../integrations/supabase/client";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -57,6 +57,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   onUploadComplete
 }) => {
   const { profile } = useAuth();
+  const userProfile = profile as UserProfile | null;
   const [isOpen, setIsOpen] = useState(false);
   const [uploadData, setUploadData] = useState<DataUploadForm>({
     farmer_id: farmerId,
@@ -78,7 +79,11 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     file_name: string;
     file_path: string;
   }>(null);
-  const [f100Phase, setF100Phase] = useState<F100Phase | null>(null);
+  const [f100Phase, setF100Phase] = useState<F100Phase | null>(1 as F100Phase);
+
+  useEffect(() => {
+    setUploadData(prev => ({ ...prev, phase: (f100Phase ?? prev.phase) as F100Phase }));
+  }, [f100Phase]);
 
   // Reset success message when modal opens
   useEffect(() => {
@@ -95,10 +100,15 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         .from('farmer_data_uploads')
         .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata')
         .eq('farmer_id', farmerId)
+        .eq('bank_id', bankId)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data as unknown as UploadRow[]) ?? [];
-    }
+    },
+    enabled: isOpen,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
 
   const queryClient = useQueryClient();
@@ -132,7 +142,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       // Insert record into database (admin via RPC to bypass RLS; others direct insert)
       let dbResponse: UploadRow | null = null;
       let dbError: Error | null = null;
-      if (profile?.role === 'admin') {
+      if (userProfile?.role === 'admin') {
         const { data: rpcData, error: rpcError } = await supabase.rpc('admin_insert_farmer_data_upload', {
           p_farmer_id: farmerId,
           p_bank_id: bankId,
@@ -143,11 +153,11 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           p_file_size: file.size,
           p_description: uploadData.description,
           p_tags: uploadData.tags,
-          p_phase: uploadData.phase,
+          p_phase: f100Phase,
           p_metadata: {
             original_name: file.name,
             upload_timestamp: new Date().toISOString(),
-            uploader_role: profile?.role,
+            uploader_role: userProfile?.role,
             f100_phase: f100Phase
           }
         });
@@ -159,7 +169,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           .insert({
             farmer_id: farmerId,
             bank_id: bankId,
-            uploaded_by: profile?.user_id ?? '',
+            uploaded_by: userProfile?.user_id ?? '',
             data_type: uploadData.data_type,
             file_name: file.name,
             file_path: filePath,
@@ -167,11 +177,11 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             file_size_bytes: file.size,
             description: uploadData.description,
             tags: uploadData.tags,
-            phase: uploadData.phase,
+            phase: f100Phase,
             metadata: {
               original_name: file.name,
               upload_timestamp: new Date().toISOString(),
-              uploader_role: profile?.role,
+              uploader_role: userProfile?.role,
               f100_phase: f100Phase
             }
           })
@@ -426,6 +436,15 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         toast({
           title: 'Session expired',
           description: 'Please sign in again to upload files.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!f100Phase) {
+        toast({
+          title: 'Phase required',
+          description: 'Please select a Phase (1-12) before uploading.',
           variant: 'destructive',
         });
         return;
@@ -758,7 +777,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                               <path d="M4.5 15.75a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75V18A2.25 2.25 0 0 1 17.25 20.25H6.75A2.25 2.25 0 0 1 4.5 18v-2.25z" />
                             </svg>
                           </Button>
-                          {profile?.role === 'admin' && (
+                          {userProfile?.role === 'admin' && (
                             <Button
                               type="button"
                               variant="ghost"

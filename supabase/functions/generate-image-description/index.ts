@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +46,8 @@ serve(async (req) => {
 
     const imageBlob = await imageResponse.blob();
     const imageBuffer = await imageBlob.arrayBuffer();
-    const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+    const uint8Array = new Uint8Array(imageBuffer);
+    const base64Image = base64Encode(uint8Array);
     const mimeType = imageBlob.type || 'image/jpeg';
 
     console.log(`📷 Image downloaded: ${imageBlob.size} bytes, type: ${mimeType}`);
@@ -58,7 +60,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4-vision-preview",
+        model: "gpt-4o",
         messages: [
           {
             role: "user",
@@ -106,27 +108,37 @@ Provide a concise but comprehensive description that would help agricultural spe
 
     console.log(`✅ Generated description: ${description.substring(0, 100)}...`);
 
-    // Update the database with the generated description
-    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/farmer_data_uploads`, {
-      method: "PATCH",
+    // Update metadata JSON with AI description (avoids schema/migration dependency)
+    // 1) Load existing metadata for this file
+    const selectUrl = new URL(`${supabaseUrl}/rest/v1/farmer_data_uploads`);
+    selectUrl.searchParams.set('select', 'metadata');
+    selectUrl.searchParams.set('file_path', `eq.${filePath}`);
+    const selectResp = await fetch(selectUrl.toString(), {
       headers: {
         "Authorization": `Bearer ${serviceRoleKey}`,
         "apikey": serviceRoleKey,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify({
-        ai_description: description,
-        ai_description_generated_at: new Date().toISOString()
-      }),
-      // Use query parameters to specify which record to update
+        "Content-Type": "application/json"
+      }
     });
 
-    // Add query parameter for the specific file
+    let existingMetadata: Record<string, unknown> = {};
+    if (selectResp.ok) {
+      const rows = await selectResp.json();
+      if (Array.isArray(rows) && rows.length > 0 && rows[0]?.metadata) {
+        existingMetadata = rows[0].metadata as Record<string, unknown>;
+      }
+    }
+
+    const mergedMetadata = {
+      ...existingMetadata,
+      ai_description: description,
+      ai_description_generated_at: new Date().toISOString()
+    };
+
+    // 2) Patch back merged metadata
     const updateUrl = new URL(`${supabaseUrl}/rest/v1/farmer_data_uploads`);
     updateUrl.searchParams.set('file_path', `eq.${filePath}`);
-    
-    const finalUpdateResponse = await fetch(updateUrl.toString(), {
+    const updateResponse = await fetch(updateUrl.toString(), {
       method: "PATCH",
       headers: {
         "Authorization": `Bearer ${serviceRoleKey}`,
@@ -134,17 +146,14 @@ Provide a concise but comprehensive description that would help agricultural spe
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
       },
-      body: JSON.stringify({
-        ai_description: description,
-        ai_description_generated_at: new Date().toISOString()
-      })
+      body: JSON.stringify({ metadata: mergedMetadata })
     });
 
-    if (!finalUpdateResponse.ok) {
-      const errorText = await finalUpdateResponse.text();
-      console.error(`Failed to update database: ${finalUpdateResponse.status} ${errorText}`);
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error(`Failed to update database: ${updateResponse.status} ${errorText}`);
     } else {
-      console.log(`💾 Updated database with AI description`);
+      console.log(`💾 Updated metadata with AI description`);
     }
 
     return new Response(JSON.stringify({ 

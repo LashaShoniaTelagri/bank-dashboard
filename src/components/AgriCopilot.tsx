@@ -130,7 +130,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
         .eq('farmer_id', farmerId)
         .eq('specialist_id', profile.user_id)
         .eq('assignment_id', assignmentId)
-        .single();
+        .maybeSingle();
 
       if (data) {
         return data.id;
