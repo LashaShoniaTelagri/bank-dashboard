@@ -57,6 +57,7 @@ import {
 } from "../types/specialist";
 import AIAnalysisChat from "../components/AIAnalysisChat";
 import AgriCopilot from "../components/AgriCopilot";
+import { F100ModalSpecialist } from "../components/F100ModalSpecialist";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { formatFileSize } from "../lib/formatters";
@@ -847,6 +848,16 @@ export const SpecialistDashboard = () => {
                               </span>
                             )}
                         </Button>
+                        
+                        <div className="mt-3">
+                          <F100ModalSpecialist
+                          farmerId={assignment.farmer_id}
+                          farmerName={assignment.farmer_name}
+                          farmerIdNumber={assignment.farmer_id_number}
+                          phase={assignment.phase}
+                          crop={assignment.crop}
+                          />
+                        </div>
                       </div>
                     </div>
                   </CardContent>

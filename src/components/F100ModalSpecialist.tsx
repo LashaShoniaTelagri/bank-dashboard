@@ -1,0 +1,114 @@
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Button } from './ui/button';
+import { FileText, ExternalLink, X, Maximize2, Minimize2 } from 'lucide-react';
+
+interface F100ModalSpecialistProps {
+  farmerId: string;
+  farmerName: string;
+  farmerIdNumber: string;
+  phase: number;
+  crop: string;
+}
+
+export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
+  farmerId,
+  farmerName,
+  farmerIdNumber,
+  phase,
+  crop
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Google Docs template URL - replace with your actual template
+  const googleDocsUrl = `https://docs.google.com/document/d/1hV7wNyeZGI8ZEkXE6lzJZb0kjErPCNaz/edit?usp=sharing&ouid=110097133754743241333&rtpof=true&sd=true`;
+
+  const handleOpenExternal = () => {
+    window.open(googleDocsUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button
+            className="h-8 px-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 
+                       text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 
+                       border-0 font-medium text-sm rounded-lg group relative overflow-hidden"
+          >
+            {/* Animated background overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-orange-500 opacity-0 
+                           group-hover:opacity-100 transition-opacity duration-300" />
+            
+            {/* Content */}
+            <div className="relative flex items-center gap-2">
+              <FileText className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+              F-100
+            </div>
+            
+            {/* Subtle shine effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
+                           -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
+          </Button>
+        </DialogTrigger>
+
+        <DialogContent 
+          className={`p-0 gap-0 flex flex-col transition-all duration-300 ${
+            isFullscreen 
+              ? 'max-w-[100vw] max-h-[100vh] w-[100vw] h-[100vh] rounded-none' 
+              : 'max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh] rounded-lg'
+          }`}
+        >
+          <DialogHeader className="flex flex-row items-center justify-between space-y-0 px-4 py-3 border-b">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/20">
+                <FileText className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-semibold text-heading-primary truncate">
+                  F-100 Report - {farmerName}
+                </DialogTitle>
+                <p className="text-sm text-body-secondary truncate">
+                  ID: {farmerIdNumber} | {crop} - Phase {phase}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-shrink-0 whitespace-nowrap ml-2 mr-7 mt-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleOpenExternal}
+                className="text-muted-foreground hover:text-foreground"
+                title="Open in new tab"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="text-muted-foreground hover:text-foreground"
+                title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+              {/* Remove extra close button - Dialog provides its own close control */}
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden">
+            <iframe
+              src={googleDocsUrl}
+              className="w-full h-full border-0 rounded-md"
+              title={`F-100 Report for ${farmerName}`}
+              allow="clipboard-write"
+              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
