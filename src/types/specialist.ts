@@ -176,12 +176,14 @@ export interface SpecialistAssignmentWithData {
   farmer_id: string;
   farmer_id_number: string;
   crop: string;
+  farmer_name?: string;
   phase: F100Phase;
   status: AnalysisStatus;
   assigned_at: string;
   data_uploads_count: number;
   analysis_sessions_count: number;
   last_activity?: string;
+  f100_doc_url?: string;
 }
 
 // Data upload form interface
@@ -398,7 +400,16 @@ export const DATA_TYPES: Record<DataType, { name: string; description: string; m
     description: 'Field videos, drone footage, process documentation',
     maxSize: '100MB'
   },
- 
+  geospatial: {
+    name: 'Maps',
+    description: 'Legacy alias for maps data types',
+    maxSize: '50MB'
+  },
+  audio: {
+    name: 'Audio',
+    description: 'Legacy audio uploads (no longer exposed in UI)',
+    maxSize: '20MB'
+  },
 };
 
 // Constants for LLM providers

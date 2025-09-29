@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth, UserProfile } from "../hooks/useAuth";
 import { supabase } from "../integrations/supabase/client";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Loader2,
   Plus,
-  X
+  X,
+  ExternalLink
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "./ui/use-toast";
@@ -46,6 +47,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
   bankId
 }) => {
   const { profile } = useAuth();
+  const userProfile = profile as UserProfile | null;
   const [isOpen, setIsOpen] = useState(false);
   const [assignmentData, setAssignmentData] = useState<SpecialistAssignmentForm>({
     farmer_id: farmerId,
@@ -53,7 +55,8 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
     phase: 1 as F100Phase,
     notes: ''
   });
-  const [f100DocUrl, setF100DocUrl] = useState<string>('');
+  // Per-specialist F-100 Google Doc URLs
+  const [f100DocUrls, setF100DocUrls] = useState<Record<string, string>>({});
   const [selectedSpecialists, setSelectedSpecialists] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<string | null>(null);
@@ -61,7 +64,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
   const queryClient = useQueryClient();
 
   // Fetch available specialists via secure RPC (uses SECURITY DEFINER on backend)
-  const { data: specialists = [], isLoading: specialistsLoading } = useQuery({
+  const { data: specialists = [], isLoading: specialistsLoading } = useQuery<Specialist[]>({
     queryKey: ['specialists', bankId || null],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -76,13 +79,12 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
         bank_id: row.bank_id as string | null,
       })) as Specialist[];
     },
-    enabled: isOpen && !!profile?.user_id, // Only fetch when modal is open and user is authenticated
-    staleTime: 5 * 60 * 1000, // 5 minutes - specialists don't change frequently
-    cacheTime: 10 * 60 * 1000, // 10 minutes cache
+    enabled: isOpen && !!userProfile?.user_id, // Only fetch when modal is open and user is authenticated
+    staleTime: 5 * 60 * 1000 // 5 minutes - specialists don't change frequently
   });
 
   // Fetch existing assignments for this farmer
-  const { data: existingAssignments = [] } = useQuery({
+  const { data: existingAssignments = [] } = useQuery<any[]>({
     queryKey: ['specialist-assignments', farmerId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -94,8 +96,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
       return data;
     },
     enabled: isOpen && !!farmerId, // Only fetch when modal is open
-    staleTime: 2 * 60 * 1000, // 2 minutes - assignments change more frequently
-    cacheTime: 5 * 60 * 1000, // 5 minutes cache
+    staleTime: 2 * 60 * 1000 // 2 minutes - assignments change more frequently
   });
 
   // Delete assignment mutation
@@ -129,19 +130,58 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
     }
   });
 
+  // Inline F-100 URL updater for existing assignment rows (admin only)
+  const updateF100UrlMutation = useMutation({
+    mutationFn: async ({ assignmentId, url }: { assignmentId: string; url: string }) => {
+      const { error } = await supabase.rpc('admin_update_assignment_f100_url', {
+        p_assignment_id: assignmentId,
+        p_f100_doc_url: url
+      });
+      if (error) throw error;
+    },
+    onError: (error) => {
+      toast({ title: 'Update failed', description: (error as Error).message, variant: 'destructive' });
+    },
+    onSuccess: () => {
+      toast({ title: 'Updated', description: 'F-100 Google Doc URL updated.' });
+      queryClient.invalidateQueries({ queryKey: ['specialist-assignments', farmerId] });
+      queryClient.invalidateQueries({ queryKey: ['specialist-assignments'] });
+    }
+  });
+
+  // Local state for existing assignment URL edits
+  const [existingF100Urls, setExistingF100Urls] = useState<Record<string, string>>({});
+
+  const getInitialExistingUrl = (assignment: any) => existingF100Urls[assignment.id] ?? (assignment.f100_doc_url || '');
+
+  const setExistingUrl = (assignmentId: string, url: string) => {
+    setExistingF100Urls(prev => ({ ...prev, [assignmentId]: url }));
+  };
+
+  const isValidUrl = (value: string) => {
+    try { 
+      const u = new URL(value); 
+      return !!u.protocol && !!u.hostname; 
+    } catch { 
+      return false; 
+    }
+  };
+
   // Assignment mutation
+  type LocalAssignmentInsert = SpecialistAssignmentForm & { f100_doc_url?: string | null };
+
   const assignmentMutation = useMutation({
-    mutationFn: async (assignments: SpecialistAssignmentForm[]) => {
+    mutationFn: async (assignments: LocalAssignmentInsert[]) => {
       const { data, error } = await supabase
         .from('specialist_assignments')
         .insert(assignments.map(assignment => ({
           farmer_id: assignment.farmer_id,
-          bank_id: bankId || profile?.bank_id || '',
+          bank_id: bankId || userProfile?.bank_id || '',
           specialist_id: assignment.specialist_id,
           phase: assignment.phase,
-          assigned_by: profile?.user_id || '',
+          assigned_by: userProfile?.user_id || '',
           notes: assignment.notes,
-          f100_doc_url: f100DocUrl || null
+          f100_doc_url: assignment.f100_doc_url || null
         })))
         .select();
 
@@ -161,7 +201,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
         phase: 1 as F100Phase,
         notes: ''
       });
-      setF100DocUrl('');
+      setF100DocUrls({});
       setSelectedSpecialists([]);
       setIsOpen(false);
       
@@ -183,11 +223,18 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
 
   // Handle specialist selection
   const handleSpecialistToggle = (specialistId: string) => {
-    setSelectedSpecialists(prev => 
-      prev.includes(specialistId)
-        ? prev.filter(id => id !== specialistId)
-        : [...prev, specialistId]
-    );
+    setSelectedSpecialists(prev => {
+      if (prev.includes(specialistId)) {
+        // remove and cleanup URL
+        const next = prev.filter(id => id !== specialistId);
+        setF100DocUrls(urls => {
+          const { [specialistId]: _removed, ...rest } = urls;
+          return rest;
+        });
+        return next;
+      }
+      return [...prev, specialistId];
+    });
   };
 
   // Handle delete confirmation
@@ -233,9 +280,10 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
     }
 
     // Create assignments for all selected specialists
-    const assignments = selectedSpecialists.map(specialistId => ({
+    const assignments: LocalAssignmentInsert[] = selectedSpecialists.map(specialistId => ({
       ...assignmentData,
-      specialist_id: specialistId
+      specialist_id: specialistId,
+      f100_doc_url: (f100DocUrls[specialistId]?.trim() || undefined)
     }));
 
     assignmentMutation.mutate(assignments);
@@ -305,18 +353,19 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
               <CardContent>
                 <div className="space-y-2">
                   {currentPhaseAssignments.map((assignment) => (
-                    <div key={assignment.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                      <div className="flex items-center gap-2">
+                    <div key={assignment.id} className="p-3 bg-muted/50 rounded space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">
                           {specialists.find(s => s.id === assignment.specialist_id)?.email || 'Unknown Specialist'}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-2">
+                        </div>
+                        <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">
                           {assignment.status}
                         </Badge>
-                        {profile?.role === 'admin' && (
+                        {userProfile?.role === 'admin' && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -328,7 +377,55 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                             <X className="h-3 w-3" />
                           </Button>
                         )}
+                        </div>
                       </div>
+                      {userProfile?.role === 'admin' && (
+                        <div className="space-y-1">
+                          <Label htmlFor={`existing-f100-${assignment.id}`}>F-100 Google Doc URL</Label>
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              id={`existing-f100-${assignment.id}`}
+                              type="url"
+                              value={getInitialExistingUrl(assignment)}
+                              onChange={(e) => setExistingUrl(assignment.id, e.target.value)}
+                              placeholder="https://docs.google.com/document/d/..."
+                            />
+                            {/* Preview in new tab when URL is present and valid */}
+                            {isValidUrl(getInitialExistingUrl(assignment)) && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const url = getInitialExistingUrl(assignment);
+                                  try {
+                                    const u = new URL(url);
+                                    if (!u.searchParams.has('hl')) u.searchParams.set('hl', 'en');
+                                    window.open(u.toString(), '_blank', 'noopener,noreferrer');
+                                  } catch {
+                                    window.open(url, '_blank', 'noopener,noreferrer');
+                                  }
+                                }}
+                                title="Open in new tab"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const newUrl = getInitialExistingUrl(assignment);
+                                updateF100UrlMutation.mutate({ assignmentId: assignment.id, url: newUrl });
+                              }}
+                              disabled={updateF100UrlMutation.isPending || !isValidUrl(getInitialExistingUrl(assignment)) || (assignment.f100_doc_url || '') === getInitialExistingUrl(assignment).trim()}
+                            >
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -406,7 +503,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
             )}
           </div>
 
-          {/* Selected Specialists Summary */}
+          {/* Selected Specialists Summary with per-specialist F-100 URL */}
           {selectedSpecialists.length > 0 && (
             <Card>
               <CardHeader>
@@ -417,19 +514,32 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
                   {selectedSpecialists.map((specialistId) => {
                     const specialist = specialists.find(s => s.id === specialistId);
                     return (
-                      <div key={specialistId} className="flex items-center justify-between p-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">{specialist?.email}</span>
+                      <div key={specialistId} className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">{specialist?.email}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSpecialistToggle(specialistId)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleSpecialistToggle(specialistId)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        <div className="space-y-1">
+                          <Label htmlFor={`f100-url-${specialistId}`}>F-100 Google Doc URL (Optional)</Label>
+                          <Input
+                            id={`f100-url-${specialistId}`}
+                            type="url"
+                            placeholder="https://docs.google.com/document/d/..."
+                            value={f100DocUrls[specialistId] || ''}
+                            onChange={(e) => setF100DocUrls(prev => ({ ...prev, [specialistId]: e.target.value }))}
+                          />
+                          <p className="text-xs text-muted-foreground">This document will open for the specialist in English interface.</p>
+                        </div>
                       </div>
                     );
                   })}
@@ -450,18 +560,7 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
             />
           </div>
 
-          {/* F-100 Google Doc URL */}
-          <div className="space-y-2">
-            <Label htmlFor="f100-url">F-100 Google Doc URL (Optional)</Label>
-            <Input
-              id="f100-url"
-              type="url"
-              placeholder="https://docs.google.com/document/d/..."
-              value={f100DocUrl}
-              onChange={(e) => setF100DocUrl(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">This document will open for the specialist in English interface.</p>
-          </div>
+          {/* Removed global F-100 URL field in favor of per-specialist inputs above */}
 
           {/* Submit Button */}
           <div className="flex justify-end gap-2">

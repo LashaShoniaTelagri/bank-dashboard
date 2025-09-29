@@ -92,16 +92,23 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     }
   }, [isOpen]);
 
+  // Controls for filtering previously uploaded list
+  const [existingPhaseFilter, setExistingPhaseFilter] = useState<string>('all');
+
   // Load previously uploaded data for this farmer
   const { data: existingUploads = [], isLoading: uploadsLoading } = useQuery({
-    queryKey: ['farmer-data-uploads', farmerId],
+    queryKey: ['farmer-data-uploads', farmerId, existingPhaseFilter],
     queryFn: async (): Promise<UploadRow[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('farmer_data_uploads')
         .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata')
         .eq('farmer_id', farmerId)
         .eq('bank_id', bankId)
         .order('created_at', { ascending: false });
+      if (existingPhaseFilter !== 'all') {
+        query = query.eq('phase', Number(existingPhaseFilter));
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data as unknown as UploadRow[]) ?? [];
     },
@@ -112,6 +119,49 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   });
 
   const queryClient = useQueryClient();
+
+  // Generate a small thumbnail (PNG) for image files in-browser (common formats)
+  const generateImageThumbnail = useCallback(async (file: File): Promise<Blob | null> => {
+    try {
+      // Try to decode via browser (JPEG/PNG/WebP/GIF/BMP/TIFF). HEIC/HEIF may fail and return null.
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const im = new window.Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = url;
+      }).catch(() => null);
+
+      if (!img) return null; // Unsupported format for client-side decoding
+
+      const targetSize = 128;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+
+      const srcW = img.width || targetSize;
+      const srcH = img.height || targetSize;
+      const scale = Math.max(targetSize / srcW, targetSize / srcH);
+      const drawW = Math.round(srcW * scale);
+      const drawH = Math.round(srcH * scale);
+      const dx = Math.round((targetSize - drawW) / 2);
+      const dy = Math.round((targetSize - drawH) / 2);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, targetSize, targetSize);
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png', 0.8)
+      );
+      return blob;
+    } catch (e) {
+      console.warn('Thumbnail generation failed:', e);
+      return null;
+    }
+  }, []);
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -196,6 +246,26 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         throw dbError;
       }
 
+      // Best-effort: create and upload a small public thumbnail for images
+      if (file.type.startsWith('image/')) {
+        try {
+          const thumbBlob = await generateImageThumbnail(file);
+          if (thumbBlob) {
+            const withoutExt = filePath.replace(/\.[^/.]+$/, '');
+            const thumbPath = `thumbs/${withoutExt}.png`;
+            await supabase.storage
+              .from('farmer-thumbs')
+              .upload(thumbPath, thumbBlob, {
+                upsert: true,
+                contentType: 'image/png',
+              });
+          }
+        } catch (e) {
+          console.warn('Failed to upload thumbnail:', e);
+          // Non-blocking
+        }
+      }
+
       // Generate AI description for image files
       if (uploadData.data_type === 'photo' && file.type.startsWith('image/')) {
         try {
@@ -243,6 +313,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       
       // Invalidate queries to refresh the "Previously Uploaded" section
       queryClient.invalidateQueries({ queryKey: ['farmer-data-uploads', farmerId] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-data-uploads', farmerId, existingPhaseFilter] });
       queryClient.invalidateQueries({ queryKey: ['specialist-assignments'] });
       
       onUploadComplete?.();
@@ -264,7 +335,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     const allowedTypes = {
       photo: [
         // Images
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif', 'image/heic', 'image/heif',
         // Documents
         'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -728,7 +799,27 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
 
           {/* Existing Uploads */}
           <div className="space-y-2">
-            <Label>Previously Uploaded</Label>
+            <div className="flex items-center justify-between">
+              <Label>Previously Uploaded</Label>
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-muted-foreground">Phase:</div>
+                <select
+                  value={existingPhaseFilter}
+                  onChange={(e) => setExistingPhaseFilter(e.target.value)}
+                  className="h-8 rounded-md border px-2 text-sm bg-background"
+                >
+                  <option value="all">All</option>
+                  {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(p => (
+                    <option key={p} value={p}>Phase {p}</option>
+                  ))}
+                </select>
+                {(existingPhaseFilter !== 'all') && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setExistingPhaseFilter('all')}>
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </div>
             {uploadsLoading ? (
               <div className="text-sm text-gray-500">Loading...</div>
             ) : (existingUploads as UploadRow[]).length === 0 ? (

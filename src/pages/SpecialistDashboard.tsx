@@ -122,9 +122,12 @@ export const SpecialistDashboard = () => {
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
 
   // Data Library filtering and grouping state
-  const [dataLibrarySearchTerm, setDataLibrarySearchTerm] = useState('');
-  const [dataLibrarySelectedDataType, setDataLibrarySelectedDataType] = useState<string>('all');
-  const [dataLibrarySelectedPhase, setDataLibrarySelectedPhase] = useState<string>('all');
+  // Data Library filters - hydrate from query string
+  const initialParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [dataLibrarySearchTerm, setDataLibrarySearchTerm] = useState(initialParams.get('q') || '');
+  const [dataLibrarySelectedDataType, setDataLibrarySelectedDataType] = useState<string>(initialParams.get('type') || 'all');
+  const [dataLibrarySelectedPhase, setDataLibrarySelectedPhase] = useState<string>(initialParams.get('phase') || 'all');
+  const [dataLibraryFocusedAssignment, setDataLibraryFocusedAssignment] = useState<string | null>(initialParams.get('assignmentId'));
   const [collapsedAssignments, setCollapsedAssignments] = useState<Set<string>>(new Set());
 
   // Toggle assignment collapse state
@@ -197,7 +200,7 @@ export const SpecialistDashboard = () => {
     data: assignments = [],
     isLoading,
     error
-  } = useQuery({
+  } = useQuery<SpecialistAssignmentWithData[]>({
     queryKey: ["specialist-assignments", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_specialist_assignments");
@@ -208,17 +211,18 @@ export const SpecialistDashboard = () => {
         farmer_id: item.farmer_id,
         farmer_id_number: item.farmer_id_number,
         crop: item.farmer_crop || 'Not specified',
+        farmer_name: item.farmer_name,
         phase: item.phase,
         status: item.status,
         assigned_at: item.assigned_at,
         data_uploads_count: item.data_uploads_count,
         analysis_sessions_count: item.analysis_sessions_count,
-        last_activity: item.last_activity
+        last_activity: item.last_activity,
+        f100_doc_url: item.f100_doc_url
       })) as SpecialistAssignmentWithData[];
     },
     enabled: !!user?.id,
     staleTime: 30 * 1000, // 30 seconds - assignments can change frequently
-    cacheTime: 2 * 60 * 1000, // 2 minutes cache
     refetchOnWindowFocus: false, // Prevent excessive refetching
     refetchOnMount: true, // Refetch on component mount
     retry: 1, // Reduce retry attempts for failed queries
@@ -304,6 +308,20 @@ export const SpecialistDashboard = () => {
     searchParams.set('tab', tab);
     navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
   };
+  // Sync Data Library filters to query string
+  useEffect(() => {
+    if (activeNavItem !== 'library') return;
+    const params = new URLSearchParams(location.search);
+    // set tab
+    params.set('tab', 'library');
+    // set filters
+    if (dataLibrarySearchTerm) params.set('q', dataLibrarySearchTerm); else params.delete('q');
+    if (dataLibrarySelectedDataType && dataLibrarySelectedDataType !== 'all') params.set('type', dataLibrarySelectedDataType); else params.delete('type');
+    if (dataLibrarySelectedPhase && dataLibrarySelectedPhase !== 'all') params.set('phase', dataLibrarySelectedPhase); else params.delete('phase');
+    if (dataLibraryFocusedAssignment) params.set('assignmentId', dataLibraryFocusedAssignment); else params.delete('assignmentId');
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  }, [activeNavItem, dataLibrarySearchTerm, dataLibrarySelectedDataType, dataLibrarySelectedPhase, dataLibraryFocusedAssignment, location.pathname, location.search, navigate]);
+
 
   // Handle navigation item change
   const handleNavItemChange = (itemId: string) => {
@@ -391,6 +409,8 @@ export const SpecialistDashboard = () => {
     if (phase <= 11) return <AlertCircle className="h-4 w-4" />;
     return <FileText className="h-4 w-4" />;
   };
+
+  // Removed per-phase chips. Specialists should only see files for their assigned phase.
 
   const uploadsEqual = (a: FarmerDataUpload[] = [], b: FarmerDataUpload[] = []) => {
     if (a === b) return true;
@@ -701,6 +721,11 @@ export const SpecialistDashboard = () => {
             ) : (
               filteredAssignments.map((assignment) => {
                 const uploadsForAssignment = assignmentUploads[assignment.assignment_id] ?? [];
+                const currentPhaseUploads = uploadsForAssignment.filter(u => {
+                  const metaPhase = (u.metadata as any)?.f100_phase;
+                  const phaseValue = (typeof metaPhase === 'number' ? metaPhase : undefined) ?? u.phase;
+                  return phaseValue === assignment.phase;
+                });
                 return (
                   <Card key={assignment.assignment_id} className="hover:shadow-md dark:hover:shadow-neon/20 transition-all dark:bg-dark-card dark:border-dark-border" data-tour={filteredAssignments.indexOf(assignment) === 0 ? "assignment-card" : undefined}>
                   <CardContent className="p-6">
@@ -764,15 +789,20 @@ export const SpecialistDashboard = () => {
                             <div 
                               className="flex items-center gap-1 cursor-pointer text-accent-interactive hover:underline"
                               onClick={() => {
-                                // Switch to data library tab and filter by this assignment
-                                handleTabChange('library');
-                                // You could add filtering logic here if needed
+                        // Switch to Data Library with assignment-focused view
+                        const params = new URLSearchParams(location.search);
+                        params.set('tab', 'library');
+                        params.set('assignmentId', assignment.assignment_id);
+                        navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                        setDataLibraryFocusedAssignment(assignment.assignment_id);
+                        setActiveNavItem('library');
                               }}
                               title="View files in Data Library"
                             >
                             <Upload className="h-4 w-4" />
-                              {uploadsForAssignment.length} files
+                              {currentPhaseUploads.length} files
                           </div>
+                          {/* Removed phase chips to avoid showing unassigned phases */}
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
                             Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
@@ -852,11 +882,11 @@ export const SpecialistDashboard = () => {
                         <div className="mt-3">
                         <F100ModalSpecialist
                           farmerId={assignment.farmer_id}
-                          farmerName={assignment.farmer_name}
+                          farmerName={assignment.farmer_name || assignment.farmer_id_number}
                           farmerIdNumber={assignment.farmer_id_number}
                           phase={assignment.phase}
                           crop={assignment.crop}
-                          docUrl={(assignment as any).f100_doc_url}
+                          docUrl={assignment.f100_doc_url}
                           />
                         </div>
                       </div>
@@ -959,8 +989,10 @@ export const SpecialistDashboard = () => {
               </div>
                   </div>
 
-                  {/* Assignment Groups */}
-                  {assignments.map((assignment) => {
+                  {/* Assignment Groups - optionally focus a single assignment */}
+                  {assignments
+                    .filter(a => !dataLibraryFocusedAssignment || a.assignment_id === dataLibraryFocusedAssignment)
+                    .map((assignment) => {
                     return (
                       <AssignmentUploads
                         key={assignment.assignment_id}
@@ -1088,6 +1120,7 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
   const [fileViewerFiles, setFileViewerFiles] = useState<any[]>([]);
   const [fileViewerInitialIndex, setFileViewerInitialIndex] = useState(0);
   const [fileViewerSectionName, setFileViewerSectionName] = useState('');
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
 
   const {
     data: uploads = [],
@@ -1216,20 +1249,29 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
     return 'bg-gray-50 border-gray-200';
   }, []);
 
+  // NOTE: thumbnail prefetch moved below after filteredUploads is defined to avoid TDZ
+
   const getImageThumbnail = useCallback((upload: FarmerDataUpload) => {
     if (upload.file_mime?.startsWith('image/') || upload.data_type === 'photo') {
-      const imageUrl = supabase.storage.from('farmer-documents').getPublicUrl(upload.file_path).data.publicUrl;
+      const pub = supabase.storage.from('farmer-documents').getPublicUrl(upload.file_path);
+      const imageUrl = thumbnailUrls[upload.id] || pub.data?.publicUrl;
       return (
         <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
-          <img
-            src={imageUrl}
-            alt={upload.file_name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-            }}
-          />
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={upload.file_name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-50">
+              <Image className="h-6 w-6 text-gray-400" />
+            </div>
+          )}
           <div className="hidden w-full h-full flex items-center justify-center bg-gray-50">
             <Image className="h-6 w-6 text-gray-400" />
           </div>
@@ -1237,11 +1279,14 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       );
     }
     return null;
-  }, []);
+  }, [thumbnailUrls]);
 
   // Filter uploads based on search and filters
   const filteredUploads = useMemo(() => {
     return uploads.filter(upload => {
+      // Respect specialist-assigned phase regardless of library filters
+      const effectivePhase = (upload.metadata as any)?.f100_phase ?? upload.phase;
+      const matchesAssignedPhase = effectivePhase === phase;
       const matchesSearch = searchTerm === '' || 
         upload.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         upload.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1249,9 +1294,48 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       const matchesDataType = selectedDataType === 'all' || upload.data_type === selectedDataType;
       const matchesPhase = selectedPhase === 'all' || upload.phase.toString() === selectedPhase;
       
-      return matchesSearch && matchesDataType && matchesPhase;
+      return matchesAssignedPhase && matchesSearch && matchesDataType && matchesPhase;
     });
   }, [uploads, searchTerm, selectedDataType, selectedPhase]);
+
+  // Prefetch thumbnails ONLY for currently visible image/photo files
+  useEffect(() => {
+    const fetchThumbs = async () => {
+      const candidates = filteredUploads.filter(u =>
+        (u.file_mime?.startsWith('image/') || u.data_type === 'photo') && !thumbnailUrls[u.id]
+      );
+      if (candidates.length === 0) return;
+      const updates: Record<string, string> = {};
+      for (const u of candidates) {
+        try {
+          // Prefer a cached/derivative thumbnail in public bucket if available
+          const thumbPath = `thumbs/${u.file_path}.png`;
+          const pubThumb = supabase.storage.from('farmer-thumbs').getPublicUrl(thumbPath);
+          if (pubThumb.data?.publicUrl) {
+            updates[u.id] = pubThumb.data.publicUrl;
+          } else {
+            // Fallback to object public URL (if bucket has public set for testing) or skip
+            const pub = supabase.storage.from('farmer-documents').getPublicUrl(u.file_path);
+            if (pub.data?.publicUrl) {
+              updates[u.id] = pub.data.publicUrl;
+            } else {
+              // As a final fallback, create a short-lived signed URL (visible items only)
+              const { data, error } = await supabase.storage
+                .from('farmer-documents')
+                .createSignedUrl(u.file_path, 300);
+              if (!error && data?.signedUrl) updates[u.id] = data.signedUrl;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        setThumbnailUrls(prev => ({ ...prev, ...updates }));
+      }
+    };
+    fetchThumbs();
+  }, [filteredUploads, setThumbnailUrls]);
 
   const handleDownload = useCallback(async (upload: FarmerDataUpload) => {
     const { data, error } = await supabase.storage
@@ -1296,7 +1380,7 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
                   ID: {farmerId.slice(0, 8)}...
                 </Badge>
                 <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800 transition-colors">
-                  🌾 {crop || 'Crop not specified'}
+                  🌾 {crop && crop !== 'Not specified' ? crop : 'Not specified'}
                 </Badge>
                 <Badge variant="secondary" className="text-xs dark:bg-dark-border dark:text-gray-300 transition-colors">
                   {phaseLabel}
@@ -1341,7 +1425,7 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUploads.map((upload) => {
+          {filteredUploads.map((upload) => {
                 const thumbnail = getImageThumbnail(upload);
                 return (
                   <div
@@ -1353,7 +1437,7 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
                     <div className="flex items-start space-x-3">
                       {/* Thumbnail or Icon */}
                       <div className="flex-shrink-0">
-                        {thumbnail || (
+                    {thumbnail || (
                           <div className="w-16 h-16 rounded-lg bg-white dark:bg-dark-bg border-2 border-dashed border-gray-300 dark:border-dark-border flex items-center justify-center transition-colors">
                             {getFileTypeIcon(upload)}
                           </div>

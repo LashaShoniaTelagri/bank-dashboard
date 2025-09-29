@@ -23,10 +23,9 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Prefer assignment-specific URL, fallback to template
-  const baseUrl = docUrl && docUrl.trim().length > 0
-    ? docUrl
-    : `https://docs.google.com/document/d/1hV7wNyeZGI8ZEkXE6lzJZb0kjErPCNaz/edit?usp=sharing&ouid=110097133754743241333&rtpof=true&sd=true`;
+  // Only enable when an assignment-specific URL is provided
+  const hasDoc = !!(docUrl && docUrl.trim().length > 0);
+  const baseUrl = docUrl?.trim() || '';
 
   const withEnglish = (url: string) => {
     try {
@@ -49,13 +48,18 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button
-            className="h-8 px-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 
-                       text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 
-                       border-0 font-medium text-sm rounded-lg group relative overflow-hidden"
+            disabled={!hasDoc}
+            className={`h-8 px-3 border-0 font-medium text-sm rounded-lg group relative overflow-hidden ${
+              hasDoc
+                ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300'
+                : 'bg-muted text-muted-foreground cursor-not-allowed'
+            }`}
           >
             {/* Animated background overlay */}
-            <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-orange-500 opacity-0 
+            {hasDoc && (
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-orange-500 opacity-0 
                            group-hover:opacity-100 transition-opacity duration-300" />
+            )}
             
             {/* Content */}
             <div className="relative flex items-center gap-2">
@@ -64,11 +68,14 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
             </div>
             
             {/* Subtle shine effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
+            {hasDoc && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
                            -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
+            )}
           </Button>
         </DialogTrigger>
 
+        {hasDoc && (
         <DialogContent 
           className={`p-0 gap-0 flex flex-col transition-all duration-300 ${
             isFullscreen 
@@ -124,6 +131,7 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
             />
           </div>
         </DialogContent>
+        )}
       </Dialog>
     </>
   );

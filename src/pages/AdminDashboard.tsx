@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, UserProfile } from "@/hooks/useAuth";
 import { Navigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
@@ -9,9 +9,11 @@ import { UsersManagement } from "@/components/UsersManagement";
 import { AdminFilters } from "@/components/AdminFilters";
 import { InvitationDebugger } from "@/components/InvitationDebugger";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuditLogTable } from "@/components/AuditLogTable";
 
 const AdminDashboard = () => {
   const { user, profile, signOut, loading } = useAuth();
+  const userProfile = profile as UserProfile | null;
   const location = useLocation();
   const [filters, setFilters] = useState({
     search: "",
@@ -52,13 +54,13 @@ const AdminDashboard = () => {
   }
 
   // Redirect if not admin
-  if (profile && profile.role !== 'admin') {
+  if (userProfile && userProfile.role !== 'admin') {
 
     return <Navigate to="/bank" replace />;
   }
 
   // If user exists but no profile, show loading or error
-  if (user && !profile) {
+  if (user && !userProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -196,7 +198,12 @@ const AdminDashboard = () => {
 
             {activeSection === 'users' && <UsersManagement />}
 
-            {activeSection === 'debug' && <InvitationDebugger />}
+            {activeSection === 'debug' && (
+              <div className="space-y-6">
+                <InvitationDebugger />
+                <AuditLogTable />
+              </div>
+            )}
           </div>
         </div>
       </div>

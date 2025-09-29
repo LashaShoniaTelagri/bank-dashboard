@@ -1113,10 +1113,16 @@ export type Database = {
           farmer_id: string
           farmer_id_number: string
           farmer_name: string
+          farmer_crop?: string
           last_activity: string
           phase: number
           status: string
+          f100_doc_url?: string
         }[]
+      }
+      admin_update_assignment_f100_url: {
+        Args: { p_assignment_id: string; p_f100_doc_url: string }
+        Returns: undefined
       }
       is_device_trusted: {
         Args: { p_device_fingerprint: string; p_user_email: string }
