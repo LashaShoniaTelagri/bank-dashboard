@@ -459,52 +459,39 @@ export const SpecialistDashboard = () => {
         {/* Sidebar Header */}
         <div className="h-[73px] px-4 border-b dark:border-dark-border flex items-center">
           <div className="flex items-center justify-between w-full">
-            {!sidebarCollapsed && (
-              <div 
-                className="flex items-center gap-3 cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 -m-2 transition-all duration-200"
-                onClick={handleHeaderClick}
-                title="Return to start page"
-              >
-                <Brain className="h-8 w-8 neon-brain" />
-                <div>
-                  <h2 className="text-lg font-bold text-heading-primary">TelAgri</h2>
-                  <p className="text-xs text-body-secondary">Specialist</p>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              {sidebarCollapsed && (
+            {!sidebarCollapsed ? (
+              <>
                 <div 
-                  className="cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 transition-all duration-200"
+                  className="flex items-center gap-3 cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 -m-2 transition-all duration-200"
                   onClick={handleHeaderClick}
                   title="Return to start page"
                 >
-                  <Brain className="h-6 w-6 neon-brain" />
+                  <Brain className="h-8 w-8 neon-brain" />
+                  <div>
+                    <h2 className="text-lg font-bold text-heading-primary">TelAgri</h2>
+                    <p className="text-xs text-body-secondary">Specialist</p>
+                  </div>
                 </div>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleSidebar}
-                title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-                aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-                className={`group h-8 w-8 p-0 transition-colors rounded-md ${
-                  sidebarCollapsed
-                    ? `text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 
-                       ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] 
-                       hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:ring-emerald-400 ${showCollapsePulse ? 'animate-pulse' : ''}`
-                    : `text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 
-                       ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] 
-                       hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:ring-emerald-400`
-                }`}
-              >
-                {sidebarCollapsed ? (
-                  <ChevronRight className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
-                ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleSidebar}
+                  title="Collapse navigation"
+                  aria-label="Collapse navigation"
+                  className="group h-8 w-8 p-0 transition-colors rounded-md text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:ring-emerald-400"
+                >
                   <ChevronLeft className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400" />
-                )}
-              </Button>
-            </div>
+                </Button>
+              </>
+            ) : (
+              <div 
+                className="cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 transition-all duration-200 mx-auto"
+                onClick={handleHeaderClick}
+                title="Return to start page"
+              >
+                <Brain className="h-6 w-6 neon-brain" />
+              </div>
+            )}
           </div>
         </div>
 
