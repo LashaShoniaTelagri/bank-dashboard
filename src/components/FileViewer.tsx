@@ -51,8 +51,45 @@ export const FileViewer: React.FC<FileViewerProps> = ({
       // Determine the storage bucket based on file path or type
       const bucket = file.file_path.startsWith('bank/') ? 'f100' : 'farmer-documents';
       
-      // Use Edge Function for farmer-documents to handle specialist permissions
-      if (bucket === 'farmer-documents') {
+      // Get current user profile to check role
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+      
+      // For admin and bank_viewer, use direct storage access (they have RLS permissions)
+      // For specialists, use edge function to enforce assignment-based access
+      if (profile?.role === 'admin' || profile?.role === 'bank_viewer') {
+        // Direct storage access for privileged users
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(file.file_path, 3600); // 1 hour expiry
+        
+        if (error) {
+          console.error('Storage error:', error);
+          throw error;
+        }
+        
+        if (data?.signedUrl) {
+          setFileUrls(prev => ({ ...prev, [file.id]: data.signedUrl }));
+          return data.signedUrl;
+        }
+      } else if (profile?.role === 'specialist' && bucket === 'farmer-documents') {
+        // Use Edge Function for specialists to check assignment
+        // Refresh session before calling edge function
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        
         const { data, error } = await supabase.functions.invoke('get-file-url', {
           body: {
             filePath: file.file_path,
@@ -70,10 +107,15 @@ export const FileViewer: React.FC<FileViewerProps> = ({
           return data.signedUrl;
         }
       } else {
-        // Use direct storage access for other buckets (f100, etc.)
-        const { data } = await supabase.storage
+        // Fallback to direct storage access
+        const { data, error } = await supabase.storage
           .from(bucket)
-          .createSignedUrl(file.file_path, 3600); // 1 hour expiry
+          .createSignedUrl(file.file_path, 3600);
+        
+        if (error) {
+          console.error('Storage error:', error);
+          throw error;
+        }
         
         if (data?.signedUrl) {
           setFileUrls(prev => ({ ...prev, [file.id]: data.signedUrl }));
@@ -83,8 +125,8 @@ export const FileViewer: React.FC<FileViewerProps> = ({
     } catch (error) {
       console.error('Error generating file URL:', error);
       toast({
-        title: "Error",
-        description: "Could not load file",
+        title: "Error loading file",
+        description: error instanceof Error ? error.message : "Could not load file. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -318,33 +360,40 @@ export const FileViewer: React.FC<FileViewerProps> = ({
 
   const fileViewerContent = (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center" style={{ zIndex: 2147483647 }}>
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4" style={{ pointerEvents: 'auto' }}>
-        <div className="flex items-center justify-between text-white">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
+      {/* Header - Mobile Responsive */}
+      <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-2 sm:p-4" style={{ pointerEvents: 'auto' }}>
+        <div className="flex items-center justify-between text-white gap-2">
+          {/* Left: File info */}
+          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 flex-1">
+            <div className="flex items-center space-x-2 min-w-0">
+              {/* Section name - hidden on mobile */}
               {sectionName && (
                 <>
-                  <span className="text-lg font-medium text-muted-foreground">{sectionName}</span>
-                  <span className="text-gray-500">-</span>
+                  <span className="hidden md:inline text-lg font-medium text-muted-foreground">{sectionName}</span>
+                  <span className="hidden md:inline text-gray-500">-</span>
                 </>
               )}
               {currentFile && (
                 <>
                   {isImage(currentFile.file_mime) ? (
-                    <ImageIcon className="h-5 w-5" />
+                    <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                   ) : (
-                    <FileText className="h-5 w-5" />
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                   )}
                 </>
               )}
-              <h3 className="text-lg font-semibold">{currentFile?.file_name}</h3>
+              {/* File name - truncated on mobile */}
+              <h3 className="text-sm sm:text-lg font-semibold truncate">{currentFile?.file_name}</h3>
             </div>
-            <span className="text-sm text-muted-foreground">
+            {/* File count */}
+            <span className="hidden sm:inline text-sm text-muted-foreground flex-shrink-0">
               {currentIndex + 1} of {files.length}
             </span>
           </div>
-          <div className="flex items-center space-x-2">
+          
+          {/* Right: Action buttons */}
+          <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+            {/* Download and Open buttons - hidden on mobile */}
             {currentFile && (
               <>
                 <button
@@ -358,7 +407,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                     e.preventDefault();
                     e.stopPropagation();
                   }}
-                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors cursor-pointer"
+                  className="hidden sm:block p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors cursor-pointer"
                   style={{ pointerEvents: 'auto' }}
                   title="Download file"
                 >
@@ -375,7 +424,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                     e.preventDefault();
                     e.stopPropagation();
                   }}
-                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors cursor-pointer"
+                  className="hidden sm:block p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors cursor-pointer"
                   style={{ pointerEvents: 'auto' }}
                   title="Open in new tab"
                 >
@@ -383,6 +432,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                 </button>
               </>
             )}
+            {/* Close button - always visible */}
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -394,13 +444,18 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors cursor-pointer"
+              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors cursor-pointer flex-shrink-0"
               style={{ pointerEvents: 'auto' }}
               title="Close"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5 sm:h-5 sm:w-5" />
             </button>
           </div>
+        </div>
+        
+        {/* Mobile file counter - shown below on mobile */}
+        <div className="sm:hidden text-center text-xs text-muted-foreground mt-1">
+          {currentIndex + 1} of {files.length}
         </div>
       </div>
 

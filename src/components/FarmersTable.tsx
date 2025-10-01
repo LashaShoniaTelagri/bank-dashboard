@@ -26,6 +26,9 @@ interface FarmerWithF100 {
   bank_id: string;
   name: string;
   id_number: string;
+  created_at: string;
+  bank_name: string;
+  bank_logo_url: string;
   latest: Record<string, {
     issue_date: string;
     score: number;
@@ -90,6 +93,10 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   const canEditFarmers = isAdmin || profile?.role === 'bank_viewer';
   // Only admins can delete farmers (based on RLS policies)
   const canDeleteFarmers = isAdmin;
+  // Only admins can upload F-100, data, and assign specialists
+  const canUploadF100 = isAdmin;
+  const canUploadData = isAdmin;
+  const canAssignSpecialists = isAdmin;
 
   const { data: farmers = [], isLoading, refetch } = useQuery({
     queryKey: ['farmers', filters],
@@ -259,11 +266,11 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Farmers & F-100 Reports</h2>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <h2 className="text-lg sm:text-xl font-semibold">Farmers & F-100 Reports</h2>
         <Button 
           onClick={() => setFarmerModal({ open: true })}
-          className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]"
+          className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Farmer
@@ -272,12 +279,8 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle>
             <span>Farmers List ({farmers.length})</span>
-            <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-              <Eye className="h-4 w-4" />
-              <span>Click names to view profiles</span>
-            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -289,7 +292,6 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-emerald-600" />
                       <span>Name</span>
-                      <span className="text-xs text-emerald-600 font-normal">(clickable)</span>
                     </div>
                   </th>
                   <th className="md:sticky md:left-[200px] bg-background p-2 text-left font-medium md:z-10 border-r">Identification Code</th>
@@ -309,13 +311,45 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     <td className="md:sticky md:left-0 bg-background p-2 font-medium md:z-10 border-r min-w-[200px] max-w-[200px]" title={`Click to view ${farmer.name}'s profile`}>
                       <button
                         onClick={() => handleViewFarmerProfile(farmer.farmer_id, farmer.name)}
-                        className="group flex items-center gap-2 text-left w-full p-2 -m-2 rounded-md hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 cursor-pointer border border-transparent hover:border-emerald-200 hover:shadow-sm active:scale-95"
+                        className="group flex flex-col gap-1.5 text-left w-full p-2 -m-2 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/20 hover:text-emerald-700 dark:hover:text-emerald-400 transition-all duration-200 cursor-pointer border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-sm active:scale-95"
                       >
-                        <User className="h-4 w-4 text-emerald-600 opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <span className="truncate font-medium group-hover:underline">
-                          {farmer.name}
-                        </span>
-                        <Eye className="h-3 w-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0" />
+                        <div className="flex items-center gap-2 w-full">
+                          <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          <span className="truncate font-medium group-hover:underline">
+                            {farmer.name}
+                          </span>
+                          <Eye className="h-3 w-3 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0" />
+                        </div>
+                        
+                        {/* Separator line */}
+                        <div className="h-px bg-border/50 my-0.5" />
+                        
+                        {/* Bank info first */}
+                        {farmer.bank_name && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground pl-6">
+                            {farmer.bank_logo_url && (
+                              <img 
+                                src={farmer.bank_logo_url} 
+                                alt={farmer.bank_name}
+                                className="h-3 w-auto object-contain flex-shrink-0"
+                              />
+                            )}
+                            <span className="truncate font-medium">{farmer.bank_name}</span>
+                          </div>
+                        )}
+                        
+                        {/* Creation time second */}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground pl-6">
+                          <span className="truncate">
+                            {new Date(farmer.created_at).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
                       </button>
                     </td>
                     <td className="md:sticky md:left-[200px] bg-background p-2 md:z-10 border-r">
@@ -417,7 +451,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                   <div className="text-muted-foreground text-xs">No data</div>
                                 </div>
                                 <div className="h-4"></div>
-                                {canEditFarmers ? (
+                                {canUploadF100 ? (
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -444,22 +478,26 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     {canEditFarmers && (
                       <td className="md:sticky md:right-0 bg-background p-2 md:z-10 border-l">
                         <div className="flex gap-1 justify-center">
-                          <DataUploadModal
-                            farmerId={farmer.farmer_id}
-                            farmerName={farmer.name}
-                            bankId={farmer.bank_id}
-                            onUploadComplete={() => {
-                              // Refresh data if needed
-                            }}
-                          />
-                          <SpecialistAssignmentModal
-                            farmerId={farmer.farmer_id}
-                            farmerName={farmer.name}
-                            bankId={farmer.bank_id}
-                            onAssignmentComplete={() => {
-                              // Refresh data if needed
-                            }}
-                          />
+                          {canUploadData && (
+                            <DataUploadModal
+                              farmerId={farmer.farmer_id}
+                              farmerName={farmer.name}
+                              bankId={farmer.bank_id}
+                              onUploadComplete={() => {
+                                // Refresh data if needed
+                              }}
+                            />
+                          )}
+                          {canAssignSpecialists && (
+                            <SpecialistAssignmentModal
+                              farmerId={farmer.farmer_id}
+                              farmerName={farmer.name}
+                              bankId={farmer.bank_id}
+                              onAssignmentComplete={() => {
+                                // Refresh data if needed
+                              }}
+                            />
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm"

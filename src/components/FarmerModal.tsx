@@ -889,13 +889,13 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
           {/* Hidden submit button to prevent browser from creating its own */}
           <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
           
-          {/* Professional Wizard Navigation - Banking Grade */}
-          <div className="mb-8">
-            <div className="relative px-6">
-              {/* Step Indicators - 2-Step Layout - Full Width Symmetric */}
-              <div className="flex items-center justify-between w-full relative">
-                {/* Progress Line - Full width between step circles, vertically centered */}
-                <div className="absolute top-1/2 left-0 right-0 transform -translate-y-1/2 z-0">
+          {/* Professional Wizard Navigation - Banking Grade - Mobile Responsive */}
+          <div className="mb-6 sm:mb-8">
+            <div className="relative px-2 sm:px-6">
+              {/* Step Indicators - 2-Step Layout - Responsive */}
+              <div className="flex flex-col sm:flex-row items-center justify-between w-full relative gap-4 sm:gap-0">
+                {/* Progress Line - Hidden on mobile, horizontal on desktop */}
+                <div className="hidden sm:block absolute top-1/2 left-0 right-0 transform -translate-y-1/2 z-0">
                   <div className="mx-[120px] h-0.5 bg-border rounded-full">
                     <div 
                       className="h-full bg-gradient-to-r from-primary via-primary to-primary/90 rounded-full transition-all duration-700 ease-out shadow-sm"
@@ -903,12 +903,22 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                     />
                   </div>
                 </div>
+                
+                {/* Vertical Progress Line - Mobile only */}
+                <div className="sm:hidden absolute left-1/2 top-0 bottom-0 transform -translate-x-1/2 z-0">
+                  <div className="my-[80px] w-0.5 h-full bg-border rounded-full">
+                    <div 
+                      className="w-full bg-gradient-to-b from-primary via-primary to-primary/90 rounded-full transition-all duration-700 ease-out shadow-sm"
+                      style={{ height: step === 'calculator' ? '0%' : '100%' }}
+                    />
+                  </div>
+                </div>
                 {/* Step 1: Service Cost */}
-                <div className="flex flex-col items-center bg-card rounded-lg p-6 w-60 relative z-10">
+                <div className="flex flex-col items-center bg-card rounded-lg p-4 sm:p-6 w-full sm:w-60 relative z-10">
                   <button
                     type="button"
                     onClick={() => setStep('calculator')}
-                    className={`w-12 h-12 rounded-full border-2 font-bold text-sm transition-all duration-300 relative ${
+                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 font-bold text-sm transition-all duration-300 relative ${
                       step === 'calculator'
                         ? 'bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/25 scale-110'
                         : 'bg-background border-primary text-primary hover:bg-primary/5 hover:scale-105 hover:shadow-md'
@@ -919,7 +929,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                       <div className="absolute inset-0 bg-primary/20 rounded-full animate-pulse" />
                     )}
                   </button>
-                  <div className="mt-3 text-center">
+                  <div className="mt-2 sm:mt-3 text-center">
                     <p className={`text-sm font-semibold transition-colors ${
                       step === 'calculator' ? 'text-primary' : 'text-foreground'
                     }`}>
@@ -930,11 +940,11 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                 </div>
 
                 {/* Step 2: Farmer Details */}
-                <div className="flex flex-col items-center bg-card rounded-lg p-6 w-60 relative z-10">
+                <div className="flex flex-col items-center bg-card rounded-lg p-4 sm:p-6 w-full sm:w-60 relative z-10">
                   <button
                     type="button"
                     onClick={() => setStep('details')}
-                    className={`w-12 h-12 rounded-full border-2 font-bold text-sm transition-all duration-300 relative ${
+                    className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 font-bold text-sm transition-all duration-300 relative ${
                       step === 'details'
                         ? 'bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/25 scale-110'
                         : calcTotal || farmer?.id
@@ -948,7 +958,7 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                       <div className="absolute inset-0 bg-primary/20 rounded-full animate-pulse" />
                     )}
                   </button>
-                  <div className="mt-3 text-center">
+                  <div className="mt-2 sm:mt-3 text-center">
                     <p className={`text-sm font-semibold transition-colors ${
                       step === 'details' ? 'text-primary' : 
                       calcTotal || farmer?.id ? 'text-foreground' : 'text-muted-foreground'

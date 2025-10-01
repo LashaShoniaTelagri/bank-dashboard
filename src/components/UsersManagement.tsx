@@ -416,7 +416,7 @@ const RecentInvitations = ({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <CardTitle>Recent User Invitations</CardTitle>
           <CardDescription>
@@ -428,6 +428,7 @@ const RecentInvitations = ({
           size="sm"
           onClick={() => syncStatusesMutation.mutate()}
           disabled={syncStatusesMutation.isPending}
+          className="w-full sm:w-auto"
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${syncStatusesMutation.isPending ? 'animate-spin' : ''}`} />
           Sync Status
@@ -443,11 +444,11 @@ const RecentInvitations = ({
             {invitations.map((invitation) => (
               <div 
                 key={invitation.user_id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="font-medium">{invitation.email}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className="font-medium truncate">{invitation.email}</span>
                     {getRoleBadge(invitation.role)}
                     {invitation.role === 'bank_viewer' && invitation.bank_name && (
                       <Badge variant="outline" className="text-xs">{invitation.bank_name}</Badge>
@@ -457,8 +458,8 @@ const RecentInvitations = ({
                     Invited by {invitation.invited_by} on {new Date(invitation.invited_at).toLocaleDateString()}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex flex-col sm:items-end gap-2">
                     {getStatusBadge(invitation.invitation_status)}
                     {invitation.invitation_status === 'accepted' && invitation.invitation_accepted_at && (
                       <p className="text-xs text-muted-foreground">

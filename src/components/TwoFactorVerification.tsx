@@ -315,28 +315,28 @@ export const TwoFactorVerification = ({
       </div>
 
       {/* Content Container with Glass Morphism Effect */}
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md px-4 sm:px-0">
         <Card className="bg-card/80 backdrop-blur-md border-border shadow-xl">
-          <CardHeader className="text-center">
+          <CardHeader className="text-center px-4 md:px-6">
             <div className="mx-auto mb-4 p-3 bg-emerald-100/50 dark:bg-emerald-900/30 backdrop-blur-sm rounded-full w-fit border border-emerald-200/30 dark:border-emerald-700/50">
               <Shield className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <CardTitle className="text-2xl font-bold text-foreground">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-foreground">
               🔐 Two-Factor Authentication
             </CardTitle>
             <p className="text-sm text-muted-foreground">
               We've sent a verification code to<br />
-              <span className="font-medium text-foreground">{email}</span>
+              <span className="font-medium text-foreground break-all">{email}</span>
             </p>
           </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 px-4 md:px-6">
           <div>
             <label className="block text-sm font-medium mb-3 text-center text-foreground">
               Enter your 6-digit verification code
             </label>
             
-            <div className="flex gap-3 justify-center mb-4">
+            <div className="flex gap-1.5 sm:gap-3 justify-center mb-4 max-w-full overflow-x-hidden px-2">
               {codeDigits.map((digit, index) => (
                 <Input
                   key={index}
@@ -348,7 +348,7 @@ export const TwoFactorVerification = ({
                   onChange={(e) => handleCodeChange(e.target.value, index)}
                   onKeyDown={(e) => handleKeyDown(e, index)}
                   onPaste={index === 0 ? handlePaste : undefined}
-                  className="w-14 h-14 text-center text-2xl font-bold border-2 border-emerald-200/50 dark:border-emerald-700/50 rounded-lg focus:border-emerald-400 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 dark:focus:ring-emerald-500/20 bg-background/80 backdrop-blur-sm shadow-md"
+                  className="w-10 h-10 sm:w-14 sm:h-14 text-center text-lg sm:text-2xl font-bold border-2 border-emerald-200/50 dark:border-emerald-700/50 rounded-lg focus:border-emerald-400 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-400/20 dark:focus:ring-emerald-500/20 bg-background/80 backdrop-blur-sm shadow-md flex-shrink-0"
                   placeholder="•"
                   disabled={isVerifying}
                 />

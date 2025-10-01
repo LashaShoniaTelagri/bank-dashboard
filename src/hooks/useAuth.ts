@@ -41,7 +41,7 @@ export const useAuth = () => {
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes - profile data doesn't change often
-    cacheTime: 10 * 60 * 1000, // 10 minutes cache
+    gcTime: 10 * 60 * 1000, // 10 minutes cache (renamed from cacheTime in React Query v5)
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
     retry: 1, // Only retry once on failure
   });
@@ -99,10 +99,40 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    // Clear profile cache on sign out
-    queryClient.removeQueries({ queryKey: ['user-profile'] });
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      // Clear profile cache on sign out
+      queryClient.removeQueries({ queryKey: ['user-profile'] });
+      
+      // Clear local state immediately
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+      
+      // Attempt to sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      // If there's an error but it's because session is already gone, that's fine
+      if (error && !error.message.includes('session') && !error.message.includes('Auth')) {
+        console.error('Sign out error:', error);
+        return { error };
+      }
+      
+      // Clear all local storage except tour completion
+      const tourCompleted = localStorage.getItem('telagri-specialist-tour-completed');
+      localStorage.clear();
+      if (tourCompleted) {
+        localStorage.setItem('telagri-specialist-tour-completed', tourCompleted);
+      }
+      
+      return { error: null };
+    } catch (err: any) {
+      console.error('Unexpected sign out error:', err);
+      // Even if there's an error, clear local state
+      setUser(null);
+      setSession(null);
+      localStorage.clear();
+      return { error: null }; // Return success anyway since local state is cleared
+    }
   };
 
   return {
