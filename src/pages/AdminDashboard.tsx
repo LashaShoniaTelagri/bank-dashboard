@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth, UserProfile } from "@/hooks/useAuth";
 import { Navigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { LogOut } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
 import { BanksManagement } from "@/components/BanksManagement";
@@ -104,7 +105,7 @@ const AdminDashboard = () => {
       </div>
 
       <header className="relative z-10 border-b bg-card/60 dark:bg-card/40 backdrop-blur-md border-border/30 shadow-lg">
-        <div className="container-fluid mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="container-fluid mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer rounded-lg p-2 -m-2 transition-all duration-200 hover:bg-muted/60 dark:hover:bg-dark-border"
             onClick={() => { window.location.href = '/admin/dashboard'; }}
@@ -123,8 +124,40 @@ const AdminDashboard = () => {
               <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">System Administrator</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <ThemeToggle variant="icon" size="sm" />
+            {/* Mobile menu */}
+            <div className="md:hidden">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Open menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path fillRule="evenodd" d="M3.75 5.25a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75z" clipRule="evenodd" /></svg>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0">
+                  <SheetHead className="p-4 border-b">
+                    <SheetTitle>Navigation</SheetTitle>
+                  </SheetHead>
+                  <nav className="p-2 space-y-1">
+                    {[
+                      { to: '/admin/dashboard', id: 'dashboard', label: 'Dashboard' },
+                      { to: '/admin/banks', id: 'banks', label: 'Banks' },
+                      { to: '/admin/users', id: 'users', label: 'Users' },
+                      { to: '/admin/debug', id: 'debug', label: 'Debug' },
+                    ].map((link) => (
+                      <SheetClose asChild key={link.id}>
+                        <Link
+                          to={link.to}
+                          className={`block w-full px-3 py-2 rounded-lg ${activeSection === link.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+                        >
+                          {link.label}
+                        </Link>
+                      </SheetClose>
+                    ))}
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
             <Button 
               variant="outline" 
               onClick={handleSignOut} 
@@ -145,10 +178,10 @@ const AdminDashboard = () => {
       </header>
 
       <div className="relative z-10 container-fluid mx-auto px-6 py-6">
-        <div className="space-y-6">
+          <div className="space-y-6">
           {/* Navigation */}
           <div className="border-b border-border/30 bg-card/40 dark:bg-card/30 backdrop-blur-sm rounded-t-lg shadow-lg">
-            <nav className="-mb-px flex space-x-8 p-4">
+            <nav className="-mb-px flex overflow-x-auto no-scrollbar space-x-2 md:space-x-8 p-2 md:p-4">
               <Link
                 to="/admin/dashboard"
                 className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg ${

@@ -9,6 +9,7 @@ import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { 
   Brain, 
   FileText, 
@@ -28,6 +29,7 @@ import {
   Cloud,
   Eye,
   ChevronDown,
+  Info,
   ChevronRight,
   Filter,
   Search,
@@ -41,7 +43,8 @@ import {
   Home,
   Database,
   MessageSquare,
-  Settings
+  Settings,
+  Clipboard
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "../components/ui/use-toast";
@@ -60,6 +63,8 @@ import AgriCopilot from "../components/AgriCopilot";
 import { F100ModalSpecialist } from "../components/F100ModalSpecialist";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetClose, SheetTrigger } from "../components/ui/sheet";
+import { useIsMobile } from "../hooks/use-mobile";
 import { formatFileSize } from "../lib/formatters";
 import { FileViewer } from "../components/FileViewer";
 import { useProductTour, SPECIALIST_ONBOARDING_TOUR, DATA_LIBRARY_TOUR, AI_COPILOT_TOUR } from "../hooks/useProductTour";
@@ -78,6 +83,10 @@ export const SpecialistDashboard = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
+  
+  // Ref for the main scrollable content area
+  const contentAreaRef = React.useRef<HTMLDivElement>(null);
   
   // Get active tab from URL or default to assignments
   const getActiveTabFromUrl = () => {
@@ -97,18 +106,30 @@ export const SpecialistDashboard = () => {
   const [isSigningOut, setIsSigningOut] = useState(false);
   // Pulse hint when collapsed (each time)
   const [showCollapsePulse, setShowCollapsePulse] = useState(false);
+  // Track if user should see AI Co-Pilot button highlight
+  const [highlightAICoPilot, setHighlightAICoPilot] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Page transition loading state
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
+  }, [isMobile]);
   
   // Navigation items configuration
   const navigationItems = [
     {
       id: 'assignments',
-      label: 'My Assignments',
+      label: 'Tasks',
       icon: Users,
       description: 'View and manage your farmer assignments'
     },
     {
       id: 'library',
-      label: 'Data Library',
+      label: 'Files',
       icon: Database,
       description: 'Browse uploaded farmer documents'
     },
@@ -327,8 +348,25 @@ export const SpecialistDashboard = () => {
 
   // Handle navigation item change
   const handleNavItemChange = (itemId: string) => {
+    // Show loading indicator
+    setIsPageTransitioning(true);
+    
     setActiveNavItem(itemId);
     handleTabChange(itemId);
+    
+    // Instantly scroll to top when changing pages
+    setTimeout(() => {
+      if (contentAreaRef.current) {
+        contentAreaRef.current.scrollTop = 0;
+      }
+      // Also try window scroll as fallback
+      window.scrollTo(0, 0);
+      
+      // Hide loading after a brief moment
+      setTimeout(() => {
+        setIsPageTransitioning(false);
+      }, 200);
+    }, 0);
   };
 
   // Toggle sidebar collapse
@@ -453,9 +491,9 @@ export const SpecialistDashboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex overflow-x-hidden">
       {/* Sidebar Navigation */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-sidebar dark:bg-dark-card border-r border-sidebar-border dark:border-dark-border transition-all duration-300 flex flex-col light-elevated dark:shadow-neon/20 h-screen sticky top-0`}>
+      <div className={`hidden md:flex ${sidebarCollapsed ? 'w-16' : 'w-64'} bg-sidebar dark:bg-dark-card border-r border-sidebar-border dark:border-dark-border transition-all duration-300 flex-col light-elevated dark:shadow-neon/20 h-screen sticky top-0`}>
         {/* Sidebar Header */}
         <div className="h-[73px] px-4 border-b dark:border-dark-border flex items-center">
           <div className="flex items-center justify-between w-full">
@@ -572,22 +610,20 @@ export const SpecialistDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
         {/* Top Header */}
-        <header className="relative h-[73px] border-b bg-white dark:bg-dark-card shadow-sm dark:border-dark-border transition-colors flex items-center" data-tour="welcome">
-          <div className={`flex items-center justify-between w-full px-6 ${sidebarCollapsed ? 'pl-14' : ''}`}>
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-2xl text-heading-primary">Welcome back, Specialist</h1>
-                <p className="text-sm text-body-secondary">{user?.email ?? "Specialist"}</p>
-              </div>
+        <header className="relative h-[73px] border-b bg-white dark:bg-dark-card shadow-sm dark:border-dark-border transition-colors flex items-center overflow-hidden" data-tour="welcome">
+          <div className={`flex items-center justify-end w-full px-4 md:px-6 gap-3 md:gap-4 ${sidebarCollapsed ? 'pl-14' : ''}`}>
+            {/* Welcome text - compact on right */}
+            <div className="flex flex-col items-end">
+              <p className="text-sm font-medium text-heading-primary">Welcome back, Specialist</p>
+              <p className="text-xs text-body-muted">{user?.email ?? "Specialist"}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <ThemeToggle variant="icon" size="sm" />
-            </div>
+            
+            <ThemeToggle variant="icon" size="sm" />
           </div>
           {sidebarCollapsed && (
-            <div className="absolute left-2 top-1/2 -translate-y-1/2">
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 hidden md:block">
               <Button
                 variant="ghost"
                 size="sm"
@@ -605,54 +641,57 @@ export const SpecialistDashboard = () => {
         </header>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-tour="stats-overview">
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="w-full px-4 md:px-6 py-4 md:py-6 space-y-6">
+        {/* Stats Cards - Only show on My Assignments page */}
+        {activeNavItem === 'assignments' && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full" data-tour="stats-overview">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">Total Assignments</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">Total Assignments</p>
                 <p className="text-2xl text-heading-primary">{totalAssignments}</p>
               </div>
-              <Users className="h-8 w-8 text-accent-blue" />
+              <Users className="h-8 w-8 text-accent-blue flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">In Progress</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">In Progress</p>
                 <p className="text-2xl font-bold text-accent-blue">{totalInProgress}</p>
               </div>
-              <Clock className="h-8 w-8 text-accent-blue" />
+              <Clock className="h-8 w-8 text-accent-blue flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">Completed</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">Completed</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">{totalCompleted}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 transition-colors" />
+              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 transition-colors flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">Pending Review</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">Pending Review</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{totalPendingReview}</p>
               </div>
-              <AlertCircle className="h-8 w-8 text-orange-600 dark:text-orange-400 transition-colors" />
+              <AlertCircle className="h-8 w-8 text-orange-600 dark:text-orange-400 transition-colors flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
       </div>
+        )}
 
             {/* Content based on active navigation item */}
 
@@ -673,16 +712,16 @@ export const SpecialistDashboard = () => {
             ))}
           </div>
 
-          <Card>
+          <Card className="min-w-0">
             <CardContent className="p-4" data-tour="search-filters">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
+              <div className="flex flex-col md:flex-row gap-4 w-full">
+                <div className="flex-1 min-w-0">
+                  <div className="relative w-full">
                     <Input
                       placeholder="Search farmers, banks, or ID numbers..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 w-full"
                     />
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                       <Brain className="h-4 w-4" />
@@ -728,9 +767,12 @@ export const SpecialistDashboard = () => {
           </Card>
 
           <div className="space-y-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            {isLoading || (!assignments.length && !error) ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+                  <p className="text-sm text-body-muted">Loading your assignments...</p>
+                </div>
               </div>
             ) : filteredAssignments.length === 0 ? (
               <Card className="border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20">
@@ -753,159 +795,244 @@ export const SpecialistDashboard = () => {
                   return phaseValue === assignment.phase;
                 });
                 return (
-                  <Card key={assignment.assignment_id} className="hover:shadow-md dark:hover:shadow-neon/20 transition-all dark:bg-dark-card dark:border-dark-border" data-tour={filteredAssignments.indexOf(assignment) === 0 ? "assignment-card" : undefined}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                  <Card key={assignment.assignment_id} className="hover:shadow-md dark:hover:shadow-neon/20 transition-all dark:bg-dark-card dark:border-dark-border min-w-0" data-tour={filteredAssignments.indexOf(assignment) === 0 ? "assignment-card" : undefined}>
+                  <CardContent className="p-4 md:p-6">
+                    <div className="flex flex-col md:flex-row items-start justify-between min-w-0 gap-4">
+                      <div 
+                        className="flex-1 min-w-0 w-full md:w-auto cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          // Switch to Data Library with assignment-focused view
+                          const params = new URLSearchParams(location.search);
+                          params.set('tab', 'library');
+                          params.set('assignmentId', assignment.assignment_id);
+                          navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                          setDataLibraryFocusedAssignment(assignment.assignment_id);
+                          setActiveNavItem('library');
+                        }}
+                        title="Click to view files in Data Library"
+                      >
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
                           {getPhaseIcon(assignment.phase)}
-                            <h3 className="text-lg text-heading-secondary">
-                            Farmer ID: {assignment.farmer_id_number}
+                          <h3 className="text-base md:text-lg font-semibold text-heading-secondary truncate flex items-center gap-1.5">
+                            <span className="text-xs md:text-sm font-normal text-body-muted">Farmer</span>
+                            {assignment.farmer_id_number}
                           </h3>
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${getStatusColor(assignment.status)} cursor-default pointer-events-none`}>
-                                {getStatusLabel(assignment.status)}
+                          <Badge className={`${getStatusColor(assignment.status)} flex-shrink-0`}>
+                            {getStatusLabel(assignment.status)}
                           </Badge>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild data-tour={filteredAssignments.indexOf(assignment) === 0 ? "status-dropdown" : undefined}>
-                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                    <MoreHorizontal className="h-3 w-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {getAllowedStatusTransitions(assignment.status).map((newStatus) => (
-                                    <DropdownMenuItem
-                                      key={newStatus}
-                                      onClick={() => updateAssignmentStatus(assignment.assignment_id, newStatus)}
-                                      className="flex items-center gap-2"
-                                    >
-                                      {newStatus === 'in_progress' && <Play className="h-3 w-3" />}
-                                      {newStatus === 'completed' && <CheckCircle className="h-3 w-3" />}
-                                      {newStatus === 'pending_review' && <AlertCircle className="h-3 w-3" />}
-                                      {newStatus === 'pending' && <Clock className="h-3 w-3" />}
-                                      {newStatus === 'cancelled' && <XCircle className="h-3 w-3" />}
-                                      Mark as {getStatusLabel(newStatus)}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                          <div>
-                              <p className="text-sm text-body-secondary">Farmer ID</p>
-                              <p className="font-medium text-body-primary">{assignment.farmer_id_number}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                          <div className="min-w-0">
+                            <p className="text-sm text-body-secondary">Crop</p>
+                            <p className="font-medium text-body-primary">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-md text-sm truncate max-w-full">
+                                🌾 {assignment.crop || 'Not specified'}
+                              </span>
+                            </p>
                           </div>
-                          <div>
-                              <p className="text-sm text-body-secondary">Crop</p>
-                              <p className="font-medium text-body-primary">
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-md text-sm">
-                                  🌾 {assignment.crop || 'Not specified'}
-                                </span>
-                              </p>
+                          <div className="min-w-0">
+                            <p className="text-sm text-body-secondary">Phase</p>
+                            <p className="font-medium text-body-primary truncate">{getPhaseLabel(assignment.phase)}</p>
                           </div>
-                          <div>
-                              <p className="text-sm text-body-secondary">Phase</p>
-                              <p className="font-medium text-body-primary">{getPhaseLabel(assignment.phase)}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm text-body-secondary">Files</p>
+                            <p className="font-medium text-body-primary">{currentPhaseUploads.length} uploaded</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-6 text-sm text-gray-600">
-                            <div 
-                              className="flex items-center gap-1 cursor-pointer text-accent-interactive hover:underline"
-                              onClick={() => {
-                        // Switch to Data Library with assignment-focused view
-                        const params = new URLSearchParams(location.search);
-                        params.set('tab', 'library');
-                        params.set('assignmentId', assignment.assignment_id);
-                        navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                        setDataLibraryFocusedAssignment(assignment.assignment_id);
-                        setActiveNavItem('library');
-                              }}
-                              title="View files in Data Library"
-                            >
-                            <Upload className="h-4 w-4" />
-                              {currentPhaseUploads.length} files
-                          </div>
-                          {/* Removed phase chips to avoid showing unassigned phases */}
+                        <div className="flex flex-wrap items-center gap-4 mt-3 text-xs md:text-sm text-body-muted">
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
                             Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
                           </div>
+                          
                           {assignment.last_activity && (
                             <div className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
                               Last activity {new Date(assignment.last_activity).toLocaleDateString()}
                             </div>
                           )}
+                          
+                          {/* Status Change Button with Info */}
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild data-tour={filteredAssignments.indexOf(assignment) === 0 ? "status-dropdown" : undefined}>
+                                <Button variant="outline" size="sm" className="h-7 text-xs">
+                                  <MoreHorizontal className="h-3 w-3 mr-1" />
+                                  Change Status
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                {getAllowedStatusTransitions(assignment.status).map((newStatus) => (
+                                  <DropdownMenuItem
+                                    key={newStatus}
+                                    onClick={() => updateAssignmentStatus(assignment.assignment_id, newStatus)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    {newStatus === 'pending' && <Clock className="h-3 w-3 text-gray-500" />}
+                                    {newStatus === 'in_progress' && <Play className="h-3 w-3 text-blue-600" />}
+                                    {newStatus === 'pending_review' && <AlertCircle className="h-3 w-3 text-orange-600" />}
+                                    {newStatus === 'completed' && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                    {newStatus === 'cancelled' && <XCircle className="h-3 w-3 text-red-600" />}
+                                    Mark as {getStatusLabel(newStatus)}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            
+                            {/* Status Info Popover */}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  title="Learn about assignment statuses"
+                                >
+                                  <Info className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-4" align="start">
+                                <div className="space-y-3">
+                                  <div>
+                                    <h4 className="font-semibold text-sm text-heading-primary mb-2">Assignment Status Guide</h4>
+                                    <p className="text-xs text-body-secondary mb-3">
+                                      Track your work progress by updating the assignment status as you complete each phase.
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="space-y-2.5 text-xs">
+                                    <div className="flex items-start gap-2">
+                                      <Clock className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Pending</p>
+                                        <p className="text-body-muted">Assignment created, not yet started</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <Play className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">In Progress</p>
+                                        <p className="text-body-muted">Actively working on analysis and data review</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Pending Review</p>
+                                        <p className="text-body-muted">Work complete, awaiting admin verification</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Completed</p>
+                                        <p className="text-body-muted">Assignment finished and approved</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Cancelled</p>
+                                        <p className="text-body-muted">Assignment stopped or no longer needed</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="pt-2 border-t border-border">
+                                    <p className="text-xs text-body-muted italic">
+                                      💡 Tip: Click "Change Status" to update your progress
+                                    </p>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2 ml-4">
-                        <Button 
-                          size="sm" 
-                            variant="default"
-                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 dark:bg-neon-600 dark:hover:bg-neon-500 dark:shadow-neon dark:hover:shadow-neon-lg"
-                            data-tour={filteredAssignments.indexOf(assignment) === 0 ? "ai-chat-button" : undefined}
-                            onClick={async () => {
-                              // Force refresh uploads for this assignment if we don't have any
-                              let currentUploads = assignmentUploads[assignment.assignment_id] ?? [];
-                              
-                              if (currentUploads.length === 0) {
-                                try {
-                                  const { data: uploads } = await supabase
-                                    .from('farmer_data_uploads')
-                                    .select('*')
-                                    .eq('farmer_id', assignment.farmer_id)
-                                    .order('created_at', { ascending: false });
-                                  
-                                  if (uploads) {
-                                    currentUploads = uploads as FarmerDataUpload[];
-                                    handleUploadsLoaded(assignment.assignment_id, uploads as FarmerDataUpload[]);
-                                  }
-                                } catch (error) {
-                                  console.error('Failed to fetch uploads:', error);
-                                }
-                              }
-
-                              const initialUploads =
-                                (chatContextUploads[assignment.assignment_id]?.length > 0 
-                                  ? chatContextUploads[assignment.assignment_id] 
-                                  : currentUploads);
-
-                              setChatContextUploads((prev) => {
-                                if (uploadsEqual(prev[assignment.assignment_id], initialUploads)) {
-                                  return prev;
-                                }
-                                return {
-                                  ...prev,
-                                  [assignment.assignment_id]: initialUploads,
-                                };
-                              });
-
-                              setAiChatContext({
-                                farmerId: assignment.farmer_id,
-                                farmerIdNumber: assignment.farmer_id_number,
-                                crop: assignment.crop,
-                                phase: assignment.phase,
-                                phaseLabel: getPhaseLabel(assignment.phase),
-                                assignmentId: assignment.assignment_id,
-                                uploads: initialUploads
-                              });
-                              handleNavItemChange("chat");
-                            }}
-                          >
-                            <Brain className="h-4 w-4 mr-1" />
-                            AI Co-Pilot
-                            {messageCounts[assignment.assignment_id] > 0 && (
-                              <span className="ml-2 bg-white text-blue-600 text-xs px-2 py-1 rounded-full font-medium">
-                                {messageCounts[assignment.assignment_id]}
-                              </span>
-                            )}
-                        </Button>
+              <div className="flex flex-col gap-2 md:ml-4 mt-4 md:mt-0 w-full md:w-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="relative">
+                  {/* Pulsing ring for highlight */}
+                  {highlightAICoPilot && (
+                    <div className="absolute inset-0 animate-ping rounded-md bg-blue-400 opacity-75 pointer-events-none" />
+                  )}
+                  <Button 
+                    size="sm" 
+                      variant="default"
+                      className={`w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 dark:bg-neon-600 dark:hover:bg-neon-500 dark:shadow-neon dark:hover:shadow-neon-lg relative ${
+                        highlightAICoPilot ? 'ring-4 ring-blue-300 dark:ring-blue-500 animate-pulse' : ''
+                      }`}
+                      data-tour={filteredAssignments.indexOf(assignment) === 0 ? "ai-chat-button" : undefined}
+                      onClick={async () => {
+                        // Clear highlight when clicked
+                        if (highlightAICoPilot) {
+                          setHighlightAICoPilot(false);
+                        }
                         
-                        <div className="mt-3">
+                        // Force refresh uploads for this assignment if we don't have any
+                        let currentUploads = assignmentUploads[assignment.assignment_id] ?? [];
+                        
+                        if (currentUploads.length === 0) {
+                          try {
+                            const { data: uploads } = await supabase
+                              .from('farmer_data_uploads')
+                              .select('*')
+                              .eq('farmer_id', assignment.farmer_id)
+                              .order('created_at', { ascending: false });
+                            
+                            if (uploads) {
+                              currentUploads = uploads as FarmerDataUpload[];
+                              handleUploadsLoaded(assignment.assignment_id, uploads as FarmerDataUpload[]);
+                            }
+                          } catch (error) {
+                            console.error('Failed to fetch uploads:', error);
+                          }
+                        }
+
+                        const initialUploads =
+                          (chatContextUploads[assignment.assignment_id]?.length > 0 
+                            ? chatContextUploads[assignment.assignment_id] 
+                            : currentUploads);
+
+                        setChatContextUploads((prev) => {
+                          if (uploadsEqual(prev[assignment.assignment_id], initialUploads)) {
+                            return prev;
+                          }
+                          return {
+                            ...prev,
+                            [assignment.assignment_id]: initialUploads,
+                          };
+                        });
+
+                        setAiChatContext({
+                          farmerId: assignment.farmer_id,
+                          farmerIdNumber: assignment.farmer_id_number,
+                          crop: assignment.crop,
+                          phase: assignment.phase,
+                          phaseLabel: getPhaseLabel(assignment.phase),
+                          assignmentId: assignment.assignment_id,
+                          uploads: initialUploads
+                        });
+                        handleNavItemChange("chat");
+                      }}
+                    >
+                      <Brain className="h-4 w-4 mr-1" />
+                      AI Co-Pilot
+                      {messageCounts[assignment.assignment_id] > 0 && (
+                        <span className="ml-2 bg-white text-blue-600 text-xs px-2 py-1 rounded-full font-medium">
+                          {messageCounts[assignment.assignment_id]}
+                        </span>
+                      )}
+                  </Button>
+                </div>
+                        
+                        <div className="mt-3 w-full md:w-auto">
                         <F100ModalSpecialist
                           farmerId={assignment.farmer_id}
                           farmerName={assignment.farmer_name || assignment.farmer_id_number}
@@ -928,17 +1055,17 @@ export const SpecialistDashboard = () => {
 
             {activeNavItem === 'library' && (
               <div className="space-y-4">
-          <Card className="dark:bg-dark-card dark:border-dark-border transition-colors">
-            <CardHeader>
+          <Card className="dark:bg-dark-card dark:border-dark-border transition-colors min-w-0">
+            <CardHeader className="space-y-2">
               <CardTitle className="flex items-center gap-2 text-heading-secondary">
-                <Upload className="h-5 w-5 text-accent-blue" />
-                Data Library
+                <Upload className="h-5 w-5 text-accent-blue flex-shrink-0" />
+                <span className="truncate">Data Library</span>
               </CardTitle>
-              <CardDescription className="text-body-secondary">
+              <CardDescription className="text-body-secondary break-words">
                 Review and download admin-uploaded documents organized by farmer assignments
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 min-w-0">
               {assignments.length === 0 ? (
                 <div className="text-center py-8">
                   <Upload className="h-12 w-12 text-body-muted mx-auto mb-3" />
@@ -948,12 +1075,12 @@ export const SpecialistDashboard = () => {
               ) : (
                 <div className="space-y-6">
                   {/* Filter Controls */}
-                  <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-lg border dark:border-dark-border transition-colors" data-tour="library-filters">
+                  <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-lg border dark:border-dark-border transition-colors min-w-0" data-tour="library-filters">
                     <div className="flex items-center gap-2 mb-3">
                       <Filter className="h-4 w-4 text-accent-blue" />
                       <span className="text-sm font-medium text-heading-tertiary">Filter Files</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className={`grid grid-cols-1 ${dataLibraryFocusedAssignment ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-3 w-full`}>
                       {/* Search */}
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-body-muted" />
@@ -994,24 +1121,26 @@ export const SpecialistDashboard = () => {
                         </SelectContent>
                       </Select>
                       
-                      {/* Phase Filter */}
-                      <Select value={dataLibrarySelectedPhase} onValueChange={setDataLibrarySelectedPhase}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All Phases" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Phases</SelectItem>
-                          {(() => {
-                            const allAssignmentUploads = Object.values(assignmentUploads).flat();
-                            const phases = Array.from(new Set(allAssignmentUploads.map(upload => upload.phase.toString()))).sort((a, b) => parseInt(a) - parseInt(b));
-                            return phases.map(phase => (
-                              <SelectItem key={phase} value={phase}>
-                                Phase {phase}
-                              </SelectItem>
-                            ));
-                          })()}
-                        </SelectContent>
-                      </Select>
+                      {/* Phase Filter - Hide when viewing specific assignment */}
+                      {!dataLibraryFocusedAssignment && (
+                        <Select value={dataLibrarySelectedPhase} onValueChange={setDataLibrarySelectedPhase}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="All Phases" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Phases</SelectItem>
+                            {(() => {
+                              const allAssignmentUploads = Object.values(assignmentUploads).flat();
+                              const phases = Array.from(new Set(allAssignmentUploads.map(upload => upload.phase.toString()))).sort((a, b) => parseInt(a) - parseInt(b));
+                              return phases.map(phase => (
+                                <SelectItem key={phase} value={phase}>
+                                  Phase {phase}
+                                </SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      )}
               </div>
                   </div>
 
@@ -1072,32 +1201,90 @@ export const SpecialistDashboard = () => {
               />
             </div>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5" />
-                  TelAgri Co-Pilot Workspace
+            <Card className="dark:bg-dark-card dark:border-dark-border">
+              <CardHeader className="text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                    <Brain className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                </div>
+                <CardTitle className="text-2xl text-heading-primary">
+                  TelAgri AI Co-Pilot
                 </CardTitle>
-                <CardDescription>
-                  Select an assignment above to open the professional AI copilot with advanced agricultural analysis capabilities.
+                <CardDescription className="text-base text-body-secondary mt-3">
+                  Your intelligent assistant for agricultural data analysis and insights
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                  <div className="p-4 border rounded-lg">
-                    <FileText className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-                    <h4 className="font-medium">Data Analysis</h4>
-                    <p className="text-sm text-gray-600">Analyze uploaded files and documents</p>
+              <CardContent className="space-y-6">
+                {/* How to Start Section */}
+                <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30 rounded-lg p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center font-semibold text-sm">
+                      1
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-heading-secondary mb-2">How to Start a Session</h3>
+                      <p className="text-sm text-body-secondary mb-3">
+                        To use the AI Co-Pilot, you need to select a farmer assignment first. This ensures the AI has access to all relevant documents and context for accurate analysis.
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setHighlightAICoPilot(true);
+                          setActiveNavItem('assignments');
+                          const params = new URLSearchParams(location.search);
+                          params.set('tab', 'assignments');
+                          navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                          
+                          // Auto-remove highlight after 2 pulses (2 seconds)
+                          setTimeout(() => setHighlightAICoPilot(false), 2000);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Clipboard className="h-4 w-4 mr-2" />
+                        Go to My Assignments
+                      </Button>
+                    </div>
                   </div>
-                  <div className="p-4 border rounded-lg">
-                    <Brain className="h-8 w-8 mx-auto mb-2 text-green-600" />
-                    <h4 className="font-medium">AI Insights</h4>
-                    <p className="text-sm text-gray-600">Get agricultural recommendations</p>
+                </div>
+
+                {/* Features Grid */}
+                <div>
+                  <h3 className="font-semibold text-heading-secondary mb-4 text-center">What You Can Do</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 border dark:border-dark-border rounded-lg bg-white dark:bg-dark-card hover:shadow-md transition-shadow">
+                      <FileText className="h-8 w-8 mb-3 text-blue-600 dark:text-blue-400" />
+                      <h4 className="font-semibold text-heading-tertiary mb-2">Document Analysis</h4>
+                      <p className="text-sm text-body-muted">
+                        Extract insights from farmer documents, field reports, and agricultural data files.
+                      </p>
+                    </div>
+                    <div className="p-4 border dark:border-dark-border rounded-lg bg-white dark:bg-dark-card hover:shadow-md transition-shadow">
+                      <Brain className="h-8 w-8 mb-3 text-green-600 dark:text-green-400" />
+                      <h4 className="font-semibold text-heading-tertiary mb-2">Smart Recommendations</h4>
+                      <p className="text-sm text-body-muted">
+                        Get AI-powered agricultural advice based on crop type, phase, and historical data.
+                      </p>
+                    </div>
+                    <div className="p-4 border dark:border-dark-border rounded-lg bg-white dark:bg-dark-card hover:shadow-md transition-shadow">
+                      <CheckCircle className="h-8 w-8 mb-3 text-purple-600 dark:text-purple-400" />
+                      <h4 className="font-semibold text-heading-tertiary mb-2">Report Assistance</h4>
+                      <p className="text-sm text-body-muted">
+                        Generate summaries, extract key metrics, and prepare F-100 compliance reports.
+                      </p>
+                    </div>
                   </div>
-                  <div className="p-4 border rounded-lg">
-                    <CheckCircle className="h-8 w-8 mx-auto mb-2 text-purple-600" />
-                    <h4 className="font-medium">F-100 Reports</h4>
-                    <p className="text-sm text-gray-600">Generate compliance reports</p>
+                </div>
+
+                {/* Quick Tip */}
+                <div className="bg-gray-50 dark:bg-dark-border/30 border border-gray-200 dark:border-dark-border rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-heading-tertiary mb-1">Pro Tip</p>
+                      <p className="text-sm text-body-muted">
+                        Once you select an assignment and click the <span className="font-semibold text-blue-600 dark:text-blue-400">"AI Co-Pilot"</span> button, the AI will have full context of all uploaded files for that farmer, enabling more accurate and relevant responses.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1105,6 +1292,173 @@ export const SpecialistDashboard = () => {
           )}
               </div>
             )}
+
+            {/* Page Transition Loader - Fixed Overlay */}
+            {isPageTransitioning && (
+              <div className="fixed inset-0 bg-white/70 dark:bg-dark-bg/70 backdrop-blur-sm z-[60] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 dark:border-blue-400" />
+                  <p className="text-sm text-body-secondary">Loading...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Bottom Navigation - Hidden on Desktop */}
+            <div className="md:hidden">
+              {/* Bottom Sheet Navigation */}
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <SheetContent 
+                  side="bottom" 
+                  className="h-[70vh] rounded-t-3xl p-0 border-t-2 dark:border-dark-border"
+                >
+                  <div className="flex flex-col h-full">
+                    {/* Handle bar */}
+                    <div className="flex justify-center pt-3 pb-2">
+                      <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full" />
+                    </div>
+
+                    {/* Header */}
+                    <div className="px-6 py-4 border-b dark:border-dark-border">
+                      <h2 className="text-xl font-semibold text-heading-primary">Navigation</h2>
+                      <p className="text-sm text-body-muted mt-1">Select a section to navigate</p>
+                    </div>
+
+                    {/* Navigation Items */}
+                    <nav className="flex-1 overflow-y-auto px-4 py-6">
+                      <div className="space-y-2">
+                        {navigationItems.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = activeNavItem === item.id;
+                          return (
+                            <button
+                              key={`mobile-bottom-${item.id}`}
+                              onClick={() => {
+                                handleNavItemChange(item.id);
+                                setMobileNavOpen(false);
+                              }}
+                              className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl transition-all duration-200 ${
+                                isActive
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-sm'
+                                  : 'text-foreground dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border active:bg-gray-100 dark:active:bg-dark-border/80'
+                              }`}
+                            >
+                              <div className={`p-2 rounded-lg ${
+                                isActive 
+                                  ? 'bg-blue-100 dark:bg-blue-800/30' 
+                                  : 'bg-gray-100 dark:bg-dark-border'
+                              }`}>
+                                <Icon className="h-6 w-6" />
+                              </div>
+                              <div className="flex-1 text-left">
+                                <p className="font-medium">{item.label}</p>
+                                <p className="text-xs text-body-muted mt-0.5">{item.description}</p>
+                              </div>
+                              {isActive && (
+                                <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </nav>
+
+                    {/* Footer Actions */}
+                    <div className="px-4 py-4 border-t dark:border-dark-border bg-gray-50 dark:bg-dark-border/30">
+                      <button
+                        onClick={async () => {
+                          setMobileNavOpen(false);
+                          await handleSignOut();
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl 
+                                 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 
+                                 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        <LogOut className="h-5 w-5" />
+                        <span className="font-medium">Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              {/* Bottom Navigation Bar */}
+              <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card border-t dark:border-dark-border shadow-lg z-40">
+                <div className="relative flex items-center justify-around h-16 px-4">
+                  {/* My Assignments */}
+                  <button
+                    onClick={() => handleNavItemChange('assignments')}
+                    className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                      activeNavItem === 'assignments'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <Clipboard className="h-5 w-5 mb-1" />
+                    <span className="text-[10px] font-medium">Tasks</span>
+                  </button>
+
+                  {/* Data Library */}
+                  <button
+                    onClick={() => handleNavItemChange('library')}
+                    className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                      activeNavItem === 'library'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <Database className="h-5 w-5 mb-1" />
+                    <span className="text-[10px] font-medium">Files</span>
+                  </button>
+
+                  {/* Central FAB - Placeholder for spacing */}
+                  <div className="w-16" />
+
+                  {/* AI Co-Pilot */}
+                  <button
+                    onClick={() => handleNavItemChange('chat')}
+                    className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                      activeNavItem === 'chat'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <MessageSquare className="h-5 w-5 mb-1" />
+                    <div className="text-[10px] font-medium text-center leading-tight">
+                      AI <span className="text-emerald-500 dark:text-emerald-400">Co-Pilot</span>
+                    </div>
+                  </button>
+
+                  {/* Menu Button (opens bottom sheet) */}
+                  <button
+                    onClick={() => setMobileNavOpen(true)}
+                    className="flex flex-col items-center justify-center w-16 text-gray-600 dark:text-gray-400 transition-colors"
+                  >
+                    <Settings className="h-5 w-5 mb-1" />
+                    <span className="text-[10px] font-medium">More</span>
+                  </button>
+                </div>
+
+                {/* Central Floating Action Button */}
+                <div className="absolute left-1/2 -translate-x-1/2 -top-8">
+                  <button
+                    onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                    className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 
+                               text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 
+                               transition-all duration-200 flex items-center justify-center"
+                    aria-label="Open navigation menu"
+                  >
+                    {mobileNavOpen ? (
+                      <X className="h-7 w-7" />
+                    ) : (
+                      <Menu className="h-7 w-7" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Add bottom padding on mobile to account for bottom nav */}
+              <div className="h-16" />
+            </div>
           </div>
         </div>
       </div>
@@ -1308,11 +1662,22 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
   }, [thumbnailUrls]);
 
   // Filter uploads based on search and filters
-  const filteredUploads = useMemo(() => {
+  // Files for the assigned phase (baseline - what specialist should see)
+  const assignedPhaseUploads = useMemo(() => {
     return uploads.filter(upload => {
-      // Respect specialist-assigned phase regardless of library filters
       const effectivePhase = (upload.metadata as any)?.f100_phase ?? upload.phase;
-      const matchesAssignedPhase = effectivePhase === phase;
+      return effectivePhase === phase;
+    });
+  }, [uploads, phase]);
+
+  // Check if user has actively applied any filters
+  const hasActiveFilters = useMemo(() => {
+    return searchTerm !== '' || selectedDataType !== 'all' || selectedPhase !== 'all';
+  }, [searchTerm, selectedDataType, selectedPhase]);
+
+  // Filtered uploads based on user's active filters
+  const filteredUploads = useMemo(() => {
+    return assignedPhaseUploads.filter(upload => {
       const matchesSearch = searchTerm === '' || 
         upload.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         upload.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1320,9 +1685,9 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       const matchesDataType = selectedDataType === 'all' || upload.data_type === selectedDataType;
       const matchesPhase = selectedPhase === 'all' || upload.phase.toString() === selectedPhase;
       
-      return matchesAssignedPhase && matchesSearch && matchesDataType && matchesPhase;
+      return matchesSearch && matchesDataType && matchesPhase;
     });
-  }, [uploads, searchTerm, selectedDataType, selectedPhase]);
+  }, [assignedPhaseUploads, searchTerm, selectedDataType, selectedPhase]);
 
   // Prefetch thumbnails ONLY for currently visible image/photo files
   useEffect(() => {
@@ -1383,52 +1748,54 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
   }, []);
 
   return (
-    <Card className="border-l-4 border-l-blue-500 dark:border-l-blue-400 dark:bg-dark-card dark:border-dark-border transition-colors">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleCollapse}
-              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-4 w-4 text-gray-600 dark:text-gray-400 transition-colors" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400 transition-colors" />
-              )}
-            </Button>
-            <div>
-              <h3 className="text-lg text-heading-secondary">Farmer ID: {farmerIdNumber}</h3>
-              <div className="flex items-center space-x-2 mt-1">
-                <Badge variant="outline" className="text-xs dark:border-blue-500/30 dark:text-blue-300 transition-colors">
-                  ID: {farmerId.slice(0, 8)}...
-                </Badge>
-                <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800 transition-colors">
-                  🌾 {crop && crop !== 'Not specified' ? crop : 'Not specified'}
-                </Badge>
-                <Badge variant="secondary" className="text-xs dark:bg-dark-border dark:text-gray-300 transition-colors">
-                  {phaseLabel}
-                </Badge>
-              </div>
-            </div>
+    <Card className="border-l-4 border-l-blue-500 dark:border-l-blue-400 dark:bg-dark-card dark:border-dark-border transition-colors min-w-0">
+      <CardHeader 
+        className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-dark-border/30 active:bg-gray-50 dark:active:bg-dark-border/50 transition-colors"
+        onClick={onToggleCollapse}
+      >
+        <div className="flex items-start gap-2 min-w-0">
+          {/* Collapse button */}
+          <div className="h-7 w-7 md:h-8 md:w-8 flex items-center justify-center flex-shrink-0">
+            <ChevronDown className={`h-3.5 w-3.5 md:h-4 md:w-4 text-gray-600 dark:text-gray-400 transition-transform duration-300 ${
+              isCollapsed ? '-rotate-90' : 'rotate-0'
+            }`} />
           </div>
-          <div className="flex items-center space-x-2">
-            <Badge variant="secondary" className="dark:bg-dark-border dark:text-gray-300 transition-colors">
-              {filteredUploads.length} of {uploads.length} files
-            </Badge>
-            {filteredUploads.length !== uploads.length && (
-              <Badge variant="outline" className="text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400 transition-colors">
-                Filtered
+          
+          {/* Content: Farmer info + badges */}
+          <div className="min-w-0 flex-1">
+            {/* Farmer ID - Full width for visibility */}
+            <h3 className="text-xs md:text-sm font-semibold text-heading-secondary truncate flex items-center gap-1 mb-1.5">
+              <span className="text-[10px] md:text-xs font-normal text-body-muted flex-shrink-0">Farmer</span>
+              <span className="truncate">{farmerIdNumber}</span>
+            </h3>
+            
+            {/* Badges row: Crop, Phase, File count */}
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              <Badge variant="secondary" className="text-[10px] md:text-xs bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800 transition-colors flex-shrink-0 px-1.5 py-0">
+                🌾 {crop && crop !== 'Not specified' ? crop : 'Not specified'}
               </Badge>
-            )}
+              <Badge variant="secondary" className="text-[10px] md:text-xs dark:bg-dark-border dark:text-gray-300 transition-colors flex-shrink-0 px-1.5 py-0">
+                {phaseLabel}
+              </Badge>
+              <Badge variant="secondary" className="text-[10px] md:text-xs dark:bg-dark-border dark:text-gray-300 transition-colors whitespace-nowrap px-1.5 py-0">
+                {hasActiveFilters ? `${filteredUploads.length}/${assignedPhaseUploads.length}` : `${assignedPhaseUploads.length}`}
+              </Badge>
+              {hasActiveFilters && filteredUploads.length !== assignedPhaseUploads.length && (
+                <Badge variant="outline" className="text-[10px] md:text-xs text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400 transition-colors px-1.5 py-0">
+                  Filtered
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
       
-      {!isCollapsed && (
-        <CardContent className="pt-0">
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[2000px] opacity-100'
+        }`}
+      >
+        <CardContent className="pt-0 px-3 md:px-6 pb-3 md:pb-6 min-w-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -1450,21 +1817,21 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {filteredUploads.map((upload) => {
                 const thumbnail = getImageThumbnail(upload);
                 return (
                   <div
                     key={upload.id}
-                    className={`border dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:hover:shadow-neon/20 transition-all cursor-pointer ${getFileTypeColor(upload)} dark:bg-dark-card`}
+                    className={`border dark:border-dark-border rounded-lg p-3 md:p-4 hover:shadow-md dark:hover:shadow-neon/20 transition-all cursor-pointer ${getFileTypeColor(upload)} dark:bg-dark-card min-w-0`}
                     onClick={() => openFileViewer(upload, filteredUploads, `Farmer ${farmerIdNumber} - Data Library`)}
                     title={`Click to preview: ${upload.file_name}`}
                   >
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start gap-2 md:gap-3 min-w-0">
                       {/* Thumbnail or Icon */}
                       <div className="flex-shrink-0">
                     {thumbnail || (
-                          <div className="w-16 h-16 rounded-lg bg-white dark:bg-dark-bg border-2 border-dashed border-gray-300 dark:border-dark-border flex items-center justify-center transition-colors">
+                          <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white dark:bg-dark-bg border-2 border-dashed border-gray-300 dark:border-dark-border flex items-center justify-center transition-colors">
                             {getFileTypeIcon(upload)}
                           </div>
                         )}
@@ -1472,52 +1839,20 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
                       
                       {/* File Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium text-body-primary truncate text-accent-interactive">
-                              {upload.file_name}
-                            </h4>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge variant="secondary" className="text-xs dark:bg-dark-border dark:text-gray-300 transition-colors">
-                                {upload.data_type}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs dark:border-blue-500/30 dark:text-blue-300 transition-colors">
-                                Phase {upload.phase}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center space-x-4 mt-2 text-xs text-body-muted">
-                              <span>{formatFileSize(upload.file_size_bytes)}</span>
-                              <span>{new Date(upload.created_at).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                          
-                          {/* Quick Actions */}
-                          <div className="flex items-center space-x-1 ml-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-white/80 dark:hover:bg-dark-border/80 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openFileViewer(upload, filteredUploads, `Farmer ${farmerIdNumber} - Data Library`);
-                              }}
-                              title="Preview file"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-white/80 dark:hover:bg-dark-border/80 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(upload);
-                              }}
-                              title="Download file"
-                            >
-                              <FileDown className="h-4 w-4" />
-                            </Button>
-                          </div>
+                        <h4 className="text-xs md:text-sm font-medium text-body-primary truncate text-accent-interactive mb-1">
+                          {upload.file_name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-1 md:gap-2 mb-1">
+                          <Badge variant="secondary" className="text-[10px] md:text-xs dark:bg-dark-border dark:text-gray-300 transition-colors px-1.5 py-0.5">
+                            {upload.data_type}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] md:text-xs dark:border-blue-500/30 dark:text-blue-300 transition-colors px-1.5 py-0.5">
+                            Phase {upload.phase}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs text-body-muted">
+                          <span className="whitespace-nowrap">{formatFileSize(upload.file_size_bytes)}</span>
+                          <span className="whitespace-nowrap">{new Date(upload.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
@@ -1527,7 +1862,7 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
             </div>
           )}
         </CardContent>
-      )}
+      </div>
       
       {/* File Viewer Modal */}
       <FileViewer

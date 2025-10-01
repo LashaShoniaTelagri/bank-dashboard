@@ -49,7 +49,7 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
         <DialogTrigger asChild>
           <Button
             disabled={!hasDoc}
-            className={`h-8 px-3 border-0 font-medium text-sm rounded-lg group relative overflow-hidden ${
+            className={`w-full md:w-auto h-9 px-4 border-0 font-medium text-sm rounded-lg group relative overflow-hidden ${
               hasDoc
                 ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300'
                 : 'bg-muted text-muted-foreground cursor-not-allowed'

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, UserProfile } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { LogOut } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
 import { BankFilters } from "@/components/BankFilters";
@@ -16,6 +17,7 @@ interface Bank {
 
 const BankDashboard = () => {
   const { user, profile, signOut, loading } = useAuth();
+  const userProfile = profile as UserProfile | null;
   const [bank, setBank] = useState<Bank | null>(null);
   const [filters, setFilters] = useState({
     search: "",
@@ -28,14 +30,14 @@ const BankDashboard = () => {
 
   useEffect(() => {
     const fetchBank = async () => {
-      if (profile?.bank_id) {
+      if (userProfile?.bank_id) {
         // Set the bank filter for bank users to only see their own farmers
-        setFilters(prev => ({ ...prev, bankId: profile.bank_id }));
+        setFilters(prev => ({ ...prev, bankId: userProfile.bank_id }));
   
         const { data } = await supabase
           .from('banks')
           .select('*')
-          .eq('id', profile.bank_id)
+          .eq('id', userProfile.bank_id)
           .maybeSingle();
         
         if (data) {
@@ -45,7 +47,7 @@ const BankDashboard = () => {
     };
 
     fetchBank();
-  }, [profile]);
+  }, [userProfile]);
 
   // Show loading while auth is being determined
   if (loading) {
@@ -66,7 +68,7 @@ const BankDashboard = () => {
   }
 
   // Redirect if admin (should go to admin dashboard)
-  if (profile && profile.role === 'admin') {
+  if (userProfile && userProfile.role === 'admin') {
 
     return <Navigate to="/admin" replace />;
   }
@@ -134,8 +136,28 @@ const BankDashboard = () => {
               {bank?.name || 'TelAgri'}
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <ThemeToggle variant="icon" size="sm" />
+            {/* Mobile menu placeholder for parity (no sections here yet) */}
+            <div className="md:hidden">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Open menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path fillRule="evenodd" d="M3.75 5.25a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75zm0 6a.75.75 0 01.75-.75h15a.75.75 0 010 1.5h-15a.75.75 0 01-.75-.75z" clipRule="evenodd" /></svg>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0">
+                  <SheetHead className="p-4 border-b">
+                    <SheetTitle>Menu</SheetTitle>
+                  </SheetHead>
+                  <nav className="p-2 space-y-1">
+                    <SheetClose asChild>
+                      <a href="#filters" className="block w-full px-3 py-2 rounded-lg hover:bg-muted">Filters</a>
+                    </SheetClose>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
             <Button 
               variant="outline" 
               onClick={handleSignOut} 
