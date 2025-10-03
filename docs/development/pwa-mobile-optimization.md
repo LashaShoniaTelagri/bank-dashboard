@@ -320,3 +320,4 @@ Your PWA icons are properly optimized when:
 **Author:** TelAgri Development Team
 
 
+

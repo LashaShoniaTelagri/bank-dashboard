@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { Analytics } from "@/components/Analytics";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -18,7 +19,7 @@ const queryClient = new QueryClient({
     queries: {
       // Global defaults to prevent excessive requests
       staleTime: 30 * 1000, // 30 seconds - data is fresh for 30s
-      cacheTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 minutes
+      gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 minutes (renamed from cacheTime in React Query v5)
       refetchOnWindowFocus: false, // Don't refetch when window regains focus
       refetchOnReconnect: true, // Refetch when network reconnects
       refetchOnMount: true, // Refetch when component mounts
@@ -38,6 +39,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <Analytics />
           <Routes>
             <Route path="/" element={<Auth />} />
             <Route path="/auth" element={<Auth />} />
