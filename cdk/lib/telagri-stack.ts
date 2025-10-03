@@ -114,12 +114,12 @@ export class TelAgriStack extends cdk.Stack {
         contentSecurityPolicy: { 
           contentSecurityPolicy: [
             "default-src 'self'",
-            // Allow Google Maps scripts
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https://maps.gstatic.com",
+            // Allow Google Maps, GTM, Sentry, and Smartlook scripts
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https://maps.gstatic.com https://web-sdk.smartlook.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
             "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com",
+            "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com",
             // Allow iframes for Office viewer, Supabase signed URLs, and Google Docs/Drive viewers
             "frame-src https://*.supabase.co https://view.officeapps.live.com https://*.google.com https://drive.google.com",
             // Allow PDF object embedding from Supabase (FileViewer primary renderer) and data/blob URLs
