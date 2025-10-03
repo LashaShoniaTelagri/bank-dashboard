@@ -16,6 +16,7 @@ the following Content Security Policy directive: "script-src ..."
 Updated CSP in `cdk/lib/telagri-stack.ts` to allow:
 - ✅ **Smartlook SDK**: `https://web-sdk.smartlook.com`
 - ✅ **Smartlook API**: `https://*.smartlook.com`
+- ✅ **Smartlook Cloud**: `https://*.smartlook.cloud` (EU manager endpoints)
 - ✅ **Google Tag Manager**: Already configured
 - ✅ **Google Analytics**: Already configured
 
@@ -37,7 +38,7 @@ Updated CSP in `cdk/lib/telagri-stack.ts` to allow:
 ```
 
 ### connect-src (Line 122)
-**Added**: `https://*.smartlook.com`
+**Added**: `https://*.smartlook.com` and `https://*.smartlook.cloud`
 
 ```typescript
 "connect-src 'self' 
@@ -49,8 +50,13 @@ Updated CSP in `cdk/lib/telagri-stack.ts` to allow:
   wss://*.supabase.co 
   https://maps.googleapis.com 
   https://maps.gstatic.com 
-  https://*.smartlook.com"  // ← NEW
+  https://*.smartlook.com      // ← NEW (API endpoints)
+  https://*.smartlook.cloud"   // ← NEW (EU manager endpoints)
 ```
+
+**Note**: Smartlook uses two domain structures:
+- `*.smartlook.com` - Main API endpoints
+- `*.smartlook.cloud` - Regional managers (e.g., `manager.eu.smartlook.cloud`)
 
 ---
 
@@ -134,7 +140,7 @@ If CDK deployment is not immediate, you can manually update CloudFront:
 3. Go to **Security → Response headers**
 4. Edit **Content-Security-Policy**
 5. Update `script-src` to add: `https://web-sdk.smartlook.com`
-6. Update `connect-src` to add: `https://*.smartlook.com`
+6. Update `connect-src` to add: `https://*.smartlook.com https://*.smartlook.cloud`
 7. **Create invalidation**: `/*` (to clear CDN cache)
 
 ### Via AWS CLI:
@@ -162,6 +168,7 @@ aws cloudfront update-distribution \
 - ✅ **Smartlook**: Official session recording service (EU-hosted, GDPR compliant)
 - ✅ **Google Tag Manager**: Official Google analytics service
 - ✅ **Wildcard `*.smartlook.com`**: Required for Smartlook API calls and data collection
+- ✅ **Wildcard `*.smartlook.cloud`**: Required for regional managers (EU data center endpoints)
 
 ### CSP Best Practices Maintained:
 - ✅ `default-src 'self'` - Restrictive default
@@ -179,6 +186,7 @@ After CSP update, these scripts will load:
 1. **Smartlook Recorder**: `https://web-sdk.smartlook.com/recorder.js`
 2. **Google Tag Manager**: `https://www.googletagmanager.com/gtag/js?id=GTM-KZ2LGC3W`
 3. **Smartlook API Calls**: Various `https://*.smartlook.com` endpoints
+4. **Smartlook EU Manager**: `https://manager.eu.smartlook.cloud/*` (session recording endpoints)
 
 ---
 

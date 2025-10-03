@@ -374,7 +374,7 @@ exports.handler = (event, context, callback) => {
             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
             font-src 'self' https://fonts.gstatic.com;
             img-src 'self' data: https: blob:;
-            connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com;
+            connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com https://*.smartlook.cloud;
             frame-src https://*.supabase.co https://view.officeapps.live.com https://*.google.com https://drive.google.com;
             object-src https://*.supabase.co blob: data:;
             base-uri 'self';
