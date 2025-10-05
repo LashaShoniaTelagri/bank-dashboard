@@ -42,6 +42,7 @@ interface AgriCopilotProps {
   onContextChange?: (uploads: FarmerDataUpload[]) => void;
   onMessageCountUpdate?: (count: number) => void;
   onClose?: () => void;
+  onFullScreenChange?: (isFullScreen: boolean) => void;
 }
 
 interface AnalysisResult {
@@ -66,15 +67,18 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   uploads = [],
   onContextChange,
   onMessageCountUpdate,
-  onClose
+  onClose,
+  onFullScreenChange
 }) => {
   const { profile } = useAuth();
   const userProfile = profile as UserProfile | null;
   
   // Layout state
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(350);
   const [isMobile, setIsMobile] = useState(false);
+  const [showDataPanel, setShowDataPanel] = useState(false); // Hidden by default on mobile
   
   // Data state
   const [attachedUploads, setAttachedUploads] = useState<FarmerDataUpload[]>(uploads);
@@ -98,11 +102,30 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   const [fileViewerSectionName, setFileViewerSectionName] = useState('');
   
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const resizeRef = useRef<{ isResizing: boolean; startX: number; startWidth: number }>({
     isResizing: false,
     startX: 0,
     startWidth: 0
   });
+
+  // Auto-adjust textarea height based on content
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height based on content, with max height constraints
+      const maxHeight = isMobile ? 100 : 120;
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, [isMobile]);
+
+  // Adjust textarea height when message changes
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [currentMessage, adjustTextareaHeight]);
 
   // Scroll to bottom of chat
   useEffect(() => {
@@ -118,6 +141,16 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
     handleResize(); // Check initial size
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Notify parent of full-screen state changes
+  useEffect(() => {
+    onFullScreenChange?.(isFullScreen);
+  }, [isFullScreen, onFullScreenChange]);
+
+  // Toggle full-screen mode
+  const toggleFullScreen = useCallback(() => {
+    setIsFullScreen(prev => !prev);
   }, []);
 
   // Initialize session
@@ -154,7 +187,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
       console.error('Failed to ensure session:', error);
       return null;
     }
-  }, [userProfile?.user_id, farmerId, assignmentId, farmerIdNumber, crop, phaseLabel, phase]);
+  }, [userProfile?.user_id, farmerId, assignmentId, phase]);
 
   // Load chat history
   const loadChatHistory = useCallback(async (sessionId: string) => {
@@ -193,7 +226,8 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
     };
 
     initialize();
-  }, [userProfile?.user_id, ensureSession, loadChatHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile?.user_id, farmerId, assignmentId, phase]);
 
   // Sync uploads
   useEffect(() => {
@@ -205,14 +239,17 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
     if (onMessageCountUpdate) {
       onMessageCountUpdate(chatHistory.length);
     }
-  }, [chatHistory.length, onMessageCountUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatHistory.length]);
 
   // Handle file removal
   const handleRemoveUpload = useCallback((uploadId: string) => {
-    const filtered = attachedUploads.filter(u => u.id !== uploadId);
-    setAttachedUploads(filtered);
-    onContextChange?.(filtered);
-  }, [attachedUploads, onContextChange]);
+    setAttachedUploads(prev => {
+      const filtered = prev.filter(u => u.id !== uploadId);
+      onContextChange?.(filtered);
+      return filtered;
+    });
+  }, [onContextChange]);
 
   // Analyze specific image
   const analyzeSpecificImage = useCallback(async (upload: FarmerDataUpload) => {
@@ -433,17 +470,27 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   }
 
   return (
-    <div className={`bg-card border rounded-lg shadow-lg ${isMaximized ? 'fixed inset-2 md:inset-4 z-50' : 'h-[600px] md:h-[800px]'} flex flex-col transition-all duration-300`}>
+    <div 
+      className={`bg-card border rounded-lg shadow-lg flex flex-col transition-all duration-300 ${
+        isFullScreen 
+          ? 'fixed inset-0 z-[100] rounded-none' 
+          : isMaximized 
+            ? 'fixed inset-2 md:inset-4 z-50' 
+            : 'h-[calc(100vh-180px)] md:h-[calc(100vh-120px)]'
+      }`}
+      style={isFullScreen ? { height: '100dvh' } : undefined}
+    >
       {/* Enhanced Header with Professional Design */}
-      <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/5 to-accent/5">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Brain className="h-5 w-5 text-primary flex-shrink-0" />
+      <div className="flex items-center justify-between p-3 md:p-4 border-b bg-gradient-to-r from-primary/5 to-accent/5">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <div className="p-1.5 md:p-2 rounded-lg bg-primary/10">
+              <Brain className="h-4 w-4 md:h-5 md:w-5 text-primary flex-shrink-0" />
             </div>
-            <div className="min-w-0">
-              <h2 className="font-semibold text-heading-secondary">TelAgri Co-Pilot</h2>
-              <p className="text-body-secondary truncate">ID: {farmerIdNumber} | {crop} - {phaseLabel}</p>
+            {/* Hide title on mobile to save space */}
+            <div className="min-w-0 hidden md:block">
+              <h2 className="font-semibold text-sm md:text-base text-heading-secondary">TelAgri Co-Pilot</h2>
+              <p className="text-xs md:text-sm text-body-secondary truncate">ID: {farmerIdNumber} | {crop}</p>
             </div>
           </div>
           {!isMobile && (
@@ -454,16 +501,48 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
           )}
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMaximized(!isMaximized)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-          {onClose && (
+        <div className="flex items-center gap-1 md:gap-2">
+          {/* File explorer toggle - always visible on mobile (including full-screen) */}
+          {isMobile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDataPanel(!showDataPanel)}
+              className="text-muted-foreground hover:text-foreground"
+              title={showDataPanel ? "Hide files" : "Show files"}
+            >
+              <Database className="h-4 w-4" />
+              <span className="text-xs font-medium ml-1">Files</span>
+              {attachedUploads.length > 0 && (
+                <span className="ml-1 text-xs">({attachedUploads.length})</span>
+              )}
+            </Button>
+          )}
+          {/* Full-screen toggle on mobile */}
+          {isMobile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleFullScreen}
+              className="text-muted-foreground hover:text-foreground"
+              title={isFullScreen ? "Exit full screen" : "Enter full screen"}
+            >
+              {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          )}
+          {/* Desktop maximize/minimize */}
+          {!isMobile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          )}
+          {/* Close button - only show when not in full-screen */}
+          {onClose && !isFullScreen && (
             <Button 
               variant="ghost" 
               size="sm" 
@@ -477,24 +556,41 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
       </div>
 
       {/* Main Content - 2 Panel Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left Panel - Data & Context */}
-        <div 
-          className={`${isMobile ? 'border-b' : 'border-r'} bg-muted/30 ${isMobile ? 'flex-shrink-0' : ''} transition-all duration-300`}
-          style={{ 
-            width: isMobile ? '100%' : leftPanelWidth,
-            height: isMobile ? '250px' : 'auto'
-          }}
-          data-tour="copilot-sidebar"
-        >
-          <div className="p-4 border-b bg-card/50">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        {/* Left Panel - Data & Context (Desktop: sidebar, Mobile: slide-over) */}
+        {(!isMobile || showDataPanel) && (
+          <div 
+            className={`
+              ${isMobile 
+                ? 'absolute inset-0 z-10 bg-card/95 backdrop-blur-sm' 
+                : 'border-r bg-muted/30'
+              } 
+              transition-all duration-300 flex flex-col
+            `}
+            style={{ 
+              width: isMobile ? '100%' : leftPanelWidth,
+              height: isMobile ? '100%' : 'auto'
+            }}
+            data-tour="copilot-sidebar"
+          >
+          <div className="p-4 border-b bg-card/50 flex items-center justify-between">
             <h3 className="font-medium text-heading-tertiary flex items-center gap-2">
               <Database className="h-4 w-4 text-primary" />
               Data & Context
             </h3>
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDataPanel(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           
-          <ScrollArea className="h-full">
+          <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
               {/* Attached Files */}
               {attachedUploads.length > 0 && (
@@ -630,6 +726,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
             </div>
           </ScrollArea>
         </div>
+        )}
 
         {/* Resize Handle */}
         {!isMobile && (
@@ -640,9 +737,9 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
         )}
 
         {/* Main Chat Interface - Optimized for Readability */}
-        <div className="flex-1 flex flex-col bg-ai-surface transition-all duration-300">
+        <div className="flex-1 flex flex-col bg-ai-surface transition-all duration-300 overflow-hidden">
           {/* Chat Header */}
-          <div className="p-4 border-b bg-ai-surface-elevated">
+          <div className="p-4 border-b bg-ai-surface-elevated flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10">
@@ -661,9 +758,9 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
             </div>
           </div>
           
-          {/* Chat History - Enhanced for Long-form Reading */}
-          <ScrollArea className="flex-1 p-4 bg-ai-surface">
-            <div className="max-w-4xl mx-auto space-y-6">
+          {/* Chat History - Enhanced for Long-form Reading with Independent Scrolling */}
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 bg-ai-surface overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
               {chatHistory.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
@@ -705,7 +802,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-xl px-5 py-4 shadow-sm transition-all duration-200 ${
+                      className={`max-w-[90%] md:max-w-[85%] rounded-xl px-3 py-3 md:px-5 md:py-4 shadow-sm transition-all duration-200 ${
                         message.role === 'user'
                           ? 'bg-ai-user-message text-white'
                           : 'bg-ai-assistant-message border'
@@ -773,33 +870,36 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
               
               <div ref={chatEndRef} />
             </div>
-          </ScrollArea>
+          </div>
 
-          {/* Chat Input - Enhanced for Comfort */}
-          <div className="p-4 border-t bg-ai-surface-elevated">
+          {/* Chat Input - Fixed at Bottom, Always Accessible */}
+          <div className="flex-shrink-0 p-3 md:p-4 border-t bg-ai-surface-elevated">
             <div className="max-w-4xl mx-auto">
-              <div className="flex gap-3">
+              <div className="flex gap-2 md:gap-3 items-end">
                 <Textarea
+                  ref={textareaRef}
                   value={currentMessage}
                   onChange={(e) => setCurrentMessage(e.target.value)}
-                  placeholder="Ask about crop health, soil analysis, cost efficiency, or any agricultural insights..."
-                  className="flex-1 min-h-[48px] max-h-[120px] resize-none text-sm bg-card border-input focus:border-primary focus:ring-1 focus:ring-primary/20 ai-text-primary placeholder:text-ai-text-muted"
+                  placeholder={isMobile ? "Ask about crops, soil, costs..." : "Ask about crop health, soil analysis, cost efficiency, or any agricultural insights..."}
+                  className="flex-1 min-h-[44px] md:min-h-[48px] max-h-[100px] md:max-h-[120px] resize-none text-sm md:text-base bg-card border-input focus:border-primary focus:ring-1 focus:ring-primary/20 ai-text-primary placeholder:text-ai-text-muted rounded-lg overflow-y-auto"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       sendMessage();
                     }
                   }}
+                  rows={1}
+                  style={{ height: 'auto' }}
                 />
                 <Button
                   onClick={sendMessage}
                   disabled={!currentMessage.trim() || isAnalyzing}
-                  className="h-12 w-12 p-0 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground flex-shrink-0"
+                  className="h-11 w-11 md:h-12 md:w-12 p-0 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground flex-shrink-0 touch-manipulation"
                 >
                   {isAnalyzing ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
                   ) : (
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg className="h-4 w-4 md:h-5 md:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 19V5M5 12l7-7 7 7" />
                     </svg>
                   )}

@@ -80,7 +80,7 @@ interface AIChatContext {
 }
 
 export const SpecialistDashboard = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -111,6 +111,33 @@ export const SpecialistDashboard = () => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Page transition loading state
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+
+  // Check authentication and redirect if session expired
+  useEffect(() => {
+    if (!loading && !user) {
+      console.log('🔒 User session expired or not authenticated, redirecting to login');
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again to continue.",
+        variant: "destructive"
+      });
+      navigate('/auth', { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  // Check user role and redirect if not specialist
+  useEffect(() => {
+    if (!loading && user && profile && profile.role !== 'specialist') {
+      console.log('🔒 User is not a specialist, redirecting to appropriate dashboard');
+      if (profile.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (profile.role === 'bank_viewer') {
+        navigate('/bank', { replace: true });
+      } else {
+        navigate('/auth', { replace: true });
+      }
+    }
+  }, [user, profile, loading, navigate]);
 
   // Auto-collapse sidebar on mobile
   useEffect(() => {
@@ -143,6 +170,7 @@ export const SpecialistDashboard = () => {
   const [chatContextUploads, setChatContextUploads] = useState<Record<string, FarmerDataUpload[]>>({});
   const [aiChatContext, setAiChatContext] = useState<AIChatContext | null>(null);
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
+  const [aiCoPilotFullScreen, setAiCoPilotFullScreen] = useState(false);
 
   // Data Library filtering and grouping state
   // Data Library filters - hydrate from query string
@@ -326,7 +354,6 @@ export const SpecialistDashboard = () => {
   // Handle tab change with URL update
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    setActiveNavItem(tab);
     const searchParams = new URLSearchParams(location.search);
     searchParams.set('tab', tab);
     navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
@@ -343,7 +370,8 @@ export const SpecialistDashboard = () => {
     if (dataLibrarySelectedPhase && dataLibrarySelectedPhase !== 'all') params.set('phase', dataLibrarySelectedPhase); else params.delete('phase');
     if (dataLibraryFocusedAssignment) params.set('assignmentId', dataLibraryFocusedAssignment); else params.delete('assignmentId');
     navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-  }, [activeNavItem, dataLibrarySearchTerm, dataLibrarySelectedDataType, dataLibrarySelectedPhase, dataLibraryFocusedAssignment, location.pathname, location.search, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNavItem, dataLibrarySearchTerm, dataLibrarySelectedDataType, dataLibrarySelectedPhase, dataLibraryFocusedAssignment, location.pathname]);
 
 
   // Handle navigation item change
@@ -353,6 +381,15 @@ export const SpecialistDashboard = () => {
     
     setActiveNavItem(itemId);
     handleTabChange(itemId);
+    
+    // Remove chatAssignmentId from URL when navigating away from chat
+    if (itemId !== 'chat') {
+      const searchParams = new URLSearchParams(location.search);
+      if (searchParams.has('chatAssignmentId')) {
+        searchParams.delete('chatAssignmentId');
+        navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+      }
+    }
     
     // Instantly scroll to top when changing pages
     setTimeout(() => {
@@ -435,6 +472,59 @@ export const SpecialistDashboard = () => {
     }
   }, [assignmentUploads, aiChatContext]);
 
+  // Restore AI Co-Pilot context from URL on mount/refresh
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const chatAssignmentId = params.get('chatAssignmentId');
+    
+    if (chatAssignmentId && activeNavItem === 'chat' && !aiChatContext && assignments.length > 0) {
+      // Find the assignment to restore the chat context
+      const assignment = assignments.find(a => a.assignment_id === chatAssignmentId);
+      
+      if (assignment) {
+        // Fetch uploads for this assignment if not already loaded
+        const restoreChatContext = async () => {
+          let currentUploads: FarmerDataUpload[] = chatContextUploads[chatAssignmentId] || [];
+          
+          if (currentUploads.length === 0) {
+            try {
+              const { data: uploads } = await supabase
+                .from('farmer_data_uploads')
+                .select('*')
+                .eq('farmer_id', assignment.farmer_id)
+                .eq('phase', assignment.phase)
+                .order('created_at', { ascending: false });
+              
+              if (uploads) {
+                currentUploads = uploads as FarmerDataUpload[];
+                handleUploadsLoaded(chatAssignmentId, uploads as FarmerDataUpload[]);
+              }
+            } catch (error) {
+              console.error('Failed to fetch uploads for chat restore:', error);
+            }
+          }
+
+          setChatContextUploads((prev) => ({
+            ...prev,
+            [chatAssignmentId]: currentUploads,
+          }));
+
+          setAiChatContext({
+            farmerId: assignment.farmer_id,
+            farmerIdNumber: assignment.farmer_id_number,
+            crop: assignment.crop,
+            phase: assignment.phase,
+            phaseLabel: getPhaseLabel(assignment.phase),
+            assignmentId: chatAssignmentId,
+            uploads: currentUploads
+          });
+        };
+
+        restoreChatContext();
+      }
+    }
+  }, [assignments, location.search, activeNavItem, aiChatContext, chatContextUploads, handleUploadsLoaded]);
+
   const totalAssignments = assignments.length;
   const totalInProgress = useMemo(
     () => assignments.filter((assignment) => assignment.status === "in_progress").length,
@@ -489,6 +579,45 @@ export const SpecialistDashboard = () => {
       [assignmentId]: count
     }));
   }, []);
+
+  // Memoized callbacks for AgriCopilot to prevent infinite loops
+  const agriCopilotOnContextChange = useCallback((updatedUploads: FarmerDataUpload[]) => {
+    if (aiChatContext?.assignmentId) {
+      handleChatContextChange(aiChatContext.assignmentId, updatedUploads);
+    }
+  }, [aiChatContext?.assignmentId, handleChatContextChange]);
+
+  const agriCopilotOnMessageCountUpdate = useCallback((count: number) => {
+    if (aiChatContext?.assignmentId) {
+      handleMessageCountUpdate(aiChatContext.assignmentId, count);
+    }
+  }, [aiChatContext?.assignmentId, handleMessageCountUpdate]);
+
+  const agriCopilotOnClose = useCallback(() => {
+    setAiChatContext(null);
+    
+    // Remove chatAssignmentId from URL when closing chat
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('chatAssignmentId');
+    navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render dashboard if user is not authenticated (will be redirected by useEffect)
+  if (!user || !profile) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex overflow-x-hidden">
@@ -650,7 +779,7 @@ export const SpecialistDashboard = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-body-secondary truncate">Total Assignments</p>
+                <p className="text-sm font-medium text-body-secondary truncate">Tasks</p>
                 <p className="text-2xl text-heading-primary">{totalAssignments}</p>
               </div>
               <Users className="h-8 w-8 text-accent-blue flex-shrink-0" />
@@ -1019,7 +1148,13 @@ export const SpecialistDashboard = () => {
                           assignmentId: assignment.assignment_id,
                           uploads: initialUploads
                         });
-                        handleNavItemChange("chat");
+                        
+                        // Navigate to chat with assignment ID in URL for persistence
+                        const searchParams = new URLSearchParams(location.search);
+                        searchParams.set('tab', 'chat');
+                        searchParams.set('chatAssignmentId', assignment.assignment_id);
+                        navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+                        setActiveNavItem('chat');
                       }}
                     >
                       <Brain className="h-4 w-4 mr-1" />
@@ -1176,11 +1311,6 @@ export const SpecialistDashboard = () => {
               <div className="space-y-4">
           {aiChatContext ? (
             <div className="space-y-4">
-              {/* Mode Toggle */}
-              <div className="flex items-center gap-2 mb-4">
-                <Brain className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold">TelAgri Co-Pilot</h3>
-              </div>
 
               {/* Copilot Interface */}
               <AgriCopilot
@@ -1191,13 +1321,10 @@ export const SpecialistDashboard = () => {
                 phaseLabel={aiChatContext.phaseLabel}
                 assignmentId={aiChatContext.assignmentId}
                 uploads={chatContextUploads[aiChatContext.assignmentId] ?? []}
-                onContextChange={(updatedUploads) =>
-                  handleChatContextChange(aiChatContext.assignmentId, updatedUploads)
-                }
-                onMessageCountUpdate={(count) => 
-                  handleMessageCountUpdate(aiChatContext.assignmentId, count)
-                }
-                onClose={() => setAiChatContext(null)}
+                onContextChange={agriCopilotOnContextChange}
+                onMessageCountUpdate={agriCopilotOnMessageCountUpdate}
+                onClose={agriCopilotOnClose}
+                onFullScreenChange={setAiCoPilotFullScreen}
               />
             </div>
           ) : (
@@ -1381,83 +1508,83 @@ export const SpecialistDashboard = () => {
                 </SheetContent>
               </Sheet>
 
-              {/* Bottom Navigation Bar */}
-              <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card border-t dark:border-dark-border shadow-lg z-40">
-                <div className="relative flex items-center justify-around h-16 px-4">
+              {/* Bottom Navigation Bar - Optimized for iPhone */}
+              {!aiCoPilotFullScreen && (
+              <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card border-t dark:border-dark-border shadow-lg z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div className="relative flex items-end justify-around h-18 px-2 pb-5 pt-2">
                   {/* My Assignments */}
                   <button
                     onClick={() => handleNavItemChange('assignments')}
-                    className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                    className={`flex flex-col items-center justify-end w-20 h-full pb-1 transition-colors ${
                       activeNavItem === 'assignments'
                         ? 'text-blue-600 dark:text-blue-400'
                         : 'text-gray-600 dark:text-gray-400'
                     }`}
                   >
-                    <Clipboard className="h-5 w-5 mb-1" />
-                    <span className="text-[10px] font-medium">Tasks</span>
+                    <Clipboard className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">Tasks</span>
                   </button>
 
                   {/* Data Library */}
                   <button
                     onClick={() => handleNavItemChange('library')}
-                    className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                    className={`flex flex-col items-center justify-end w-20 h-full pb-1 transition-colors ${
                       activeNavItem === 'library'
                         ? 'text-blue-600 dark:text-blue-400'
                         : 'text-gray-600 dark:text-gray-400'
                     }`}
                   >
-                    <Database className="h-5 w-5 mb-1" />
-                    <span className="text-[10px] font-medium">Files</span>
+                    <Database className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">Files</span>
                   </button>
 
                   {/* Central FAB - Placeholder for spacing */}
-                  <div className="w-16" />
+                  <div className="w-20" />
 
                   {/* AI Co-Pilot */}
                   <button
                     onClick={() => handleNavItemChange('chat')}
-                    className={`flex flex-col items-center justify-center w-16 transition-colors ${
+                    className={`flex flex-col items-center justify-end w-20 h-full pb-1 transition-colors ${
                       activeNavItem === 'chat'
                         ? 'text-blue-600 dark:text-blue-400'
                         : 'text-gray-600 dark:text-gray-400'
                     }`}
                   >
-                    <MessageSquare className="h-5 w-5 mb-1" />
-                    <div className="text-[10px] font-medium text-center leading-tight">
-                      AI <span className="text-emerald-500 dark:text-emerald-400">Co-Pilot</span>
-                    </div>
+                    <MessageSquare className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">AI Co-Pilot</span>
                   </button>
 
                   {/* Menu Button (opens bottom sheet) */}
                   <button
                     onClick={() => setMobileNavOpen(true)}
-                    className="flex flex-col items-center justify-center w-16 text-gray-600 dark:text-gray-400 transition-colors"
+                    className="flex flex-col items-center justify-end w-20 h-full pb-1 text-gray-600 dark:text-gray-400 transition-colors"
                   >
-                    <Settings className="h-5 w-5 mb-1" />
-                    <span className="text-[10px] font-medium">More</span>
+                    <Settings className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">More</span>
                   </button>
                 </div>
 
-                {/* Central Floating Action Button */}
-                <div className="absolute left-1/2 -translate-x-1/2 -top-8">
+                {/* Central Floating Action Button - Smaller size */}
+                <div className="absolute left-1/2 -translate-x-1/2 -top-5">
                   <button
                     onClick={() => setMobileNavOpen(!mobileNavOpen)}
-                    className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 
                                text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 
                                transition-all duration-200 flex items-center justify-center"
                     aria-label="Open navigation menu"
                   >
                     {mobileNavOpen ? (
-                      <X className="h-7 w-7" />
+                      <X className="h-5 w-5" />
                     ) : (
-                      <Menu className="h-7 w-7" />
+                      <Menu className="h-5 w-5" />
                     )}
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Add bottom padding on mobile to account for bottom nav */}
-              <div className="h-16" />
+              {!aiCoPilotFullScreen && <div className="h-16" />}
             </div>
           </div>
         </div>

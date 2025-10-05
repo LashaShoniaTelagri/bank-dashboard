@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth, UserProfile } from "@/hooks/useAuth";
-import { Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { LogOut, Menu, X, Users, Settings } from "lucide-react";
@@ -9,6 +9,7 @@ import { BankFilters } from "@/components/BankFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "@/components/ui/use-toast";
 
 interface Bank {
   id: string;
@@ -19,6 +20,7 @@ interface Bank {
 const BankDashboard = () => {
   const { user, profile, signOut, loading } = useAuth();
   const userProfile = profile as UserProfile | null;
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [bank, setBank] = useState<Bank | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -29,7 +31,31 @@ const BankDashboard = () => {
     bankId: "", // Will be set when profile loads
   });
 
+  // Check authentication and redirect if session expired
+  useEffect(() => {
+    if (!loading && !user) {
+      console.log('🔒 User session expired or not authenticated, redirecting to login');
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again to continue.",
+        variant: "destructive"
+      });
+      navigate('/auth', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
+  // Check user role and redirect if not bank viewer or specialist
+  useEffect(() => {
+    if (!loading && user && profile) {
+      if (profile.role === 'admin') {
+        console.log('🔒 Admin user redirecting to admin dashboard');
+        navigate('/admin', { replace: true });
+      } else if (profile.role === 'specialist') {
+        console.log('🔒 Specialist user redirecting to specialist dashboard');
+        navigate('/specialist', { replace: true });
+      }
+    }
+  }, [user, profile, loading, navigate]);
 
   useEffect(() => {
     const fetchBank = async () => {
@@ -55,36 +81,18 @@ const BankDashboard = () => {
   // Show loading while auth is being determined
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
+      <div className="min-h-screen bg-background dark:bg-dark-bg transition-colors flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Redirect if not authenticated
-  if (!user) {
-
-    return <Navigate to="/auth" replace />;
-  }
-
-  // Redirect if admin (should go to admin dashboard)
-  if (userProfile && userProfile.role === 'admin') {
-
-    return <Navigate to="/admin" replace />;
-  }
-
-  // If user exists but no profile, show loading
-  if (user && !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground">Loading your profile...</p>
-        </div>
-      </div>
-    );
+  // Don't render dashboard if user is not authenticated (will be redirected by useEffect)
+  if (!user || !profile) {
+    return null;
   }
 
   const handleSignOut = async () => {

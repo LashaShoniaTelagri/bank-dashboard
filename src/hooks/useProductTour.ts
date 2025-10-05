@@ -286,7 +286,7 @@ export const SPECIALIST_ONBOARDING_TOUR: ProductTourConfig = {
       element: 'nav',
       popover: {
         title: '🗂️ Sidebar Navigation',
-        description: 'Your workspace is organized into three main sections: My Assignments (manage your tasks), Data Library (browse uploaded files), and AI Analysis (powerful AI tools). Use this sidebar to navigate between sections.',
+        description: 'Your workspace is organized into three main sections: Tasks (manage assignments), Files (browse farmer documents), and AI Co-Pilot (intelligent analysis). Use this sidebar to navigate between sections.',
         side: 'right',
         align: 'center'
       }
@@ -330,8 +330,8 @@ export const SPECIALIST_ONBOARDING_TOUR: ProductTourConfig = {
     {
       element: '[data-tour="nav-data-library"]',
       popover: {
-        title: '📁 Data Library',
-        description: 'Click here to browse all uploaded files organized by farmer assignments. You can filter, search, and preview documents and images.',
+        title: '📁 Files Section',
+        description: 'Click this tab to browse all uploaded farmer documents organized by assignments. You can filter, search, and preview files directly in your browser.',
         side: 'right',
         align: 'center'
       }
@@ -340,7 +340,7 @@ export const SPECIALIST_ONBOARDING_TOUR: ProductTourConfig = {
       element: '[data-tour="nav-ai-analysis"]',
       popover: {
         title: '🤖 AI Co-Pilot',
-        description: 'This is where the magic happens! Access TelAgri\'s powerful AI co-pilot with advanced agricultural analysis capabilities, intelligent insights, and automated report generation for F-100 assessments.',
+        description: 'Access TelAgri\'s powerful AI assistant with advanced agricultural analysis capabilities, intelligent insights, and automated support for F-100 assessments.',
         side: 'right',
         align: 'center'
       }

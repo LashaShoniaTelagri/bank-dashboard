@@ -37,6 +37,9 @@
 | [PWA Development](development/pwa.md) | Progressive Web App features and implementation | Frontend Developers |
 | [Product Templates](development/product-templates.md) | Templates for feature requests and change management | Product Managers |
 | [Project Architecture](development/project-prompt.md) | Detailed project structure and technical decisions | All Developers |
+| [Session Expiration Handling](development/SESSION_EXPIRATION_HANDLING.md) | Authentication redirect and session management | Frontend Developers |
+| [Product Tour Updates](development/PRODUCT_TOUR_UPDATE.md) | Product tour implementation and dark theme support | Frontend Developers, UX |
+| [Mobile Chat Improvements](development/MOBILE_CHAT_IMPROVEMENTS.md) | AI Co-Pilot mobile UX - independent scrolling and full-screen mode | Frontend Developers, UX |
 
 ### 📚 API Documentation
 
