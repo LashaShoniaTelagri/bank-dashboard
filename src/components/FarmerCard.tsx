@@ -100,7 +100,7 @@ export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProp
           </div>
           
           <div className="flex items-center gap-2 flex-shrink-0">
-            {getStatusBadge(farmer.loan_status)}
+            {/* {getStatusBadge(farmer.loan_status)} */}
             
             {isAdmin && (
               <DropdownMenu>
