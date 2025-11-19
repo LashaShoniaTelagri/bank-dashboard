@@ -37,6 +37,7 @@ interface FarmerWithF100 {
     file_path: string;
   }>;
   phases: Record<number, number | null>; // Phase scores from farmer_phases table
+  phaseIssueDates: Record<number, string | null>; // Phase issue dates from farmer_phases table
   onePagerSummaries: Record<number, boolean>; // Track which phases have one pager summaries
 }
 
@@ -117,27 +118,29 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
 
       if (error) throw error;
       
-      // Fetch phase scores and one pager summaries for all farmers
+      // Fetch phase scores, issue dates, and one pager summaries for all farmers
       const farmerIds = data.map((f: any) => f.farmer_id);
       const { data: phaseData, error: phaseError } = await supabase
         .from('farmer_phases')
-        .select('farmer_id, phase_number, score, one_pager_summary')
+        .select('farmer_id, phase_number, score, issue_date, one_pager_summary')
         .in('farmer_id', farmerIds);
       
       if (phaseError) console.error('Error fetching phase data:', phaseError);
       
-      // Map phase scores and one pager summaries to farmers
+      // Map phase scores, issue dates, and one pager summaries to farmers
       const farmersWithPhases = data.map((farmer: any) => {
         const phases: Record<number, number | null> = {};
+        const phaseIssueDates: Record<number, string | null> = {};
         const onePagerSummaries: Record<number, boolean> = {};
         for (let i = 1; i <= 12; i++) {
           const phaseInfo = phaseData?.find(
             (p) => p.farmer_id === farmer.farmer_id && p.phase_number === i
           );
           phases[i] = phaseInfo?.score ?? null;
+          phaseIssueDates[i] = phaseInfo?.issue_date ?? null;
           onePagerSummaries[i] = !!(phaseInfo?.one_pager_summary && phaseInfo.one_pager_summary.trim().length > 0);
         }
-        return { ...farmer, phases, onePagerSummaries };
+        return { ...farmer, phases, phaseIssueDates, onePagerSummaries };
       });
       
       return farmersWithPhases as FarmerWithF100[];
@@ -436,9 +439,9 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                 >
                                   {phaseScore}
                                 </Badge>
-                                {phaseData?.issue_date && (
+                                {farmer.phaseIssueDates[phase] && (
                                   <div className="text-xs text-muted-foreground mb-2">
-                                    {new Date(phaseData.issue_date).toLocaleDateString('en-US', { 
+                                    {new Date(farmer.phaseIssueDates[phase]!).toLocaleDateString('en-US', { 
                                       month: 'short', 
                                       day: 'numeric', 
                                       year: 'numeric' 

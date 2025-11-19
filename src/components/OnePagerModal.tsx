@@ -267,7 +267,7 @@ export const OnePagerModal = ({
         );
 
       case 'pie':
-      case 'donut':
+      case 'donut': {
         const isDonut = chart.chart_type === 'donut';
         return (
           <ChartContainer config={chartConfig}>
@@ -299,6 +299,7 @@ export const OnePagerModal = ({
             </div>
           </ChartContainer>
         );
+      }
 
       case 'scatter':
         return (
@@ -342,7 +343,7 @@ export const OnePagerModal = ({
           </ChartContainer>
         );
 
-      case 'gauge':
+      case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
         const gaugeValue = data.length > 0 ? (data[0][yAxisKey] as number || 0) : 0;
         const maxValue = 10; // Default max, could be configurable
@@ -424,6 +425,7 @@ export const OnePagerModal = ({
             </div>
           </div>
         );
+      }
 
       default:
         return (

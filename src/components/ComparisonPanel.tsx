@@ -233,54 +233,87 @@ export const ComparisonPanel = ({
                         </div>
                       </CardHeader>
                       <CardContent className="p-2 space-y-2">
+                        {/* Phase list */}
                         {items.sort((a, b) => a.phaseNumber - b.phaseNumber).map((item, index) => {
-                          const descriptionKey = `${item.phaseNumber}-${item.issueId}`;
-                          const description = phaseDescriptions[descriptionKey];
-                          
                           return (
-                            <div key={`${item.phaseNumber}-${item.issueId}`} className="space-y-2">
-                              <div
-                                className="flex items-center justify-between gap-2 p-2 rounded-md bg-background hover:bg-muted/50 transition-all duration-200"
-                                style={{
-                                  animation: `fadeIn 0.3s ease-out ${index * 0.05}s both`
-                                }}
-                              >
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <Badge variant="outline" className="text-xs font-mono flex-shrink-0 transition-all duration-200">
-                                    P{item.phaseNumber}
-                                  </Badge>
-                                  <Badge
-                                    className={cn(
-                                      "text-xs font-bold flex-shrink-0 transition-all duration-200",
-                                      getScoreColor(item.phaseScore)
-                                    )}
-                                  >
-                                    {item.phaseScore ? item.phaseScore.toFixed(1) : 'N/A'}
-                                  </Badge>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => onRemove(item.phaseNumber, item.issueId)}
-                                  className="h-6 w-6 flex-shrink-0 transition-all duration-200 hover:scale-125 hover:text-red-600"
-                                  title="Remove from comparison"
+                            <div
+                              key={`${item.phaseNumber}-${item.issueId}`}
+                              className="flex items-center justify-between gap-2 p-2 rounded-md bg-background hover:bg-muted/50 transition-all duration-200"
+                              style={{
+                                animation: `fadeIn 0.3s ease-out ${index * 0.05}s both`
+                              }}
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <Badge variant="outline" className="text-xs font-mono flex-shrink-0 transition-all duration-200">
+                                  P{item.phaseNumber}
+                                </Badge>
+                                <Badge
+                                  className={cn(
+                                    "text-xs font-bold flex-shrink-0 transition-all duration-200",
+                                    getScoreColor(item.phaseScore)
+                                  )}
                                 >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                  {item.phaseScore ? item.phaseScore.toFixed(1) : 'N/A'}
+                                </Badge>
                               </div>
-                              
-                              {/* Show description when issue is expanded */}
-                              {expandedIssues.has(issueId) && description && (
-                                <div className="ml-8 p-3 rounded-md bg-muted/50 border border-border text-xs">
-                                  <div 
-                                    className="prose prose-xs dark:prose-invert max-w-none"
-                                    dangerouslySetInnerHTML={{ __html: description }}
-                                  />
-                                </div>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onRemove(item.phaseNumber, item.issueId)}
+                                className="h-6 w-6 flex-shrink-0 transition-all duration-200 hover:scale-125 hover:text-red-600"
+                                title="Remove from comparison"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
                             </div>
                           );
                         })}
+                        
+                        {/* Side-by-side descriptions when expanded */}
+                        {expandedIssues.has(issueId) && (
+                          <div className="mt-4 pt-4 border-t border-border">
+                            <h5 className="text-xs font-semibold text-foreground mb-3">Phase Descriptions:</h5>
+                            <div className={`grid gap-3 max-h-[400px] overflow-y-auto ${
+                              items.length === 1 ? 'grid-cols-1' : 
+                              items.length === 2 ? 'grid-cols-2' : 
+                              'grid-cols-2 lg:grid-cols-3'
+                            }`}>
+                              {items.sort((a, b) => a.phaseNumber - b.phaseNumber).map((item) => {
+                                const descriptionKey = `${item.phaseNumber}-${item.issueId}`;
+                                const description = phaseDescriptions[descriptionKey];
+                                
+                                return (
+                                  <div 
+                                    key={`desc-${item.phaseNumber}-${item.issueId}`}
+                                    className="p-3 rounded-md bg-muted/50 border border-border min-w-0"
+                                  >
+                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                      <Badge variant="outline" className="text-xs font-mono">
+                                        Phase {item.phaseNumber}
+                                      </Badge>
+                                      <Badge
+                                        className={cn(
+                                          "text-xs font-bold",
+                                          getScoreColor(item.phaseScore)
+                                        )}
+                                      >
+                                        {item.phaseScore ? item.phaseScore.toFixed(1) : 'N/A'}
+                                      </Badge>
+                                    </div>
+                                    {description ? (
+                                      <div 
+                                        className="prose prose-xs dark:prose-invert max-w-none text-xs"
+                                        dangerouslySetInnerHTML={{ __html: description }}
+                                      />
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground italic">No description available</p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );

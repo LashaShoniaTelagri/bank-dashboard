@@ -647,7 +647,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
           </ChartContainer>
         );
 
-      case 'gauge':
+      case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
         const gaugeValue = data.length > 0 ? (data[0][yAxisKey] as number || 0) : 0;
         const maxValue = 10; // Default max, could be configurable
@@ -744,6 +744,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             </div>
           </ChartContainer>
         );
+      }
 
       case 'scatter':
         return (

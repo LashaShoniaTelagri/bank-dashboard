@@ -167,7 +167,7 @@ const FarmerProfilePage = () => {
   const { data: orchardMaps = [] } = useQuery({
     queryKey: ['farmer-orchard-maps', farmerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('farmer_orchard_maps')
         .select('*')
         .eq('farmer_id', farmerId)
@@ -183,14 +183,14 @@ const FarmerProfilePage = () => {
   const { data: monitoredIssues = [], refetch: refetchMonitoredIssues } = useQuery<MonitoredIssue[]>({
     queryKey: ['monitored-issues'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('monitored_issues')
         .select('*')
         .eq('is_active', true)
         .order('display_order');
       
       if (error) return [];
-      return data;
+      return data as MonitoredIssue[];
     },
     staleTime: 0, // Always refetch to ensure fresh data
     refetchOnMount: 'always', // Refetch when component mounts
@@ -200,14 +200,14 @@ const FarmerProfilePage = () => {
   const { data: farmerPhases = [] } = useQuery<FarmerPhase[]>({
     queryKey: ['farmer-phases', farmerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('farmer_phases')
         .select('*')
         .eq('farmer_id', farmerId)
         .order('phase_number');
       
       if (error) return [];
-      return data;
+      return data as FarmerPhase[];
     },
     enabled: !!farmerId,
   });
@@ -234,7 +234,7 @@ const FarmerProfilePage = () => {
 
   // Helper functions
   const getPhaseData = (phaseNumber: number) => {
-    return farmerPhases.find(p => p.phase_number === phaseNumber) || null;
+    return Array.isArray(farmerPhases) ? farmerPhases.find(p => p.phase_number === phaseNumber) || null : null;
   };
 
   const hasF100Report = (phaseNumber: number) => {
@@ -269,7 +269,7 @@ const FarmerProfilePage = () => {
       } else {
         // Add to selection
         newSet.add(selectionKey);
-        const issue = monitoredIssues.find(i => i.id === issueId);
+        const issue = Array.isArray(monitoredIssues) ? monitoredIssues.find(i => i.id === issueId) : undefined;
         const phase = getPhaseData(phaseNumber);
         if (issue) {
           setComparisonSelections(current => [...current, {
@@ -302,7 +302,7 @@ const FarmerProfilePage = () => {
   };
 
   const handleViewIssueDetails = (issueId: string) => {
-    const issue = monitoredIssues.find(i => i.id === issueId);
+    const issue = Array.isArray(monitoredIssues) ? monitoredIssues.find(i => i.id === issueId) : undefined;
     if (issue) {
       setViewingIssue(issue);
       setIssueDetailsOpen(true);
@@ -860,10 +860,10 @@ const FarmerProfilePage = () => {
                                     </p>
                                   </div>
                                 )}
-                                {loan.interest_rate && (
+                                {(loan as any).interest_rate && (
                                   <div>
                                     <p className="text-sm text-muted-foreground">Interest Rate</p>
-                                    <p className="text-sm font-medium">{loan.interest_rate}%</p>
+                                    <p className="text-sm font-medium">{(loan as any).interest_rate}%</p>
                                   </div>
                                 )}
                               </div>
@@ -947,7 +947,7 @@ const FarmerProfilePage = () => {
                             key={phaseNumber}
                             phase={getPhaseData(phaseNumber)}
                             phaseNumber={phaseNumber}
-                            monitoredIssues={monitoredIssues}
+                            monitoredIssues={Array.isArray(monitoredIssues) ? monitoredIssues : []}
                             onEditPhase={() => handleEditPhase(phaseNumber)}
                             onViewF100={() => handleViewF100(phaseNumber)}
                             onEditIssue={isAdmin ? handleEditIssue : undefined}
@@ -1049,7 +1049,7 @@ const FarmerProfilePage = () => {
         {comparisonSelections.length > 0 && (
           <ComparisonPanel
             selections={comparisonSelections}
-            monitoredIssues={monitoredIssues}
+            monitoredIssues={Array.isArray(monitoredIssues) ? monitoredIssues : []}
             farmerId={farmerId}
             onRemove={handleRemoveSelection}
             onClear={handleClearComparison}

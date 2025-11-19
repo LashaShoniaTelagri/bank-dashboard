@@ -300,7 +300,7 @@ export const F100Modal = ({
         );
 
       case 'pie':
-      case 'donut':
+      case 'donut': {
         const isDonut = chart.chart_type === 'donut';
         return (
           <ChartContainer config={chartConfig}>
@@ -332,6 +332,7 @@ export const F100Modal = ({
             </div>
           </ChartContainer>
         );
+      }
 
       case 'scatter':
         return (
@@ -375,7 +376,7 @@ export const F100Modal = ({
           </ChartContainer>
         );
 
-      case 'gauge':
+      case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
         const gaugeValue = data.length > 0 ? (data[0][yAxisKey] as number || 0) : 0;
         const maxValue = 10; // Default max, could be configurable
@@ -457,6 +458,7 @@ export const F100Modal = ({
             </div>
           </div>
         );
+      }
 
       default:
         return (

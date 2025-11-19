@@ -575,7 +575,7 @@ export const ChartBuilderPage = () => {
           </ChartContainer>
         );
 
-      case 'pie':
+      case 'pie': {
         const pieDataKey = previewDataKeys[0] || 'value';
         return (
           <ChartContainer config={chartConfig}>
@@ -622,8 +622,9 @@ export const ChartBuilderPage = () => {
             </PieChart>
           </ChartContainer>
         );
+      }
 
-      case 'donut':
+      case 'donut': {
         const donutDataKey = previewDataKeys[0] || 'value';
         return (
           <ChartContainer config={chartConfig}>
@@ -671,8 +672,9 @@ export const ChartBuilderPage = () => {
             </PieChart>
           </ChartContainer>
         );
+      }
 
-      case 'gauge':
+      case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
         const gaugeDataKey = previewDataKeys[0] || 'value';
         const gaugeValue = previewData.length > 0 ? (previewData[0][gaugeDataKey] as number || 0) : 0;
@@ -758,6 +760,7 @@ export const ChartBuilderPage = () => {
             </div>
           </ChartContainer>
         );
+      }
 
       case 'scatter':
         return (
