@@ -28,6 +28,7 @@ import { toast } from "@/hooks/use-toast";
 import { FileViewer } from "./FileViewer";
 import { MapViewer } from "./MapViewer";
 import { InlineMapPreview } from "./InlineMapPreview";
+import { ChartDisplay } from "./ChartDisplay";
 
 interface FarmerDocument {
   id: string;
@@ -320,12 +321,13 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
         }
         onClose();
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0" aria-describedby="farmer-profile-description">
         <DialogHeader className="flex-shrink-0 p-6 border-b bg-card">
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
             {farmerName} - Profile Details
           </DialogTitle>
+          <p id="farmer-profile-description" className="sr-only">Farmer profile details and information</p>
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto p-6">
@@ -743,6 +745,9 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
                 </CardContent>
               </Card>
             )}
+
+            {/* Charts Section */}
+            <ChartDisplay farmerId={farmerId} />
 
             {/* Creation Date */}
             <div className="text-xs text-gray-500 text-center">

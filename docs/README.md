@@ -1,139 +1,138 @@
-# TelAgri Monitoring - Documentation
+# TelAgri Monitoring
 
-> **Comprehensive documentation for the agricultural finance management platform**
+> **Agricultural Finance Management Platform**
 
-## 🚀 Quick Access
+A production-grade financial platform designed specifically for managing farmer loans, F-100 reports, and bank partnerships in the AgriTech sector. Built with security, scalability, and user experience as core principles.
 
-- [**Quick Reference Guide**](QUICK_REFERENCE.md) - Fast access to common commands and troubleshooting
+## 🚀 Quick Start
 
-## 📋 Documentation Index
+```bash
+# Clone and install dependencies
+git clone <repository-url>
+cd telagri-monitoring
+npm install
+
+# Set up environment
+cp env.template .env
+# Edit .env with your configuration
+
+# Start development server
+npm run dev
+```
+
+## 🏗️ Tech Stack
+
+- **Frontend**: React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Auth + Storage + Edge Functions)
+- **Infrastructure**: AWS CDK (S3, CloudFront, WAF, Parameter Store)
+- **Security**: 2FA, RLS, JWT tokens, KMS encryption
+- **CI/CD**: GitHub Actions with automated deployments
+
+## 📚 Documentation
 
 ### 🛠️ Setup & Configuration
-
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [Environment Setup](setup/environment.md) | AWS Parameter Store configuration and environment variables | DevOps, Developers |
-| [GitHub Actions Setup](setup/github.md) | CI/CD pipeline configuration and secrets management | DevOps |
-| [Supabase Setup](setup/supabase.md) | Database migrations, RLS policies, and Edge Functions | Backend Developers |
+- [Environment Setup](docs/setup/environment.md) - Configure environment variables and AWS Parameter Store
+- [GitHub Actions Setup](docs/setup/github.md) - CI/CD pipeline configuration
+- [Supabase Setup](docs/setup/supabase.md) - Database migrations and configuration
 
 ### 🔒 Security
-
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [Security Setup Guide](security/setup.md) | Comprehensive security configuration and best practices | All Team Members |
-| [2FA & Trusted Devices](security/2fa-trusted-devices.md) | Two-factor authentication implementation | Developers, QA |
+- [Security Setup Guide](docs/security/setup.md) - Comprehensive security configuration
+- [2FA & Trusted Devices](docs/security/2fa-trusted-devices.md) - Two-factor authentication setup
 
 ### 🚀 Deployment
-
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [AWS Deployment Guide](deployment/aws.md) | Complete AWS infrastructure setup with CDK | DevOps, Infrastructure |
-| [Deployment Summary](deployment/summary.md) | Overview of deployment process and environments | All Team Members |
+- [AWS Deployment Guide](docs/deployment/aws.md) - Complete AWS infrastructure setup
+- [Deployment Summary](docs/deployment/summary.md) - Overview of deployment process
 
 ### 💻 Development
+- [PWA Development](docs/development/pwa.md) - Progressive Web App features
+- [Product Templates](docs/development/product-templates.md) - Templates for feature requests
+- [Project Architecture](docs/development/project-prompt.md) - Detailed project structure
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [PWA Development](development/pwa.md) | Progressive Web App features and implementation | Frontend Developers |
-| [Product Templates](development/product-templates.md) | Templates for feature requests and change management | Product Managers |
-| [Project Architecture](development/project-prompt.md) | Detailed project structure and technical decisions | All Developers |
-| [Session Expiration Handling](development/SESSION_EXPIRATION_HANDLING.md) | Authentication redirect and session management | Frontend Developers |
-| [Product Tour Updates](development/PRODUCT_TOUR_UPDATE.md) | Product tour implementation and dark theme support | Frontend Developers, UX |
-| [Mobile Chat Improvements](development/MOBILE_CHAT_IMPROVEMENTS.md) | AI Co-Pilot mobile UX - independent scrolling and full-screen mode | Frontend Developers, UX |
+## 🔐 Security Features
 
-### 📚 API Documentation
+- **Banking-Grade Security**: End-to-end encryption, secure authentication
+- **2FA Implementation**: Multi-factor authentication for all user types
+- **Row Level Security**: Database-level access control
+- **Parameter Store**: Encrypted environment variable management
+- **Audit Logging**: Comprehensive activity tracking
 
-| Document | Description | Audience |
-|----------|-------------|----------|
-| [Supabase Edge Functions](../supabase/functions/) | Server-side API endpoints and business logic | Backend Developers |
-| [Database Schema](../supabase/migrations/) | Database structure and migration history | Backend Developers |
+## 🎯 Key Features
 
-## 🎯 Quick Navigation
+- **Farmer Management**: Comprehensive farmer profiles and loan tracking
+- **F-100 Reports**: Secure document upload and management
+- **Bank Partnerships**: Multi-bank support with role-based access
+- **Real-time Updates**: Live data synchronization
+- **Mobile-First**: Responsive design for field usage
+- **Offline Support**: PWA capabilities for rural connectivity
 
-### For New Team Members
-1. Start with [Project Architecture](development/project-prompt.md)
-2. Set up your environment using [Environment Setup](setup/environment.md)
-3. Review [Security Setup Guide](security/setup.md)
-4. Follow [Development Workflow](#development-workflow)
+## 🏛️ Architecture
 
-### For DevOps Engineers
-1. [AWS Deployment Guide](deployment/aws.md)
-2. [GitHub Actions Setup](setup/github.md)
-3. [Environment Setup](setup/environment.md)
-4. [Security Setup Guide](security/setup.md)
-
-### For Product Managers
-1. [Product Templates](development/product-templates.md)
-2. [Project Architecture](development/project-prompt.md)
-3. [Deployment Summary](deployment/summary.md)
-
-### For Security Auditors
-1. [Security Setup Guide](security/setup.md)
-2. [2FA & Trusted Devices](security/2fa-trusted-devices.md)
-3. [Environment Setup](setup/environment.md) (Parameter Store encryption)
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   React SPA     │    │   Supabase      │    │   AWS CDK       │
+│                 │    │                 │    │                 │
+│ • TypeScript    │◄──►│ • PostgreSQL    │    │ • S3 + CloudFront│
+│ • shadcn/ui     │    │ • Auth + RLS    │    │ • WAF Security   │
+│ • Tailwind CSS  │    │ • Edge Functions│    │ • Parameter Store│
+│ • PWA Features  │    │ • File Storage  │    │ • KMS Encryption │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
 
 ## 🔄 Development Workflow
 
-```mermaid
-graph TD
-    A[Feature Request] --> B[Use Product Template]
-    B --> C[Create Feature Branch]
-    C --> D[Development]
-    D --> E[Security Review]
-    E --> F[Testing]
-    F --> G[Documentation Update]
-    G --> H[Pull Request]
-    H --> I[Code Review]
-    I --> J[Merge & Deploy]
-```
+1. **Feature Development**
+   ```bash
+   git checkout -b feature/description
+   npm run dev
+   ```
 
-## 📊 Documentation Standards
+2. **Testing & Quality**
+   ```bash
+   npm run lint
+   npm run type-check
+   npm run test
+   ```
 
-### Writing Guidelines
-- Use clear, concise language
-- Include code examples where applicable
-- Provide step-by-step instructions
-- Add troubleshooting sections
-- Keep security considerations prominent
+3. **Deployment**
+   ```bash
+   git push origin feature/description
+   # Create PR → Auto-deploy on merge
+   ```
 
-### File Organization
-```
-docs/
-├── README.md                    # This index file
-├── setup/                       # Initial setup and configuration
-├── security/                    # Security guides and best practices
-├── deployment/                  # Deployment and infrastructure
-├── development/                 # Development guides and templates
-└── api/                        # API documentation (future)
-```
+## 📊 Project Status
 
-### Maintenance
-- Review documentation quarterly
-- Update after major feature releases
-- Validate all links and examples
-- Keep security information current
+- ✅ **Core Platform**: Farmer management, F-100 reports, bank partnerships
+- ✅ **Security**: 2FA, RLS, encrypted storage, audit logging
+- ✅ **Infrastructure**: AWS CDK, GitHub Actions, Parameter Store
+- ✅ **PWA**: Offline support, mobile optimization
+- 🔄 **In Progress**: Advanced analytics, multi-currency support
+- 📋 **Planned**: Mobile app, API v2, international expansion
 
-## 🔗 External Resources
+## 🤝 Contributing
 
-- [Supabase Documentation](https://supabase.com/docs)
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [React + TypeScript Best Practices](https://react-typescript-cheatsheet.netlify.app/)
-- [shadcn/ui Components](https://ui.shadcn.com/)
+1. Read the [development documentation](docs/development/)
+2. Follow the security guidelines in [docs/security/](docs/security/)
+3. Use the [product templates](docs/development/product-templates.md) for feature requests
+4. Ensure all tests pass and security requirements are met
 
-## 🤝 Contributing to Documentation
+## 📞 Support
 
-1. Follow the [documentation standards](#documentation-standards)
-2. Test all code examples and instructions
-3. Include security considerations
-4. Update the index when adding new documents
-5. Use consistent formatting and style
+- **Technical Issues**: Create GitHub issue with detailed description
+- **Security Concerns**: Contact security team immediately
+- **Feature Requests**: Use [product templates](docs/development/product-templates.md)
 
-## 📞 Documentation Support
+## 📄 License
 
-- **Missing Documentation**: Create GitHub issue with `documentation` label
-- **Outdated Information**: Submit PR with corrections
-- **New Documentation Needs**: Use [Product Templates](development/product-templates.md)
+This project is proprietary software owned by TelAgri. All rights reserved.
 
 ---
 
-**📝 Note**: This documentation is living and should be updated regularly to reflect the current state of the platform. All team members are responsible for keeping documentation accurate and up-to-date.
+**⚠️ Important**: This platform handles sensitive financial data affecting farmers' livelihoods. Every code change must prioritize security, reliability, and user experience.
+
+## 🔗 Quick Links
+
+- [📖 Full Documentation](docs/) - Complete documentation index
+- [🔒 Security Guide](docs/security/setup.md) - Security best practices
+- [🚀 Deployment Guide](docs/deployment/aws.md) - Infrastructure setup
+- [💻 Development Guide](docs/development/) - Development resources
+- [⚙️ Environment Setup](docs/setup/environment.md) - Configuration guide

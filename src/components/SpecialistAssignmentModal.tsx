@@ -310,10 +310,10 @@ export const SpecialistAssignmentModal: React.FC<SpecialistAssignmentModalProps>
           Assign Specialists
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="specialist-assign-modal-desc">
         <DialogHeader>
           <DialogTitle>Assign Specialists to {farmerName}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="specialist-assign-modal-desc">
             Assign specialists to analyze farmer data for specific phases
           </DialogDescription>
         </DialogHeader>

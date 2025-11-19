@@ -351,13 +351,14 @@ export default function LocationPickerModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-4xl w-[90vw] h-[80vh] flex flex-col p-0">
+      <DialogContent className="max-w-4xl w-[90vw] h-[80vh] flex flex-col p-0" aria-describedby="location-picker-desc">
         {/* Header */}
         <DialogHeader className="flex-shrink-0 px-6 py-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-emerald-600" />
             Select Location
           </DialogTitle>
+          <p id="location-picker-desc" className="sr-only">Select a location on the map for the farmer</p>
         </DialogHeader>
 
         {/* Search Input */}

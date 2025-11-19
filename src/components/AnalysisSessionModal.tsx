@@ -343,10 +343,10 @@ export const AnalysisSessionModal: React.FC<AnalysisSessionModalProps> = ({
           Start Analysis
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="analysis-session-modal-desc">
         <DialogHeader>
           <DialogTitle>AI Analysis Session - {farmerName}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="analysis-session-modal-desc">
             {getPhaseLabel(parseInt(phase) as any) || phase} Analysis
           </DialogDescription>
         </DialogHeader>

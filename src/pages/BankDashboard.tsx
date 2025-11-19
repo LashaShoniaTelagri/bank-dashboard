@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { LogOut, Menu, X, Users, Settings } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
+import { FarmerListView } from "@/components/FarmerListView";
 import { BankFilters } from "@/components/BankFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -169,12 +170,15 @@ const BankDashboard = () => {
       </header>
 
       <div className="relative z-10 container mx-auto px-4 py-6 pb-20 md:pb-6">
-        <div className="bg-card/60 dark:bg-card/40 backdrop-blur-md border border-border/30 rounded-lg shadow-xl p-6 space-y-6">
+        <div className="space-y-6">
           <BankFilters 
             filters={{ search: filters.search, fromDate: filters.fromDate, toDate: filters.toDate }} 
             onFiltersChange={handleFiltersChange} 
           />
-          <FarmersTable filters={filters} isAdmin={false} />
+          <FarmerListView 
+            filters={filters} 
+            isAdmin={false}
+          />
         </div>
       </div>
 

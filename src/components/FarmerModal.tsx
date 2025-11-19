@@ -852,16 +852,19 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
   return (
     <>
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-7xl w-[95vw] h-[95vh] flex flex-col p-0" aria-describedby="farmer-modal-description">
+      <DialogContent 
+        className="max-w-7xl w-[95vw] h-[95vh] flex flex-col p-0" 
+        aria-describedby="farmer-modal-description"
+      >
         {/* Fixed Header */}
         <div className="flex-shrink-0 bg-card border-b border-border px-6 py-4 rounded-t-lg">
         <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-heading-primary">
             {farmer?.id ? 'Edit Farmer' : 'Add New Farmer'}
           </DialogTitle>
-          <div id="farmer-modal-description" className="sr-only">
+          <p id="farmer-modal-description" className="text-sm text-muted-foreground sr-only">
             Form to {farmer?.id ? 'edit existing' : 'add new'} farmer with agricultural information
-          </div>
+          </p>
         </DialogHeader>
         </div>
 

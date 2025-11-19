@@ -3,16 +3,20 @@ import { useAuth, UserProfile } from "@/hooks/useAuth";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { LogOut, Menu, X, LayoutDashboard, Building2, Users as UsersIcon, Bug, Settings } from "lucide-react";
+import { LogOut, Menu, X, LayoutDashboard, Building2, Users as UsersIcon, Bug, Settings, UserCog } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
+import { FarmerListView } from "@/components/FarmerListView";
 import { BanksManagement } from "@/components/BanksManagement";
 import { UsersManagement } from "@/components/UsersManagement";
 import { AdminFilters } from "@/components/AdminFilters";
+import { FarmerModal } from "@/components/FarmerModal";
 import { InvitationDebugger } from "@/components/InvitationDebugger";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuditLogTable } from "@/components/AuditLogTable";
+import { UserImpersonationModal } from "@/components/UserImpersonationModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const AdminDashboard = () => {
   const { user, profile, signOut, loading } = useAuth();
@@ -22,6 +26,9 @@ const AdminDashboard = () => {
   const isMobile = useIsMobile();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+  const [impersonationModalOpen, setImpersonationModalOpen] = useState(false);
+  const [farmerModalOpen, setFarmerModalOpen] = useState(false);
+  const [selectedFarmer, setSelectedFarmer] = useState<any | undefined>(undefined);
   const previousSection = useRef<string>('');
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState({
@@ -167,6 +174,22 @@ const AdminDashboard = () => {
             <ThemeToggle variant="icon" size="sm" />
             <Button 
               variant="outline" 
+              onClick={() => setImpersonationModalOpen(true)}
+              className="hidden md:flex
+                bg-gradient-to-r from-blue-600 to-indigo-600 
+                hover:from-blue-500 hover:to-indigo-500
+                text-white font-medium border-blue-400/30
+                shadow-lg shadow-blue-500/25 
+                hover:shadow-xl hover:shadow-blue-400/40
+                transform transition-all duration-200 hover:scale-105
+              "
+              title="Switch to another user account for support"
+            >
+              <UserCog className="mr-2 h-4 w-4" />
+              Switch Account
+            </Button>
+            <Button 
+              variant="outline" 
               onClick={handleSignOut} 
               className="hidden md:flex
                 bg-gradient-to-r from-emerald-600 to-green-600 
@@ -237,7 +260,41 @@ const AdminDashboard = () => {
             {activeSection === 'dashboard' && (
               <div className="space-y-6">
                 <AdminFilters filters={filters} onFiltersChange={setFilters} />
-                <FarmersTable filters={filters} isAdmin={true} />
+                <FarmerListView 
+                  filters={filters} 
+                  isAdmin={true}
+                  onAddFarmer={() => {
+                    setSelectedFarmer(undefined);
+                    setFarmerModalOpen(true);
+                  }}
+                  onEditFarmer={async (farmerId) => {
+                    // Fetch farmer data
+                    const { data, error } = await supabase
+                      .from('farmers')
+                      .select('*')
+                      .eq('id', farmerId)
+                      .single();
+                    
+                    if (error) {
+                      toast({
+                        title: "Error",
+                        description: "Could not load farmer data",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    setSelectedFarmer(data);
+                    setFarmerModalOpen(true);
+                  }}
+                  onDeleteFarmer={(farmerId) => {
+                    // Handle delete confirmation
+                    if (window.confirm('Are you sure you want to delete this farmer?')) {
+                      // Delete logic will be in FarmerModal or use mutation
+                      console.log('Delete farmer:', farmerId);
+                    }
+                  }}
+                />
               </div>
             )}
 
@@ -419,6 +476,21 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* User Impersonation Modal */}
+      <UserImpersonationModal 
+        open={impersonationModalOpen} 
+        onOpenChange={setImpersonationModalOpen} 
+      />
+
+      <FarmerModal
+        isOpen={farmerModalOpen}
+        onClose={() => {
+          setFarmerModalOpen(false);
+          setSelectedFarmer(undefined);
+        }}
+        farmer={selectedFarmer}
+      />
     </div>
   );
 };

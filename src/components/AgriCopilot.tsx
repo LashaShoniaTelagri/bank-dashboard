@@ -21,7 +21,11 @@ import {
   Sparkles,
   MessageSquare,
   Database,
-  TrendingUp
+  TrendingUp,
+  ThumbsUp,
+  ThumbsDown,
+  Copy,
+  Check
 } from 'lucide-react';
 import { FarmerDataUpload, F100Phase, AIChatMessage } from '@/types/specialist';
 import { formatFileSize } from '@/lib/formatters';
@@ -91,6 +95,14 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzingImages, setAnalyzingImages] = useState<Set<string>>(new Set());
   
+  // Message interaction state
+  const [messageRatings, setMessageRatings] = useState<Record<number, 'like' | 'dislike'>>({});
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+  
+  // Typing animation state
+  const [typedPlaceholder, setTypedPlaceholder] = useState('');
+  const [currentLoadingState, setCurrentLoadingState] = useState('');
+  
   // Session management
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
@@ -142,6 +154,60 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Typing animation for placeholder
+  useEffect(() => {
+    const placeholderTexts = isMobile 
+      ? ["Ask about crops, soil, costs..."] 
+      : ["Ask about crop health, soil analysis, cost efficiency, or any agricultural insights..."];
+    
+    const fullText = placeholderTexts[0];
+    let currentIndex = 0;
+    
+    // Reset and start typing animation
+    setTypedPlaceholder('');
+    
+    const typingInterval = setInterval(() => {
+      if (currentIndex <= fullText.length) {
+        setTypedPlaceholder(fullText.slice(0, currentIndex));
+        currentIndex++;
+      } else {
+        clearInterval(typingInterval);
+      }
+    }, 50); // 50ms per character for smooth typing effect
+    
+    return () => clearInterval(typingInterval);
+  }, [isMobile]);
+
+  // Dynamic loading states with cursor effect
+  useEffect(() => {
+    if (!isAnalyzing) {
+      setCurrentLoadingState('');
+      return;
+    }
+
+    const loadingStates = [
+      'Preparing',
+      'Thinking',
+      'Analyzing',
+      'Processing',
+      'Evaluating',
+      'Computing',
+      'Examining'
+    ];
+    
+    // Pick a random state
+    const randomState = loadingStates[Math.floor(Math.random() * loadingStates.length)];
+    setCurrentLoadingState(randomState);
+    
+    // Change state every 4 seconds for better readability
+    const stateInterval = setInterval(() => {
+      const newState = loadingStates[Math.floor(Math.random() * loadingStates.length)];
+      setCurrentLoadingState(newState);
+    }, 4000);
+    
+    return () => clearInterval(stateInterval);
+  }, [isAnalyzing]);
 
   // Notify parent of full-screen state changes
   useEffect(() => {
@@ -314,6 +380,81 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
     }
   }, [analyzingImages, isAnalyzing, farmerId, farmerIdNumber, crop, phase, phaseLabel, assignmentId]);
 
+  // Handle message rating (like/dislike)
+  const handleRateMessage = useCallback(async (messageIndex: number, rating: 'like' | 'dislike') => {
+    setMessageRatings(prev => {
+      const current = prev[messageIndex];
+      // If clicking the same rating, remove it (toggle off)
+      if (current === rating) {
+        const { [messageIndex]: _, ...rest } = prev;
+        return rest;
+      }
+      // Otherwise, set the new rating
+      return { ...prev, [messageIndex]: rating };
+    });
+
+    const message = chatHistory[messageIndex];
+    if (message && message.role === 'assistant') {
+      try {
+        // Get the message ID from the database
+        // In a production system, you'd store message IDs in your ChatBubble interface
+        // For now, we'll use the RPC function to record feedback
+        
+        const { data, error } = await supabase.rpc('record_ai_feedback', {
+          p_message_id: (message as any).id || null, // Add message ID to ChatBubble interface
+          p_rating: rating,
+          p_feedback_comment: null,
+          p_feedback_tags: []
+        });
+
+        if (error) {
+          console.error('Failed to record feedback:', error);
+          // Continue anyway to show UI feedback
+        } else {
+          console.log(`📊 Feedback recorded in database:`, { rating, feedbackId: data });
+        }
+      } catch (error) {
+        console.error('Error recording feedback:', error);
+      }
+      
+      // Show feedback toast
+      toast({
+        title: rating === 'like' ? '👍 Feedback Received' : '👎 Feedback Received',
+        description: rating === 'like' 
+          ? 'Thank you! This helps improve AI responses.' 
+          : 'Thank you for the feedback. We\'ll work to improve.',
+        duration: 2000
+      });
+    }
+  }, [chatHistory]);
+
+  // Handle copy message to clipboard
+  const handleCopyMessage = useCallback(async (messageIndex: number, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageIndex(messageIndex);
+      
+      toast({
+        title: '✓ Copied to clipboard',
+        description: 'Message copied successfully',
+        duration: 2000
+      });
+
+      // Reset copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedMessageIndex(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+      toast({
+        title: 'Copy Failed',
+        description: 'Failed to copy message to clipboard',
+        variant: 'destructive',
+        duration: 2000
+      });
+    }
+  }, []);
+
   // Send chat message
   const sendMessage = useCallback(async () => {
     if (!currentMessage.trim() || isAnalyzing || !sessionId) return;
@@ -461,7 +602,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
   if (initializing) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="flex items-center gap-2 text-gray-600">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
           Initializing TelAgri Co-Pilot...
         </div>
@@ -809,45 +950,219 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
                       }`}
                     >
                       {message.role === 'assistant' ? (
-                        <div className="ai-content prose prose-base max-w-none 
-                          prose-headings:text-ai-text-primary prose-headings:font-semibold prose-headings:mb-4 prose-headings:leading-snug prose-headings:tracking-tight
-                          prose-p:text-ai-text-primary prose-p:leading-loose prose-p:mb-6 prose-p:text-base
-                          prose-strong:text-ai-text-primary prose-strong:font-semibold
-                          prose-ul:text-ai-text-primary prose-ul:mb-6 prose-ul:leading-loose prose-ul:text-base
-                          prose-ol:text-ai-text-primary prose-ol:mb-6 prose-ol:leading-loose prose-ol:text-base
-                          prose-li:text-ai-text-primary prose-li:mb-2 prose-li:leading-loose prose-li:text-base
-                          prose-code:text-ai-accent prose-code:bg-primary/10 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-mono
-                          prose-pre:bg-muted/50 prose-pre:border prose-pre:text-ai-text-primary prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-lg prose-pre:leading-relaxed
-                          prose-blockquote:border-l-primary prose-blockquote:text-ai-text-secondary prose-blockquote:pl-6 prose-blockquote:py-2 prose-blockquote:italic prose-blockquote:leading-loose
-                          prose-a:text-ai-accent prose-a:no-underline hover:prose-a:underline prose-a:font-medium prose-a:transition-colors
-                          prose-table:text-ai-text-primary prose-th:text-ai-text-primary prose-td:text-ai-text-primary prose-th:font-semibold prose-th:pb-3 prose-td:py-2">
-                          <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              h1: ({children}) => <h1 className="text-xl font-bold mb-4 leading-snug tracking-tight">{children}</h1>,
-                              h2: ({children}) => <h2 className="text-lg font-semibold mb-4 leading-snug tracking-tight">{children}</h2>,
-                              h3: ({children}) => <h3 className="text-base font-semibold mb-3 leading-snug">{children}</h3>,
-                              h4: ({children}) => <h4 className="text-base font-medium mb-3 leading-snug">{children}</h4>,
-                              p: ({children}) => <p className="mb-6 leading-loose text-base">{children}</p>,
-                              ul: ({children}) => <ul className="list-disc list-inside mb-6 space-y-2 leading-loose text-base">{children}</ul>,
-                              ol: ({children}) => <ol className="list-decimal list-inside mb-6 space-y-2 leading-loose text-base">{children}</ol>,
-                              li: ({children}) => <li className="leading-loose">{children}</li>,
-                              strong: ({children}) => <strong className="font-semibold">{children}</strong>,
-                              em: ({children}) => <em className="italic">{children}</em>,
-                              code: ({children}) => <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>,
-                              pre: ({children}) => <pre className="bg-muted p-3 rounded-lg overflow-x-auto mb-3">{children}</pre>,
-                              blockquote: ({children}) => <blockquote className="border-l-4 border-primary pl-3 py-2 mb-3 bg-primary/10 italic">{children}</blockquote>
-                            }}
-                          >
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
+                        <>
+                          <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert
+                            prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-6 prose-headings:mb-4 first:prose-headings:mt-0
+                            prose-h1:text-xl md:prose-h1:text-2xl prose-h1:font-bold prose-h1:border-b prose-h1:pb-2 prose-h1:mb-4
+                            prose-h2:text-lg md:prose-h2:text-xl prose-h2:font-semibold
+                            prose-h3:text-base md:prose-h3:text-lg prose-h3:font-semibold
+                            prose-h4:text-base prose-h4:font-medium
+                            prose-p:text-foreground prose-p:leading-relaxed prose-p:mb-4 prose-p:text-sm md:prose-p:text-base
+                            prose-strong:text-foreground prose-strong:font-bold
+                            prose-em:text-foreground prose-em:italic
+                            prose-ul:my-4 prose-ul:space-y-2
+                            prose-ol:my-4 prose-ol:space-y-2
+                            prose-li:text-foreground prose-li:leading-relaxed prose-li:text-sm md:prose-li:text-base prose-li:my-1
+                            prose-code:text-primary prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs md:prose-code:text-sm prose-code:font-mono prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
+                            prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:text-foreground prose-pre:text-xs md:prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-lg prose-pre:my-4 prose-pre:overflow-x-auto
+                            prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:bg-muted/50 prose-blockquote:text-muted-foreground prose-blockquote:pl-4 prose-blockquote:py-2 prose-blockquote:my-4 prose-blockquote:italic prose-blockquote:not-italic
+                            prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80 prose-a:font-medium prose-a:transition-colors
+                            prose-table:w-full prose-table:border-collapse prose-table:my-4
+                            prose-thead:border-b prose-thead:border-border
+                            prose-th:text-left prose-th:font-semibold prose-th:text-foreground prose-th:px-3 prose-th:py-2 prose-th:bg-muted/50
+                            prose-td:text-foreground prose-td:px-3 prose-td:py-2 prose-td:border-b prose-td:border-border
+                            prose-tr:border-b prose-tr:border-border last:prose-tr:border-0
+                            prose-img:rounded-lg prose-img:my-4 prose-img:shadow-sm">
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                h1: ({children}) => (
+                                  <h1 className="text-xl md:text-2xl font-bold border-b border-border pb-2 mb-4 mt-6 first:mt-0">
+                                    {children}
+                                  </h1>
+                                ),
+                                h2: ({children}) => (
+                                  <h2 className="text-lg md:text-xl font-semibold mb-3 mt-6 first:mt-0">
+                                    {children}
+                                  </h2>
+                                ),
+                                h3: ({children}) => (
+                                  <h3 className="text-base md:text-lg font-semibold mb-3 mt-5 first:mt-0">
+                                    {children}
+                                  </h3>
+                                ),
+                                h4: ({children}) => (
+                                  <h4 className="text-base font-medium mb-2 mt-4 first:mt-0">
+                                    {children}
+                                  </h4>
+                                ),
+                                p: ({children}) => (
+                                  <p className="mb-4 leading-relaxed text-sm md:text-base text-foreground">
+                                    {children}
+                                  </p>
+                                ),
+                                ul: ({children}) => (
+                                  <ul className="list-disc pl-6 my-4 space-y-2 text-foreground">
+                                    {children}
+                                  </ul>
+                                ),
+                                ol: ({children}) => (
+                                  <ol className="list-decimal pl-6 my-4 space-y-2 text-foreground">
+                                    {children}
+                                  </ol>
+                                ),
+                                li: ({children}) => (
+                                  <li className="leading-relaxed text-sm md:text-base my-1">
+                                    {children}
+                                  </li>
+                                ),
+                                strong: ({children}) => (
+                                  <strong className="font-bold text-foreground">
+                                    {children}
+                                  </strong>
+                                ),
+                                em: ({children}) => (
+                                  <em className="italic text-foreground">
+                                    {children}
+                                  </em>
+                                ),
+                                code: ({node, className, children, ...props}) => {
+                                  const isInline = !className;
+                                  if (isInline) {
+                                    return (
+                                      <code className="bg-muted text-primary px-1.5 py-0.5 rounded text-xs md:text-sm font-mono border border-border/50">
+                                        {children}
+                                      </code>
+                                    );
+                                  }
+                                  return <code className={className} {...props}>{children}</code>;
+                                },
+                                pre: ({children}) => (
+                                  <pre className="bg-muted border border-border rounded-lg p-4 my-4 overflow-x-auto text-xs md:text-sm">
+                                    {children}
+                                  </pre>
+                                ),
+                                blockquote: ({children}) => (
+                                  <blockquote className="border-l-4 border-primary bg-muted/50 pl-4 py-2 my-4 italic text-muted-foreground">
+                                    {children}
+                                  </blockquote>
+                                ),
+                                table: ({children}) => (
+                                  <div className="overflow-x-auto my-4">
+                                    <table className="w-full border-collapse border border-border rounded-lg">
+                                      {children}
+                                    </table>
+                                  </div>
+                                ),
+                                thead: ({children}) => (
+                                  <thead className="bg-muted/50 border-b border-border">
+                                    {children}
+                                  </thead>
+                                ),
+                                tbody: ({children}) => (
+                                  <tbody className="divide-y divide-border">
+                                    {children}
+                                  </tbody>
+                                ),
+                                tr: ({children}) => (
+                                  <tr className="border-b border-border last:border-0">
+                                    {children}
+                                  </tr>
+                                ),
+                                th: ({children}) => (
+                                  <th className="text-left font-semibold px-3 py-2 text-foreground text-sm">
+                                    {children}
+                                  </th>
+                                ),
+                                td: ({children}) => (
+                                  <td className="px-3 py-2 text-foreground text-sm">
+                                    {children}
+                                  </td>
+                                ),
+                                a: ({href, children}) => (
+                                  <a 
+                                    href={href} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-primary underline underline-offset-2 hover:text-primary/80 font-medium transition-colors"
+                                  >
+                                    {children}
+                                  </a>
+                                ),
+                                hr: () => (
+                                  <hr className="my-6 border-t border-border" />
+                                )
+                              }}
+                            >
+                              {message.content}
+                            </ReactMarkdown>
+                          </div>
+
+                          {/* Action Buttons - Like, Dislike, Copy */}
+                          <div className="flex items-center gap-1 mt-3 pt-2 border-t border-border/50">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRateMessage(index, 'like')}
+                              className={`h-7 px-2 text-xs transition-all ${
+                                messageRatings[index] === 'like'
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                                  : 'text-muted-foreground hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                              }`}
+                              title="Like this response"
+                            >
+                              <ThumbsUp className={`h-3.5 w-3.5 ${messageRatings[index] === 'like' ? 'fill-current' : ''}`} />
+                            </Button>
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRateMessage(index, 'dislike')}
+                              className={`h-7 px-2 text-xs transition-all ${
+                                messageRatings[index] === 'dislike'
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                  : 'text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                              }`}
+                              title="Dislike this response"
+                            >
+                              <ThumbsDown className={`h-3.5 w-3.5 ${messageRatings[index] === 'dislike' ? 'fill-current' : ''}`} />
+                            </Button>
+
+                            <div className="w-px h-4 bg-border mx-1" />
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCopyMessage(index, message.content)}
+                              className={`h-7 px-2 text-xs transition-all ${
+                                copiedMessageIndex === index
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
+                              }`}
+                              title="Copy to clipboard"
+                            >
+                              {copiedMessageIndex === index ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 mr-1" />
+                                  <span className="hidden sm:inline">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5 sm:mr-1" />
+                                  <span className="hidden sm:inline">Copy</span>
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </>
                       ) : (
-                        <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{message.content}</div>
+                        <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed font-medium text-white">
+                          {message.content}
+                        </div>
                       )}
                       {message.timestamp && (
                         <div className={`text-xs mt-2 ${
-                          message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                          message.role === 'user' ? 'text-white/70' : 'text-muted-foreground'
                         }`}>
                           {message.timestamp.toLocaleTimeString()}
                         </div>
@@ -859,10 +1174,35 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
               
               {isAnalyzing && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg px-4 py-3 transition-colors">
-                    <div className="flex items-center gap-2 text-gray-600 dark:text-neon-300">
+                  <div className="bg-muted border border-border rounded-lg px-4 py-3 transition-colors">
+                    <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">TelAgri Co-Pilot is analyzing...</span>
+                      <span className="text-sm inline-flex items-center">
+                        {currentLoadingState.split('').map((char, index) => (
+                          <span
+                            key={index}
+                            className="animate-pulse"
+                            style={{
+                              animationDelay: `${index * 0.1}s`,
+                              animationDuration: '1.5s'
+                            }}
+                          >
+                            {char}
+                          </span>
+                        ))}
+                        {['.', '.', '.'].map((dot, index) => (
+                          <span
+                            key={`dot-${index}`}
+                            className="animate-pulse"
+                            style={{
+                              animationDelay: `${(currentLoadingState.length * 0.1) + (index * 0.3)}s`,
+                              animationDuration: '1.5s'
+                            }}
+                          >
+                            {dot}
+                          </span>
+                        ))}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -880,7 +1220,7 @@ const AgriCopilot: React.FC<AgriCopilotProps> = ({
                   ref={textareaRef}
                   value={currentMessage}
                   onChange={(e) => setCurrentMessage(e.target.value)}
-                  placeholder={isMobile ? "Ask about crops, soil, costs..." : "Ask about crop health, soil analysis, cost efficiency, or any agricultural insights..."}
+                  placeholder={typedPlaceholder}
                   className="flex-1 min-h-[44px] md:min-h-[48px] max-h-[100px] md:max-h-[120px] resize-none text-sm md:text-base bg-card border-input focus:border-primary focus:ring-1 focus:ring-primary/20 ai-text-primary placeholder:text-ai-text-muted rounded-lg overflow-y-auto"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {

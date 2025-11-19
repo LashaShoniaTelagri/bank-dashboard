@@ -560,10 +560,10 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           Upload Data
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="data-upload-modal-desc">
         <DialogHeader>
           <DialogTitle>Upload Data for {farmerName}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="data-upload-modal-desc">
             Upload photos, analysis files, geospatial data, and other documents for specialist analysis
           </DialogDescription>
         </DialogHeader>

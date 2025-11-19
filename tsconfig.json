@@ -15,5 +15,14 @@
     "allowJs": true,
     "noUnusedLocals": false,
     "strictNullChecks": false
-  }
+  },
+  // Add this block:
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "cache",
+    ".history",
+    "coverage"
+  ]
 }

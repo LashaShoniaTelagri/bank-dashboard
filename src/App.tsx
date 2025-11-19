@@ -6,11 +6,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { Analytics } from "@/components/Analytics";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import BankDashboard from "./pages/BankDashboard";
 import { SpecialistDashboard } from "./pages/SpecialistDashboard";
+import { ChartBuilderPage } from "./pages/ChartBuilderPage";
+import FarmerProfilePage from "./pages/FarmerProfilePage";
 import NotFound from "./pages/NotFound";
 
 // Optimized QueryClient configuration to prevent network spam
@@ -39,6 +42,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ImpersonationBanner />
           <Analytics />
           <Routes>
             <Route path="/" element={<Auth />} />
@@ -47,10 +51,13 @@ const App = () => (
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/banks" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminDashboard />} />
+            <Route path="/admin/charts/new" element={<ChartBuilderPage />} />
+            <Route path="/admin/charts/:id" element={<ChartBuilderPage />} />
             <Route path="/admin/debug" element={<AdminDashboard />} />
             <Route path="/bank" element={<BankDashboard />} />
             <Route path="/specialist" element={<Navigate to="/specialist/dashboard" replace />} />
             <Route path="/specialist/dashboard" element={<SpecialistDashboard />} />
+            <Route path="/farmers/:farmerId" element={<FarmerProfilePage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -82,7 +82,9 @@ export const F100ModalSpecialist: React.FC<F100ModalSpecialistProps> = ({
               ? 'max-w-[100vw] max-h-[100vh] w-[100vw] h-[100vh] rounded-none' 
               : 'max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh] rounded-lg'
           }`}
+          aria-describedby="f100-specialist-desc"
         >
+          <p id="f100-specialist-desc" className="sr-only">F-100 report viewer and specialist analysis</p>
           <DialogHeader className="flex flex-row items-center justify-between space-y-0 px-4 py-3 border-b">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/20">
