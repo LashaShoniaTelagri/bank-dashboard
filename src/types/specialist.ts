@@ -50,6 +50,7 @@ export interface FarmerDataUpload {
   phase: F100Phase;
   ai_description?: string;
   ai_description_generated_at?: string;
+  iframe_urls?: Array<{ url: string; name: string; annotation?: string }>;
   created_at: string;
   updated_at: string;
 }

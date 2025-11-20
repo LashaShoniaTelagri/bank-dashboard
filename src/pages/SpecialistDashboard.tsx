@@ -29,6 +29,7 @@ import {
   Cloud,
   Eye,
   ChevronDown,
+  ChevronUp,
   Info,
   ChevronRight,
   Filter,
@@ -44,7 +45,8 @@ import {
   Database,
   MessageSquare,
   Settings,
-  Clipboard
+  Clipboard,
+  ExternalLink
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "../components/ui/use-toast";
@@ -1628,6 +1630,21 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
   const [fileViewerInitialIndex, setFileViewerInitialIndex] = useState(0);
   const [fileViewerSectionName, setFileViewerSectionName] = useState('');
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  
+  // Iframe collapse state (track by iframe URL)
+  const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
+  
+  const toggleIframeCollapse = useCallback((iframeUrl: string) => {
+    setCollapsedIframes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(iframeUrl)) {
+        newSet.delete(iframeUrl);
+      } else {
+        newSet.add(iframeUrl);
+      }
+      return newSet;
+    });
+  }, []);
 
   const {
     data: uploads = [],
@@ -1644,6 +1661,33 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       if (error) throw error;
       return data as FarmerDataUpload[];
     }
+  });
+
+  // Fetch phase iframes for this assignment's phase
+  const { data: phaseIframes = [], isLoading: isLoadingIframes, error: iframeError } = useQuery<Array<{ url: string; name: string; annotation?: string }>>({
+    queryKey: ['farmer-phase-iframes', farmerId, phase],
+    queryFn: async () => {
+      console.log('🗺️ Fetching iframes for farmer:', farmerId, 'phase:', phase);
+      const { data, error } = await supabase
+        .from('farmer_phases' as any)
+        .select('iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phase)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ Error fetching iframes:', error);
+        throw error;
+      }
+      
+      const iframes = ((data as any)?.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      console.log('✅ Loaded', iframes.length, 'iframe(s) for phase', phase);
+      return iframes;
+    },
+    enabled: !!farmerId && !!phase,
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false
   });
 
   useEffect(() => {
@@ -1988,6 +2032,89 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
               })}
             </div>
           )}
+
+          {/* Phase Interactive Maps Section in Data Library */}
+          <div className="mt-6 space-y-4">
+            {isLoadingIframes ? (
+              <div className="border-t pt-6 text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-xs text-muted-foreground mt-2">Loading interactive maps...</p>
+              </div>
+            ) : iframeError ? (
+              <div className="border-t pt-6 text-center py-4">
+                <p className="text-xs text-red-600">Error loading maps: {iframeError.message}</p>
+              </div>
+            ) : phaseIframes.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between border-t pt-6">
+                  <h3 className="text-base font-bold text-heading-primary flex items-center gap-2">
+                    <Map className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    Interactive Maps (Phase {phase})
+                  </h3>
+                  <span className="text-xs text-muted-foreground">
+                    {phaseIframes.length} map{phaseIframes.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                
+                <div className="space-y-4">
+                  {phaseIframes.map((iframe, idx) => {
+                    const isCollapsed = collapsedIframes.has(iframe.url);
+                    return (
+                      <div key={idx} className="border dark:border-dark-border rounded-lg overflow-hidden bg-card dark:bg-dark-card shadow-sm">
+                        {/* Map Header with Name and Annotation - Clickable to collapse */}
+                        <div 
+                          className="p-4 bg-muted/30 dark:bg-muted/10 border-b border-border/30 cursor-pointer hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
+                          onClick={() => toggleIframeCollapse(iframe.url)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 space-y-1">
+                              <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                {isCollapsed ? (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                )}
+                                <Map className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                {iframe.name}
+                              </h4>
+                              {iframe.annotation && !isCollapsed && (
+                                <p className="text-xs text-muted-foreground leading-relaxed ml-10">
+                                  {iframe.annotation}
+                                </p>
+                              )}
+                            </div>
+                            <a
+                              href={iframe.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                              Open
+                            </a>
+                          </div>
+                        </div>
+                        
+                        {/* Full Width Iframe - Collapsible */}
+                        {!isCollapsed && (
+                          <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                            <iframe
+                              src={iframe.url}
+                              className="w-full h-[500px]"
+                              title={iframe.name}
+                              loading="lazy"
+                              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+          </div>
         </CardContent>
       </div>
       

@@ -446,7 +446,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                       day: 'numeric', 
                                       year: 'numeric' 
                                     })}
-                                  </div>
+                                </div>
                                 )}
                               </>
                             ) : (
@@ -455,9 +455,9 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                             
                             {/* One Pager Button - Only show if one pager summary exists */}
                             {farmer.onePagerSummaries[phase] && (
-                              <Button
-                                variant="outline"
-                                size="sm"
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
                                 className="text-sm font-medium leading-5 px-4 py-2.5 rounded-md border-2 border-purple-500 text-purple-600 bg-background hover:bg-purple-500 hover:text-white focus:outline-none focus:ring-4 focus:ring-purple-200 dark:focus:ring-purple-800 transition-all duration-200 flex items-center justify-center gap-1.5 w-full"
                                 onClick={() => {
                                   console.log('🔘 Opening One Pager for:', {
@@ -466,17 +466,17 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                     phase
                                   });
                                   setOnePagerModal({ 
-                                    open: true, 
-                                    farmerId: farmer.farmer_id, 
+                                      open: true, 
+                                      farmerId: farmer.farmer_id, 
                                     farmerName: farmer.name,
                                     phaseNumber: phase
                                   });
                                 }}
                                 title="View Phase One Pager"
-                              >
+                                  >
                                 <FileText className="h-3.5 w-3.5" />
                                 One Pager
-                              </Button>
+                                  </Button>
                             )}
                           </div>
                         </td>

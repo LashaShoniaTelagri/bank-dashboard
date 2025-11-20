@@ -23,7 +23,9 @@ import {
   AlertCircle,
   Loader2,
   Sun,
-  Trash2
+  Trash2,
+  Plus,
+  ExternalLink
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "./ui/use-toast";
@@ -47,6 +49,7 @@ type UploadRow = {
   phase: number;
   data_type: DataType;
   metadata: Record<string, unknown> | null;
+  iframe_urls?: Array<{ url: string; name: string; annotation?: string }> | null;
   updated_at?: string;
 };
 
@@ -80,17 +83,37 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     file_path: string;
   }>(null);
   const [f100Phase, setF100Phase] = useState<F100Phase | null>(1 as F100Phase);
+  const [iframeUrls, setIframeUrls] = useState<Array<{ url: string; name: string; annotation: string }>>([]);
+  const [iframeUrlInput, setIframeUrlInput] = useState('');
+  const [iframeNameInput, setIframeNameInput] = useState('');
+  const [iframeAnnotationInput, setIframeAnnotationInput] = useState('');
 
   useEffect(() => {
     setUploadData(prev => ({ ...prev, phase: (f100Phase ?? prev.phase) as F100Phase }));
   }, [f100Phase]);
 
-  // Reset success message when modal opens
+  // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setShowSuccessMessage(false);
+    } else {
+      // Reset form when modal closes (but don't reset iframes - they're managed per phase)
+      setUploadData({
+        farmer_id: farmerId,
+        data_type: 'photo',
+        file: null,
+        description: '',
+        tags: [],
+        phase: 1 as F100Phase
+      });
+      setSelectedFiles([]);
+      setIframeUrlInput('');
+      setIframeNameInput('');
+      setIframeAnnotationInput('');
+      setF100Phase(1 as F100Phase);
+      setUploadProgress(null);
     }
-  }, [isOpen]);
+  }, [isOpen, farmerId]);
 
   // Controls for filtering previously uploaded list
   const [existingPhaseFilter, setExistingPhaseFilter] = useState<string>('all');
@@ -101,7 +124,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     queryFn: async (): Promise<UploadRow[]> => {
       let query = supabase
         .from('farmer_data_uploads')
-        .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata')
+        .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata, iframe_urls')
         .eq('farmer_id', farmerId)
         .eq('bank_id', bankId)
         .order('created_at', { ascending: false });
@@ -165,7 +188,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
 
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file }: { file: File }) => {
       // Validate file size
       const maxSize = parseInt(DATA_TYPES[uploadData.data_type].maxSize.replace('MB', '')) * 1024 * 1024;
       if (file.size > maxSize) {
@@ -189,57 +212,33 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Insert record into database (admin via RPC to bypass RLS; others direct insert)
-      let dbResponse: UploadRow | null = null;
-      let dbError: Error | null = null;
-      if (userProfile?.role === 'admin') {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('admin_insert_farmer_data_upload', {
-          p_farmer_id: farmerId,
-          p_bank_id: bankId,
-          p_data_type: uploadData.data_type,
-          p_file_name: file.name,
-          p_file_path: filePath,
-          p_file_mime: file.type,
-          p_file_size: file.size,
-          p_description: uploadData.description,
-          p_tags: uploadData.tags,
-          p_phase: f100Phase,
-          p_metadata: {
+      // Insert record into database (no iframe_urls here, they're saved to farmer_phases)
+      const { data: insertData, error: insertError } = await supabase
+        .from('farmer_data_uploads')
+        .insert({
+          farmer_id: farmerId,
+          bank_id: bankId,
+          uploaded_by: userProfile?.user_id ?? '',
+          data_type: uploadData.data_type,
+          file_name: file.name,
+          file_path: filePath,
+          file_mime: file.type,
+          file_size_bytes: file.size,
+          description: uploadData.description,
+          tags: uploadData.tags,
+          phase: f100Phase,
+          metadata: {
             original_name: file.name,
             upload_timestamp: new Date().toISOString(),
             uploader_role: userProfile?.role,
             f100_phase: f100Phase
           }
-        });
-        dbResponse = rpcData as unknown as UploadRow ?? null;
-        dbError = rpcError ? new Error(rpcError.message) : null;
-      } else {
-        const { data: insertData, error: insertError } = await supabase
-          .from('farmer_data_uploads')
-          .insert({
-            farmer_id: farmerId,
-            bank_id: bankId,
-            uploaded_by: userProfile?.user_id ?? '',
-            data_type: uploadData.data_type,
-            file_name: file.name,
-            file_path: filePath,
-            file_mime: file.type,
-            file_size_bytes: file.size,
-            description: uploadData.description,
-            tags: uploadData.tags,
-            phase: f100Phase,
-            metadata: {
-              original_name: file.name,
-              upload_timestamp: new Date().toISOString(),
-              uploader_role: userProfile?.role,
-              f100_phase: f100Phase
-            }
-          })
-          .select()
-          .single();
-        dbResponse = insertData as UploadRow ?? null;
-        dbError = insertError ? new Error(insertError.message) : null;
-      }
+        })
+        .select()
+        .single();
+      
+      const dbResponse = insertData as UploadRow ?? null;
+      const dbError = insertError ? new Error(insertError.message) : null;
 
       if (dbError) {
         await supabase.storage.from('farmer-documents').remove([filePath]);
@@ -303,7 +302,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 5000); // Hide after 5 seconds
       
-      // Reset form but keep modal open
+      // Reset form but keep modal open (keep iframe URLs as they're managed separately)
       setUploadData(prev => ({
         ...prev,
         file: null as any
@@ -484,6 +483,233 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     }));
   }, []);
 
+  // Handle iframe URL validation
+  const isValidUrl = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  // Auto-save iframe to farmer_phases
+  const saveIframeMutation = useMutation({
+    mutationFn: async (iframeData: { url: string; name: string; annotation: string }) => {
+      if (!f100Phase) {
+        throw new Error('Please select a phase first');
+      }
+
+      // Fetch existing phase data
+      const { data: existingPhase, error: fetchError } = await supabase
+        .from('farmer_phases')
+        .select('id, iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', f100Phase)
+        .single();
+
+      const currentIframes = (existingPhase?.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      
+      // Add new iframe
+      const updatedIframes = [...currentIframes, iframeData];
+
+      if (existingPhase?.id) {
+        // Update existing phase
+        const { error } = await supabase
+          .from('farmer_phases')
+          .update({ iframe_urls: updatedIframes })
+          .eq('id', existingPhase.id);
+        
+        if (error) throw error;
+      } else {
+        // Create new phase record
+        const { error } = await supabase
+          .from('farmer_phases')
+          .insert({
+            farmer_id: farmerId,
+            phase_number: f100Phase,
+            iframe_urls: updatedIframes
+          });
+        
+        if (error) throw error;
+      }
+
+      return updatedIframes;
+    },
+    onSuccess: (updatedIframes) => {
+      setIframeUrls(updatedIframes);
+      toast({
+        title: "Iframe saved",
+        description: `Iframe added to Phase ${f100Phase}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase', farmerId, f100Phase] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase-iframes', farmerId, f100Phase] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save iframe",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Load existing iframes for selected phase
+  const { data: existingPhaseIframes = [] } = useQuery({
+    queryKey: ['phase-iframes-modal', farmerId, f100Phase],
+    queryFn: async () => {
+      if (!f100Phase) return [];
+      
+      const { data, error } = await supabase
+        .from('farmer_phases')
+        .select('iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', f100Phase)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      return (data?.iframe_urls as Array<{ url: string; name: string; annotation: string }>) || [];
+    },
+    enabled: isOpen && !!f100Phase && !!farmerId,
+    staleTime: 0,
+    refetchOnMount: true
+  });
+
+  // Update local state when phase changes or data loads
+  useEffect(() => {
+    setIframeUrls(existingPhaseIframes);
+  }, [existingPhaseIframes]);
+
+  // Handle iframe URL addition with auto-save
+  const handleAddIframeUrl = useCallback(async () => {
+    const trimmedUrl = iframeUrlInput.trim();
+    const trimmedName = iframeNameInput.trim();
+    
+    if (!f100Phase) {
+      toast({
+        title: "Phase required",
+        description: "Please select a phase first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!trimmedUrl) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!trimmedName) {
+      toast({
+        title: "Name required",
+        description: "Please enter a name for this iframe",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Ensure URL starts with http:// or https://
+    const normalizedUrl = trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')
+      ? trimmedUrl
+      : `https://${trimmedUrl}`;
+    
+    if (!isValidUrl(normalizedUrl)) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL (e.g., https://example.com)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (iframeUrls.some(item => item.url === normalizedUrl)) {
+      toast({
+        title: "Duplicate URL",
+        description: "This URL has already been added for this phase",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newIframe = {
+      url: normalizedUrl,
+      name: trimmedName,
+      annotation: iframeAnnotationInput.trim()
+    };
+    
+    // Auto-save to database
+    await saveIframeMutation.mutateAsync(newIframe);
+    
+    setIframeUrlInput('');
+    setIframeNameInput('');
+    setIframeAnnotationInput('');
+  }, [iframeUrlInput, iframeNameInput, iframeAnnotationInput, iframeUrls, f100Phase, farmerId, saveIframeMutation]);
+
+  // Remove iframe mutation with auto-save
+  const removeIframeMutation = useMutation({
+    mutationFn: async (urlToRemove: string) => {
+      if (!f100Phase) {
+        throw new Error('Phase not selected');
+      }
+
+      // Fetch existing phase data
+      const { data: existingPhase, error: fetchError } = await supabase
+        .from('farmer_phases')
+        .select('id, iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', f100Phase)
+        .single();
+
+      if (fetchError || !existingPhase) {
+        throw new Error('Phase data not found');
+      }
+
+      const currentIframes = (existingPhase.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      const updatedIframes = currentIframes.filter(item => item.url !== urlToRemove);
+
+      // Update phase with removed iframe
+      const { error } = await supabase
+        .from('farmer_phases')
+        .update({ iframe_urls: updatedIframes })
+        .eq('id', existingPhase.id);
+      
+      if (error) throw error;
+
+      return updatedIframes;
+    },
+    onSuccess: (updatedIframes) => {
+      setIframeUrls(updatedIframes);
+      toast({
+        title: "Iframe removed",
+        description: `Iframe removed from Phase ${f100Phase}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase', farmerId, f100Phase] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase-iframes', farmerId, f100Phase] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to remove iframe",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Handle iframe URL removal with auto-save
+  const handleRemoveIframeUrl = useCallback(async (urlToRemove: string) => {
+    await removeIframeMutation.mutateAsync(urlToRemove);
+  }, [removeIframeMutation]);
+
+  // Truncate URL for display
+  const truncateUrl = (url: string, maxLength: number = 50) => {
+    if (url.length <= maxLength) return url;
+    return url.substring(0, maxLength - 3) + '...';
+  };
+
   // Handle form submission
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -523,12 +749,12 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
 
       for (const file of selectedFiles) {
         setUploadProgress({ file_name: file.name, progress: 0, status: 'uploading' });
-        await uploadMutation.mutateAsync(file);
+        await uploadMutation.mutateAsync({ file });
       }
     } finally {
       setUploadProgress(null);
     }
-  }, [selectedFiles, uploadMutation]);
+  }, [selectedFiles, uploadMutation, f100Phase]);
 
   // Get data type icon
   const getDataTypeIcon = (type: DataType) => {
@@ -693,6 +919,117 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             />
           </div>
 
+          {/* Iframe URLs (Admin only) */}
+          {userProfile?.role === 'admin' && (
+            <div className="space-y-3">
+              <div>
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  Interactive Maps for Phase {f100Phase || '(Select phase first)'}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Add iframe URLs (e.g., QGIS HTML maps) that will be displayed to specialists viewing this phase. Auto-saves on click.
+                </p>
+              </div>
+              <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <Input
+                    placeholder="URL (required)"
+                    value={iframeUrlInput}
+                    onChange={(e) => setIframeUrlInput(e.target.value)}
+                    type="url"
+                    className="md:col-span-3"
+                  />
+                  <Input
+                    placeholder="Name (required)"
+                    value={iframeNameInput}
+                    onChange={(e) => setIframeNameInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddIframeUrl();
+                      }
+                    }}
+                  />
+                  <Input
+                    placeholder="Annotation (optional)"
+                    value={iframeAnnotationInput}
+                    onChange={(e) => setIframeAnnotationInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddIframeUrl();
+                      }
+                    }}
+                    className="md:col-span-2"
+                  />
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleAddIframeUrl} 
+                  disabled={saveIframeMutation.isPending || !f100Phase}
+                  className="w-full md:w-auto"
+                >
+                  {saveIframeMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Iframe
+                    </>
+                  )}
+                </Button>
+              </div>
+              {iframeUrls.length > 0 && (
+                <div className="space-y-2">
+                  {iframeUrls.map((item, index) => (
+                    <div key={index} className="p-3 border rounded-lg bg-card space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-foreground mb-1">{item.name}</div>
+                          {item.annotation && (
+                            <div className="text-xs text-muted-foreground mb-2">{item.annotation}</div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
+                              title={item.url}
+                            >
+                              {truncateUrl(item.url, 60)}
+                            </a>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveIframeUrl(item.url)}
+                          disabled={removeIframeMutation.isPending}
+                          className="h-7 w-7 p-0 flex-shrink-0"
+                        >
+                          {removeIframeMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tags */}
           <div className="space-y-2">
             <Label>Tags (Optional)</Label>
@@ -838,16 +1175,17 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {(existingUploads as UploadRow[]).map((u: UploadRow) => (
-                      <tr key={u.id} className="border-t">
-                        <td className="p-2 break-all">{u.file_name}</td>
-                        <td className="p-2">{u.data_type}</td>
-                        <td className="p-2">{(u.file_size_bytes / 1024 / 1024).toFixed(2)} MB</td>
-                        <td className="p-2">
-                          {getPhaseLabel((u.metadata?.f100_phase as F100Phase | undefined) ?? (u.phase as F100Phase))}
-                        </td>
-                        <td className="p-2">{new Date(u.created_at).toLocaleString()}</td>
-                        <td className="p-2 flex items-center gap-2">
+                    {(existingUploads as UploadRow[]).map((u: UploadRow) => {
+                      return (
+                        <tr key={u.id} className="border-t">
+                          <td className="p-2 break-all">{u.file_name}</td>
+                          <td className="p-2">{u.data_type}</td>
+                          <td className="p-2">{(u.file_size_bytes / 1024 / 1024).toFixed(2)} MB</td>
+                          <td className="p-2">
+                            {getPhaseLabel((u.metadata?.f100_phase as F100Phase | undefined) ?? (u.phase as F100Phase))}
+                          </td>
+                          <td className="p-2">{new Date(u.created_at).toLocaleString()}</td>
+                          <td className="p-2 flex items-center gap-2">
                           <Button
                             type="button"
                             variant="ghost"
@@ -888,7 +1226,8 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
