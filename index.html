@@ -40,7 +40,8 @@
     <meta name="author" content="TelAgri" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://cdn.telagri.com https://*.telagri.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://cdn.telagri.com https://*.telagri.com wss://*.supabase.co; frame-src https://*.supabase.co https://view.officeapps.live.com https://*.google.com https://drive.google.com https://cdn.telagri.com https://*.telagri.com; worker-src 'self' blob:; media-src 'self' blob: https://*.supabase.co https://cdn.telagri.com; object-src 'none'; base-uri 'self';" />
+    <!-- Content Security Policy (matches CloudFront configuration in cdk/lib/telagri-stack.ts) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; style-src 'self' 'unsafe-inline' https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: data: blob:; frame-src 'self' https: data: blob:; object-src 'self' https: data: blob:; media-src 'self' https: data: blob:; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self' https:" />
     
     <!-- Private system - no social sharing -->
     <meta property="og:title" content="TelAgri Monitoring" />

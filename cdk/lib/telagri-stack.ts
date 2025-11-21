@@ -113,19 +113,29 @@ export class TelAgriStack extends cdk.Stack {
         strictTransportSecurity: { accessControlMaxAge: cdk.Duration.seconds(31536000), includeSubdomains: true, override: true },
         contentSecurityPolicy: { 
           contentSecurityPolicy: [
-            "default-src 'self'",
-            // Allow Google Maps, GTM, Sentry, and Smartlook scripts
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.telagri.com https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https://maps.gstatic.com https://web-sdk.smartlook.com",
-            "style-src 'self' 'unsafe-inline' https://*.telagri.com https://fonts.googleapis.com",
-            "font-src 'self' https://*.telagri.com https://fonts.gstatic.com",
+            "default-src 'self' https: data: blob:",
+            // Allow all HTTPS scripts with unsafe-inline and unsafe-eval for maximum compatibility
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:",
+            // Allow all HTTPS styles with unsafe-inline
+            "style-src 'self' 'unsafe-inline' https: data:",
+            // Allow all HTTPS fonts
+            "font-src 'self' https: data:",
+            // Allow all images from any HTTPS source
             "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://*.telagri.com https://*.supabase.co  https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com https://*.smartlook.cloud",
-            // Allow iframes for Office viewer, Supabase signed URLs, and Google Docs/Drive viewers
-            "frame-src https://*.telagri.com https://*.supabase.co https://view.officeapps.live.com https://*.google.com https://drive.google.com",
-            // Allow PDF object embedding from Supabase (FileViewer primary renderer) and data/blob URLs
-            "object-src https://*.supabase.co blob: data:",
+            // Allow connections to any HTTPS endpoint and WebSockets
+            "connect-src 'self' https: wss: data: blob:",
+            // Allow iframes from any HTTPS source (for maps, PDFs, embeds)
+            "frame-src 'self' https: data: blob:",
+            // Allow objects and embeds from any HTTPS source (for PDFs and media)
+            "object-src 'self' https: data: blob:",
+            // Allow media from any HTTPS source
+            "media-src 'self' https: data: blob:",
+            // Allow workers and service workers
+            "worker-src 'self' blob:",
+            // Allow manifests
+            "manifest-src 'self'",
             "base-uri 'self'",
-            "form-action 'self'"
+            "form-action 'self' https:"
           ].join('; '),
           override: true 
         },
