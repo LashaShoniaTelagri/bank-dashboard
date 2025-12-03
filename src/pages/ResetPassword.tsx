@@ -19,15 +19,52 @@ const ResetPassword = () => {
   const [isValidLink, setIsValidLink] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
 
+  // Listen for auth state changes (Supabase auth callback)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔐 Auth state change:', { event, hasSession: !!session });
+      
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        console.log('✅ Recovery session established');
+        setIsValidLink(true);
+        setIsValidating(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Validate the reset link on component mount
   useEffect(() => {
     const validateResetLink = async () => {
       try {
-        // Check if this is a recovery flow
-        const type = searchParams.get('type');
-        const errorCode = searchParams.get('error_code');
+        // Check both query params and hash fragments
+        // Supabase uses hash fragments for auth callbacks
+        const queryType = searchParams.get('type');
+        const queryErrorCode = searchParams.get('error_code');
         
-        if (errorCode === 'otp_expired') {
+        // Parse hash fragments
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const hashType = hashParams.get('type');
+        const hashErrorCode = hashParams.get('error_code');
+        const hashError = hashParams.get('error');
+        
+        const type = queryType || hashType;
+        const errorCode = queryErrorCode || hashErrorCode;
+        const error = hashError;
+        
+        console.log('🔐 Reset password validation:', { 
+          type, 
+          errorCode, 
+          error,
+          queryType,
+          hashType,
+          fullHash: window.location.hash,
+          fullSearch: window.location.search
+        });
+        
+        // Check for errors first
+        if (errorCode === 'otp_expired' || error === 'access_denied') {
           toast({
             title: "Link Expired",
             description: "This password reset link has expired. Please request a new one.",
@@ -38,22 +75,33 @@ const ResetPassword = () => {
           return;
         }
 
-        if (type === 'recovery') {
-          // Valid recovery link
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session) {
-            setIsValidLink(true);
-          } else {
-            toast({
-              title: "Invalid Link",
-              description: "This password reset link is invalid or has expired.",
-              variant: "destructive",
-            });
-            setIsValidLink(false);
-          }
+        // Wait a moment for Supabase to process the auth callback
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Check for active recovery session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('🔐 Session check:', { 
+          hasSession: !!session, 
+          sessionError,
+          type,
+          userEmail: session?.user?.email 
+        });
+        
+        if (session) {
+          // Valid recovery session found
+          setIsValidLink(true);
+          toast({
+            title: "Ready to Reset",
+            description: "Please enter your new password below.",
+          });
         } else {
-          // Not a recovery link
+          // No session - link is invalid or expired
+          toast({
+            title: "Invalid Link",
+            description: "This password reset link is invalid or has expired.",
+            variant: "destructive",
+          });
           setIsValidLink(false);
         }
       } catch (error) {
