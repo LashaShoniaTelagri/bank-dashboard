@@ -118,7 +118,8 @@ Agricultural Finance Management System
 If you didn't request this password reset, you can safely ignore this email.
   `;
 
-  // Return SendGrid v3 API format
+  // Return SendGrid v3 API format with click tracking DISABLED
+  // Click tracking must be disabled to preserve Supabase auth tokens in the URL
   return {
     personalizations: [{
       to: [{ email: userEmail }],
@@ -137,7 +138,16 @@ If you didn't request this password reset, you can safely ignore this email.
         type: "text/html",
         value: htmlContent
       }
-    ]
+    ],
+    tracking_settings: {
+      click_tracking: {
+        enable: false,
+        enable_text: false
+      },
+      open_tracking: {
+        enable: false
+      }
+    }
   };
 }
 

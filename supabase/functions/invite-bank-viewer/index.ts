@@ -108,7 +108,8 @@ TelAgri Bank Dashboard
 Agricultural Finance Management System
     `;
 
-  // Return correct SendGrid v3 API format
+  // Return correct SendGrid v3 API format with click tracking DISABLED
+  // Click tracking must be disabled to preserve Supabase auth tokens in the URL
   return {
     personalizations: [{
       to: [{ email: userEmail }],
@@ -127,7 +128,16 @@ Agricultural Finance Management System
         type: "text/html",
         value: htmlContent
       }
-    ]
+    ],
+    tracking_settings: {
+      click_tracking: {
+        enable: false,
+        enable_text: false
+      },
+      open_tracking: {
+        enable: false
+      }
+    }
   };
 }
 
