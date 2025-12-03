@@ -728,6 +728,14 @@ const Auth = () => {
                       transition-all duration-200"
                   />
                 </div>
+                <div className="flex justify-end">
+                  <a 
+                    href="/forgot-password" 
+                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline transition-colors"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
                 <Button 
                   type="submit" 
                   className="w-full h-12 text-base 

@@ -9,6 +9,8 @@ import { Analytics } from "@/components/Analytics";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/AdminDashboard";
 import BankDashboard from "./pages/BankDashboard";
 import { SpecialistDashboard } from "./pages/SpecialistDashboard";
@@ -47,6 +49,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Auth />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/banks" element={<AdminDashboard />} />

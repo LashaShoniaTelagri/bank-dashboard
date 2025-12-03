@@ -82,18 +82,25 @@ Deno.serve(async (req) => {
 
     // For specialists, verify they have access to this farmer's files
     if (profile.role === 'specialist') {
-      // Extract farmer ID from file path
+      // Extract farmer ID and phase from file path
       let farmerId: string | null = null
+      let filePhase: number | null = null
       
       // Handle both path formats
       if (filePath.startsWith('farmer-data/')) {
         // Format: farmer-data/{farmer-id}/{phase}/{filename}
         const pathParts = filePath.split('/')
-        if (pathParts.length >= 2) {
+        if (pathParts.length >= 3) {
           farmerId = pathParts[1]
+          // Try to extract phase from path
+          const phaseStr = pathParts[2]
+          if (phaseStr && !isNaN(parseInt(phaseStr))) {
+            filePhase = parseInt(phaseStr)
+          }
         }
       } else if (filePath.startsWith('farmer/')) {
         // Format: farmer/{farmer-id}/{document-type}/{filename}
+        // For general farmer documents, no specific phase required
         const pathParts = filePath.split('/')
         if (pathParts.length >= 2) {
           farmerId = pathParts[1]
@@ -111,16 +118,43 @@ Deno.serve(async (req) => {
       }
 
       // Check if specialist is assigned to this farmer
-      const { data: assignment } = await supabase
+      // Filter by status (exclude cancelled assignments) and by phase if specified
+      const assignmentQuery = supabase
         .from('specialist_assignments')
-        .select('id')
+        .select('id, phase, status')
         .eq('specialist_id', user.id)
         .eq('farmer_id', farmerId)
-        .single()
+        .in('status', ['pending', 'in_progress', 'completed'])
 
-      if (!assignment) {
+      // If file has a specific phase, check that the specialist is assigned to that phase
+      if (filePhase !== null) {
+        assignmentQuery.eq('phase', filePhase)
+      }
+
+      const { data: assignments, error: assignmentError } = await assignmentQuery
+
+      if (assignmentError) {
+        console.error('Assignment query error:', assignmentError)
         return new Response(
-          JSON.stringify({ error: 'Access denied: Not assigned to this farmer' }),
+          JSON.stringify({ error: 'Failed to verify assignment' }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+
+      if (!assignments || assignments.length === 0) {
+        const phaseMsg = filePhase ? ` for phase ${filePhase}` : ''
+        return new Response(
+          JSON.stringify({ 
+            error: `Access denied: Not assigned to this farmer${phaseMsg}`,
+            details: {
+              farmerId,
+              phase: filePhase,
+              specialistId: user.id
+            }
+          }),
           { 
             status: 403, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
