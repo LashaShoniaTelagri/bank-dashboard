@@ -9,8 +9,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Edit, Trash2, Upload, Eye, FileText, User, MoreVertical, Brain, Users } from "lucide-react";
+import { Edit, Trash2, Upload, Eye, FileText, User, MoreVertical, Brain, Users, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,8 +71,6 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     open: boolean; 
     farmerId?: string; 
     farmerName?: string; 
-    editMode?: boolean; 
-    deleteMode?: boolean;
     phaseData?: { 
       phase: number; 
       issue_date: string; 
@@ -78,7 +78,14 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
       file_path: string; 
     } 
   }>({ open: false });
-  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; type?: 'farmer' | 'f100'; id?: string; title?: string; description?: string }>({ open: false });
+  const [confirmDialog, setConfirmDialog] = useState<{ 
+    open: boolean; 
+    type?: 'farmer' | 'f100' | 'onepager'; 
+    id?: string; 
+    title?: string; 
+    description?: string;
+    f100Data?: { phase: number; file_path: string };
+  }>({ open: false });
   
   // FileViewer state for F-100 reports
   const [fileViewerOpen, setFileViewerOpen] = useState(false);
@@ -162,6 +169,82 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     onError: (error) => {
       toast({
         title: "Error deleting farmer",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting F100 reports
+  const deleteF100Mutation = useMutation({
+    mutationFn: async ({ farmerId, phase, filePath }: { farmerId: string; phase: number; filePath: string }) => {
+      // Delete the database record first
+      const { error: dbError } = await supabase
+        .from('f100')
+        .delete()
+        .eq('farmer_id', farmerId)
+        .eq('phase', phase);
+      
+      if (dbError) throw dbError;
+
+      // Then delete the file from storage
+      if (filePath) {
+        const { error: storageError } = await supabase.storage
+          .from('f100')
+          .remove([filePath]);
+        
+        if (storageError) {
+          console.warn('Storage deletion warning:', storageError);
+          // Don't throw here - the DB record is already deleted
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['farmers'] });
+      queryClient.invalidateQueries({ queryKey: ['f100'] });
+      toast({ 
+        title: "F-100 Report deleted successfully",
+        variant: "success"
+      });
+      setConfirmDialog({ open: false });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error deleting F-100 report",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting One Pager summaries
+  const deleteOnePagerMutation = useMutation({
+    mutationFn: async ({ farmerId, phase }: { farmerId: string; phase: number }) => {
+      // Update the farmer_phases entry to clear the one_pager_summary
+      const { error } = await supabase
+        .from('farmer_phases')
+        .update({ 
+          one_pager_summary: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phase);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['farmers'] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phases'] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase'] });
+      toast({ 
+        title: "One Pager deleted successfully",
+        variant: "success"
+      });
+      setConfirmDialog({ open: false });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error deleting One Pager",
         description: error.message,
         variant: "destructive",
       });
@@ -273,8 +356,19 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   };
 
   const handleConfirmDelete = () => {
-    if (confirmDialog.id && confirmDialog.type === 'farmer') {
+    if (confirmDialog.type === 'farmer' && confirmDialog.id) {
       deleteFarmerMutation.mutate(confirmDialog.id);
+    } else if (confirmDialog.type === 'f100' && confirmDialog.id && confirmDialog.f100Data) {
+      deleteF100Mutation.mutate({
+        farmerId: confirmDialog.id,
+        phase: confirmDialog.f100Data.phase,
+        filePath: confirmDialog.f100Data.file_path,
+      });
+    } else if (confirmDialog.type === 'onepager' && confirmDialog.id && confirmDialog.f100Data) {
+      deleteOnePagerMutation.mutate({
+        farmerId: confirmDialog.id,
+        phase: confirmDialog.f100Data.phase,
+      });
     }
   };
 
@@ -369,12 +463,13 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                       const phaseScore = farmer.phases[phase];
                       const phaseData = farmer.latest[phase.toString()];
                       const scoreColors = getPhaseScoreColors(phaseScore);
+                      const hasOnePager = farmer.onePagerSummaries[phase];
                       
                       return (
                         <td key={phase} className={`p-2 text-center border-r relative ${scoreColors.bg}`}>
                           <div className="flex flex-col items-center justify-center space-y-1 min-h-[100px]">
-                            {/* Admin-only dropdown menu - positioned at top-right of cell */}
-                            {isAdmin && phaseData && (
+                            {/* Admin-only dropdown menu - always show for all phases */}
+                            {isAdmin && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
@@ -386,47 +481,97 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                                     <MoreVertical className="h-3 w-3 text-slate-600 dark:text-slate-400" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
-                                  <DropdownMenuItem
-                                    onClick={() => setF100Modal({
-                                      open: true,
-                                      farmerId: farmer.farmer_id,
-                                      farmerName: farmer.name,
-                                      editMode: true,
-                                      deleteMode: false,
-                                      phaseData: {
-                                        phase: phase,
-                                        issue_date: phaseData.issue_date,
-                                        score: phaseData.score,
-                                        file_path: phaseData.file_path
-                                      }
-                                    })}
-                                    className="cursor-pointer"
-                                  >
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit F-100 Report
-                                  </DropdownMenuItem>
+                                <DropdownMenuContent align="end" className="w-52">
+                                  {/* F-100 Report Section - Only show if F-100 exists */}
+                                  {phaseData && (
+                                    <>
+                                      <DropdownMenuLabel className="text-xs text-muted-foreground">F-100 Report</DropdownMenuLabel>
+                                      <DropdownMenuItem
+                                        onClick={() => setF100Modal({
+                                          open: true,
+                                          farmerId: farmer.farmer_id,
+                                          farmerName: farmer.name,
+                                          phaseData: {
+                                            phase: phase,
+                                            issue_date: phaseData.issue_date,
+                                            score: phaseData.score,
+                                            file_path: phaseData.file_path
+                                          }
+                                        })}
+                                        className="cursor-pointer"
+                                      >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        View F-100 Report
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setConfirmDialog({
+                                            open: true,
+                                            type: 'f100',
+                                            id: farmer.farmer_id,
+                                            title: 'Delete F-100 Report',
+                                            description: `Are you sure you want to delete the Phase ${phase} F-100 report for "${farmer.name}"? This action cannot be undone.`,
+                                            f100Data: {
+                                              phase: phase,
+                                              file_path: phaseData.file_path
+                                            }
+                                          });
+                                        }}
+                                        className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete F-100 Report
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  )}
+                                  
+                                  {/* One Pager Section */}
+                                  <DropdownMenuLabel className="text-xs text-muted-foreground">One Pager</DropdownMenuLabel>
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      setF100Modal({
-                                        open: true,
-                                        farmerId: farmer.farmer_id,
+                                      setOnePagerModal({ 
+                                        open: true, 
+                                        farmerId: farmer.farmer_id, 
                                         farmerName: farmer.name,
-                                        editMode: false,
-                                        deleteMode: true,
-                                        phaseData: {
-                                          phase: phase,
-                                          issue_date: phaseData.issue_date,
-                                          score: phaseData.score,
-                                          file_path: phaseData.file_path
-                                        }
+                                        phaseNumber: phase
                                       });
                                     }}
-                                    className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    className="cursor-pointer"
                                   >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete F-100 Report
+                                    {hasOnePager ? (
+                                      <>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit One Pager
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add One Pager
+                                      </>
+                                    )}
                                   </DropdownMenuItem>
+                                  {hasOnePager && (
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setConfirmDialog({
+                                          open: true,
+                                          type: 'onepager',
+                                          id: farmer.farmer_id,
+                                          title: 'Delete One Pager',
+                                          description: `Are you sure you want to delete the Phase ${phase} One Pager for "${farmer.name}"? This action cannot be undone.`,
+                                          f100Data: {
+                                            phase: phase,
+                                            file_path: ''
+                                          }
+                                        });
+                                      }}
+                                      className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete One Pager
+                                    </DropdownMenuItem>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
@@ -551,10 +696,7 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         onClose={() => setF100Modal({ open: false })}
         farmerId={f100Modal.farmerId || ''}
         farmerName={f100Modal.farmerName || ''}
-        editMode={f100Modal.editMode}
-        deleteMode={f100Modal.deleteMode}
-        isAdmin={isAdmin}
-        phaseData={f100Modal.phaseData}
+        phaseNumber={f100Modal.phaseData?.phase || 1}
       />
 
       <ConfirmDialog

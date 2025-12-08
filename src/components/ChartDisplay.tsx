@@ -111,6 +111,14 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
   const [isExporting, setIsExporting] = useState(false);
   const chartsContainerRef = useRef<HTMLDivElement>(null);
   
+  // Label tooltip state for truncated axis labels
+  const [labelTooltip, setLabelTooltip] = useState<{
+    visible: boolean;
+    text: string;
+    x: number;
+    y: number;
+  }>({ visible: false, text: '', x: 0, y: 0 });
+  
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -327,7 +335,21 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
 
   const renderChart = (chart: ChartTemplate, isFullscreen: boolean = false) => {
     const { chart_type, chart_data, name, annotation } = chart;
-    const { data, dataKeys = ['value'], xAxisKey = 'name', yAxisKey = 'value', seriesColors = {}, dataPointColors = {} } = chart_data;
+    const { data, dataKeys = ['value'], xAxisKey = 'name', yAxisKey = 'value', seriesColors = {}, dataPointColors = {}, minScore, maxScore } = chart_data;
+    
+    // CROSS-45: Use configured min/max scores or defaults
+    const yAxisMin = minScore ?? 0;
+    const yAxisMax = maxScore ?? 10;
+    
+    // CROSS-51: Filter out null values for charts that don't support them, or handle them gracefully
+    // For pie/donut charts, we'll filter out null values
+    // For other charts, we'll keep them but they won't render (which is fine)
+    const processedData = chart_type === 'pie' || chart_type === 'donut' 
+      ? data.filter(point => {
+          const value = point[yAxisKey];
+          return value !== null && value !== undefined && value !== '';
+        })
+      : data;
 
     const brandColors = getChartColorArray(isDark); // Use hex colors for better compatibility
     const chartConfig = dataKeys.reduce((acc, key, index) => {
@@ -342,30 +364,39 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
       return acc;
     }, {} as Record<string, { label: string; color: string }>);
 
-    // Responsive sizing based on fullscreen mode
-    const chartHeight = isFullscreen ? 600 : 300;
-    const outerRadius = isFullscreen ? 180 : 100;
-    const innerRadius = isFullscreen ? 110 : 60;
-    const fontSize = isFullscreen ? 16 : 12;
-    const strokeWidth = isFullscreen ? 3 : 2;
-
-    // Base margins for charts
-    const baseMargin = isFullscreen
-      ? { top: 40, right: 40, left: 40, bottom: 40 }
-      : { top: 10, right: 10, left: 10, bottom: 15 };
+    // Responsive sizing based on fullscreen mode and screen size
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const isTablet = typeof window !== 'undefined' && window.innerWidth >= 640 && window.innerWidth < 1024;
     
-    // Extra top margin for charts with labels to prevent cutoff
+    const chartHeight = isFullscreen ? 600 : (isMobile ? 350 : isTablet ? 400 : 350);
+    const outerRadius = isFullscreen ? 180 : (isMobile ? 80 : 100);
+    const innerRadius = isFullscreen ? 110 : (isMobile ? 50 : 60);
+    // CROSS-48: Improved font sizing for better readability - responsive to screen size
+    const fontSize = isFullscreen ? 16 : (isMobile ? 11 : isTablet ? 12 : 13);
+    const labelFontSize = isFullscreen ? 14 : (isMobile ? 10 : isTablet ? 11 : 12);
+    const strokeWidth = isFullscreen ? 3 : 2;
+    
+    // Hide labels on very small screens to prevent overlap
+    const showLabels = !isMobile || isFullscreen;
+
+    // Optimized margins for maximum space utilization while ensuring labels are fully visible
+    // Chart cards: generous bottom margin for X-axis labels and legend, fullscreen: comfortable margins
+    const baseMargin = isFullscreen
+      ? { top: 40, right: 40, left: 40, bottom: 60 }
+      : { top: 5, right: 5, left: 5, bottom: 80 }; // More bottom margin for X-axis labels + legend
+    
+    // Extra top margin for charts with value labels on bars
     const marginWithLabels = isFullscreen
-      ? { top: 60, right: 40, left: 40, bottom: 40 }
-      : { top: 30, right: 10, left: 10, bottom: 15 };
+      ? { top: 60, right: 40, left: 40, bottom: 60 }
+      : { top: 15, right: 5, left: 5, bottom: 80 }; // More bottom margin for X-axis labels + legend
     
     // Extra right margin for horizontal bar charts with labels
     const marginWithRightLabels = isFullscreen
-      ? { top: 40, right: 60, left: 40, bottom: 40 }
-      : { top: 10, right: 40, left: 10, bottom: 15 };
+      ? { top: 40, right: 60, left: 40, bottom: 60 }
+      : { top: 5, right: 50, left: 5, bottom: 80 }; // More bottom margin for legend
 
     const commonProps = {
-      data,
+      data: processedData, // CROSS-51: Use processed data
       margin: baseMargin,
       minHeight: isFullscreen ? 500 : 250, // Ensure minimum height to prevent 0-height errors
     };
@@ -377,32 +408,71 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             config={chartConfig} 
             className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
           >
-            <BarChart data={data} margin={marginWithLabels} height={chartHeight}>
+            <BarChart data={processedData} margin={marginWithLabels} height={chartHeight}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis 
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
-                style={{ fontSize: `${fontSize}px` }}
+                style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
+                angle={0}
+                textAnchor="middle"
+                height={isFullscreen ? undefined : 50}
+                interval={0}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  const fullText = String(payload.value);
+                  const maxLen = isFullscreen ? 100 : 16;
+                  const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
+                  const isTruncated = fullText.length > maxLen;
+                  return (
+                    <g 
+                      transform={`translate(${x},${y})`}
+                      onMouseEnter={(e) => {
+                        if (isTruncated) {
+                          const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                          setLabelTooltip({ visible: true, text: fullText, x: rect.left + rect.width / 2, y: rect.top - 8 });
+                        }
+                      }}
+                      onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
+                    >
+                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                        {truncated}
+                      </text>
+                    </g>
+                  );
+                }}
               />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
+                domain={[yAxisMin, yAxisMax]}
+                width={isMobile ? 40 : isTablet ? 50 : 60}
+                tick={{ fontSize: fontSize }}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend wrapperStyle={{ fontSize: `${fontSize}px` }} />
+              <Legend 
+                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                iconSize={isMobile ? 12 : 14}
+                wrapperClass={isMobile ? "!text-xs" : ""}
+              />
               {dataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
                   <Bar key={key} dataKey={key} fill={color}>
-                    <LabelList 
-                      dataKey={key} 
-                      position="top" 
-                      style={{ 
-                        fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
-                        fontSize: `${fontSize}px`,
-                        fontWeight: 500
-                      }} 
-                    />
+                    {showLabels && (
+                      <LabelList 
+                        dataKey={key} 
+                        position="top" 
+                        style={{ 
+                          fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
+                          fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
+                          fontWeight: 700, // Increased font weight for better readability
+                          textShadow: isDark 
+                            ? '0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5)' 
+                            : '0 1px 3px rgba(255,255,255,0.9), 0 0 2px rgba(255,255,255,0.7)' // Stronger shadow for visibility
+                        }} 
+                      />
+                    )}
                   </Bar>
                 );
               })}
@@ -416,34 +486,71 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             config={chartConfig}
             className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
           >
-            <BarChart data={data} margin={marginWithRightLabels} layout="vertical" height={chartHeight}>
+            <BarChart data={processedData} margin={marginWithRightLabels} layout="vertical" height={chartHeight}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis 
                 type="number" 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
+                domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores for horizontal bar charts
+                width={isFullscreen ? 60 : 50} // Adequate width for X-axis labels
+                tick={{ fontSize: fontSize }}
               />
               <YAxis 
                 dataKey={xAxisKey} 
                 type="category" 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
-                style={{ fontSize: `${fontSize}px` }}
+                style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
+                angle={0}
+                width={isFullscreen ? undefined : 160}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  const fullText = String(payload.value);
+                  const maxLen = isFullscreen ? 100 : 25;
+                  const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
+                  const isTruncated = fullText.length > maxLen;
+                  return (
+                    <g 
+                      transform={`translate(${x},${y})`}
+                      onMouseEnter={(e) => {
+                        if (isTruncated) {
+                          const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                          setLabelTooltip({ visible: true, text: fullText, x: rect.left + rect.width / 2, y: rect.top - 8 });
+                        }
+                      }}
+                      onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
+                    >
+                      <text x={-8} y={0} dy={4} textAnchor="end" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                        {truncated}
+                      </text>
+                    </g>
+                  );
+                }}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend wrapperStyle={{ fontSize: `${fontSize}px` }} />
+              <Legend 
+                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                iconSize={isMobile ? 12 : 14}
+                wrapperClass={isMobile ? "!text-xs" : ""}
+              />
               {dataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
                   <Bar key={key} dataKey={key} fill={color}>
-                    <LabelList 
-                      dataKey={key} 
-                      position="right" 
-                      style={{ 
-                        fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
-                        fontSize: `${fontSize}px`,
-                        fontWeight: 500
-                      }} 
-                    />
+                    {showLabels && (
+                      <LabelList 
+                        dataKey={key} 
+                        position="right" 
+                        style={{ 
+                          fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
+                          fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
+                          fontWeight: 700, // Increased font weight for better readability
+                          textShadow: isDark 
+                            ? '0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5)' 
+                            : '0 1px 3px rgba(255,255,255,0.9), 0 0 2px rgba(255,255,255,0.7)' // Stronger shadow for visibility
+                        }} 
+                      />
+                    )}
                   </Bar>
                 );
               })}
@@ -457,19 +564,53 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             config={chartConfig}
             className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
           >
-            <LineChart data={data} margin={marginWithLabels} height={chartHeight}>
+            <LineChart data={processedData} margin={marginWithLabels} height={chartHeight}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis 
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
-                style={{ fontSize: `${fontSize}px` }}
+                style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
+                angle={0}
+                textAnchor="middle"
+                height={isFullscreen ? undefined : 50}
+                interval={0}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  const fullText = String(payload.value);
+                  const maxLen = isFullscreen ? 100 : 16;
+                  const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
+                  const isTruncated = fullText.length > maxLen;
+                  return (
+                    <g 
+                      transform={`translate(${x},${y})`}
+                      onMouseEnter={(e) => {
+                        if (isTruncated) {
+                          const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                          setLabelTooltip({ visible: true, text: fullText, x: rect.left + rect.width / 2, y: rect.top - 8 });
+                        }
+                      }}
+                      onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
+                    >
+                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                        {truncated}
+                      </text>
+                    </g>
+                  );
+                }}
               />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
+                domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores
+                width={isMobile ? 40 : isTablet ? 50 : 60} // Responsive width for Y-axis labels
+                tick={{ fontSize: fontSize }}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend wrapperStyle={{ fontSize: `${fontSize}px` }} />
+              <Legend 
+                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                iconSize={isMobile ? 12 : 14}
+                wrapperClass={isMobile ? "!text-xs" : ""}
+              />
               {dataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
@@ -482,15 +623,20 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     dot={{ r: isFullscreen ? 5 : 3 }}
                     activeDot={{ r: isFullscreen ? 8 : 5 }}
                   >
-                    <LabelList 
-                      dataKey={key} 
-                      position="top" 
-                      style={{ 
-                        fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
-                        fontSize: `${fontSize}px`,
-                        fontWeight: 500
-                      }} 
-                    />
+                    {showLabels && (
+                      <LabelList 
+                        dataKey={key} 
+                        position="top" 
+                        style={{ 
+                          fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
+                          fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
+                          fontWeight: 700, // Increased font weight for better readability
+                          textShadow: isDark 
+                            ? '0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5)' 
+                            : '0 1px 3px rgba(255,255,255,0.9), 0 0 2px rgba(255,255,255,0.7)' // Stronger shadow for visibility
+                        }} 
+                      />
+                    )}
                   </Line>
                 );
               })}
@@ -504,19 +650,53 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             config={chartConfig}
             className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
           >
-            <AreaChart data={data} margin={marginWithLabels} height={chartHeight}>
+            <AreaChart data={processedData} margin={marginWithLabels} height={chartHeight}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis 
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
-                style={{ fontSize: `${fontSize}px` }}
+                style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
+                angle={0}
+                textAnchor="middle"
+                height={isFullscreen ? undefined : 50}
+                interval={0}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  const fullText = String(payload.value);
+                  const maxLen = isFullscreen ? 100 : 16;
+                  const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
+                  const isTruncated = fullText.length > maxLen;
+                  return (
+                    <g 
+                      transform={`translate(${x},${y})`}
+                      onMouseEnter={(e) => {
+                        if (isTruncated) {
+                          const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                          setLabelTooltip({ visible: true, text: fullText, x: rect.left + rect.width / 2, y: rect.top - 8 });
+                        }
+                      }}
+                      onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
+                    >
+                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                        {truncated}
+                      </text>
+                    </g>
+                  );
+                }}
               />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
+                domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores
+                width={isMobile ? 40 : isTablet ? 50 : 60} // Responsive width for Y-axis labels
+                tick={{ fontSize: fontSize }}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend wrapperStyle={{ fontSize: `${fontSize}px` }} />
+              <Legend 
+                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                iconSize={isMobile ? 12 : 14}
+                wrapperClass={isMobile ? "!text-xs" : ""}
+              />
               {dataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
@@ -528,15 +708,20 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     fill={color}
                     fillOpacity={0.6}
                   >
-                    <LabelList 
-                      dataKey={key} 
-                      position="top" 
-                      style={{ 
-                        fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
-                        fontSize: `${fontSize}px`,
-                        fontWeight: 500
-                      }} 
-                    />
+                    {showLabels && (
+                      <LabelList 
+                        dataKey={key} 
+                        position="top" 
+                        style={{ 
+                          fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
+                          fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
+                          fontWeight: 700, // Increased font weight for better readability
+                          textShadow: isDark 
+                            ? '0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5)' 
+                            : '0 1px 3px rgba(255,255,255,0.9), 0 0 2px rgba(255,255,255,0.7)' // Stronger shadow for visibility
+                        }} 
+                      />
+                    )}
                   </Area>
                 );
               })}
@@ -552,21 +737,23 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
           >
             <PieChart height={chartHeight}>
               <Pie
-                data={data}
+                data={processedData}
                 cx="50%"
                 cy="50%"
-                labelLine={false}
-                label={({ name, value, percent }) => {
+                labelLine={showLabels}
+                label={showLabels ? ({ name, value, percent }) => {
+                  // CROSS-48: Improved label readability with better font size
                   // Show name and value for better clarity, especially for duplicate names
-                  const displayName = data.filter(p => p.name === name).length > 1
+                  const displayName = processedData.filter(p => p.name === name).length > 1
                     ? `${name} (${value})`
                     : name;
                   return `${displayName}: ${(percent * 100).toFixed(1)}%`;
-                }}
+                } : false} // Hide labels on mobile, show tooltip instead
+                labelLine={showLabels} // Hide label lines on mobile
                 outerRadius={outerRadius}
                 fill="#8884d8"
                 dataKey={yAxisKey}
-                style={{ fontSize: `${fontSize}px` }}
+                style={{ fontSize: `${labelFontSize}px`, fontWeight: 600 }} // CROSS-48: Better readability
               >
                 {data.map((entry, index) => {
                   // For pie charts, use unique color per data point (by index if same name)
@@ -586,7 +773,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 content={<ChartTooltipContent />}
                 formatter={(value: number) => {
                   // Show both value and percentage in tooltip
-                  const total = data.reduce((sum, p) => sum + ((p[yAxisKey] as number) || 0), 0);
+                  const total = processedData.reduce((sum, p) => {
+                    const val = p[yAxisKey];
+                    return sum + ((val !== null && val !== undefined && val !== '') ? (val as number) : 0);
+                  }, 0);
                   const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                   return [`${value} (${percent}%)`, yAxisKey];
                 }}
@@ -603,13 +793,13 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
           >
             <PieChart height={chartHeight}>
               <Pie
-                data={data}
+                data={processedData}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
                 label={({ name, value, percent }) => {
                   // Show name and value for better clarity, especially for duplicate names
-                  const displayName = data.filter(p => p.name === name).length > 1 
+                  const displayName = processedData.filter(p => p.name === name).length > 1 
                     ? `${name} (${value})` 
                     : name;
                   return `${displayName}: ${(percent * 100).toFixed(1)}%`;
@@ -638,7 +828,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 content={<ChartTooltipContent />}
                 formatter={(value: number) => {
                   // Show both value and percentage in tooltip
-                  const total = data.reduce((sum, p) => sum + ((p[yAxisKey] as number) || 0), 0);
+                  const total = processedData.reduce((sum, p) => {
+                    const val = p[yAxisKey];
+                    return sum + ((val !== null && val !== undefined && val !== '') ? (val as number) : 0);
+                  }, 0);
                   const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                   return [`${value} (${percent}%)`, yAxisKey];
                 }}
@@ -649,7 +842,11 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
 
       case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
-        const gaugeValue = data.length > 0 ? (data[0][yAxisKey] as number || 0) : 0;
+        // CROSS-51: Handle null values for gauge
+        const firstDataPoint = processedData.length > 0 ? processedData[0] : null;
+        const gaugeValue = firstDataPoint && firstDataPoint[yAxisKey] !== null && firstDataPoint[yAxisKey] !== undefined 
+          ? (firstDataPoint[yAxisKey] as number || 0) 
+          : 0;
         const maxValue = 10; // Default max, could be configurable
         const percentage = Math.min(Math.max((gaugeValue / maxValue) * 100, 0), 100);
         // Needle angle: starts at -90 (pointing left), rotates clockwise to 90 (pointing right)
@@ -757,14 +954,48 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               <XAxis 
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
-                style={{ fontSize: `${fontSize}px` }}
+                style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
+                angle={0}
+                textAnchor="middle"
+                height={isFullscreen ? undefined : 50}
+                interval={0}
+                tick={(props: any) => {
+                  const { x, y, payload } = props;
+                  const fullText = String(payload.value);
+                  const maxLen = isFullscreen ? 100 : 16;
+                  const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
+                  const isTruncated = fullText.length > maxLen;
+                  return (
+                    <g 
+                      transform={`translate(${x},${y})`}
+                      onMouseEnter={(e) => {
+                        if (isTruncated) {
+                          const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                          setLabelTooltip({ visible: true, text: fullText, x: rect.left + rect.width / 2, y: rect.top - 8 });
+                        }
+                      }}
+                      onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
+                    >
+                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                        {truncated}
+                      </text>
+                    </g>
+                  );
+                }}
               />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
+                domain={[yAxisMin, yAxisMax]}
+                width={isFullscreen ? 60 : 50}
+                tick={{ fontSize: fontSize }}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend wrapperStyle={{ fontSize: `${fontSize}px` }} />
+              <Legend 
+                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                iconSize={isMobile ? 12 : 14}
+                wrapperClass={isMobile ? "!text-xs" : ""}
+              />
               {dataKeys.map((key, index) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[index];
                 return (
@@ -785,14 +1016,20 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             config={chartConfig}
             className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
           >
-            <RadarChart data={data} height={chartHeight}>
+            <RadarChart data={processedData} height={chartHeight}>
               <PolarGrid stroke={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'} />
               <PolarAngleAxis 
                 dataKey={xAxisKey} 
                 tick={{ 
-                  fill: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
-                  fontSize: fontSize
-                }} 
+                  fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)', // Better contrast
+                  fontSize: labelFontSize,
+                  fontWeight: 500
+                }}
+                // Truncate long labels for radar charts
+                tickFormatter={(value) => {
+                  const str = String(value);
+                  return str.length > 12 ? str.substring(0, 12) + '...' : str;
+                }}
               />
               <PolarRadiusAxis 
                 tick={{ 
@@ -801,7 +1038,11 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 }} 
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend wrapperStyle={{ fontSize: `${fontSize}px` }} />
+              <Legend 
+                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                iconSize={isMobile ? 12 : 14}
+                wrapperClass={isMobile ? "!text-xs" : ""}
+              />
               {dataKeys.map((key, index) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[index];
                 return (
@@ -825,7 +1066,26 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      {/* Floating Label Tooltip */}
+      {labelTooltip.visible && (
+        <div
+          className="fixed z-[9999] px-3 py-2 text-sm font-medium rounded-md shadow-lg pointer-events-none"
+          style={{
+            left: labelTooltip.x,
+            top: labelTooltip.y,
+            transform: 'translate(-50%, -100%)',
+            backgroundColor: isDark ? 'hsl(var(--card))' : 'hsl(var(--card))',
+            border: '1px solid hsl(var(--border))',
+            color: 'hsl(var(--foreground))',
+            maxWidth: '300px',
+            wordWrap: 'break-word',
+          }}
+        >
+          {labelTooltip.text}
+        </div>
+      )}
+
       {/* Export All Charts Button */}
       {charts.length > 0 && (
         <div className="flex items-center justify-between">
@@ -847,7 +1107,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
         >
           <div 
             ref={chartsContainerRef}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-auto"
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4 auto-rows-auto"
           >
             {charts.map((chart) => (
               <SortableChartCard

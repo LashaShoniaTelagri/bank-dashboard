@@ -73,8 +73,10 @@ export const ChartBuilderPage = () => {
   const [annotation, setAnnotation] = useState('');
   const [farmerId, setFarmerId] = useState<string | null>(farmerIdFromUrl);
   const [phaseNumber, setPhaseNumber] = useState<number | null>(null);
+  const [minScore, setMinScore] = useState<number>(0); // CROSS-45: Default min score
+  const [maxScore, setMaxScore] = useState<number>(10); // CROSS-45: Default max score
   const [dataPoints, setDataPoints] = useState<ChartDataPoint[]>([
-    { name: '', value: 0 }
+    { name: '', value: null } // CROSS-51: Allow null values
   ]);
   const [dataKeys, setDataKeys] = useState<string[]>(['value']);
   const [seriesColors, setSeriesColors] = useState<Record<string, string>>({});
@@ -82,6 +84,31 @@ export const ChartBuilderPage = () => {
   const [editingKeyIndex, setEditingKeyIndex] = useState<number | null>(null);
   const [editingKeyValue, setEditingKeyValue] = useState<string>('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}); // Track field-level errors: "pointIndex-key" => error message
+  
+  // Clear field errors when min/max scores change
+  useEffect(() => {
+    // Re-validate all data points when min/max changes
+    const newFieldErrors: Record<string, string> = {};
+    dataPoints.forEach((point, index) => {
+      dataKeys.forEach(key => {
+        if (key !== 'name') {
+          const value = point[key];
+          if (value !== null && value !== undefined && value !== '') {
+            const numValue = typeof value === 'number' ? value : parseFloat(value as string);
+            if (!isNaN(numValue)) {
+              if (numValue > maxScore) {
+                newFieldErrors[`${index}-${key}`] = `Value cannot exceed maximum score of ${maxScore}`;
+              } else if (numValue < minScore) {
+                newFieldErrors[`${index}-${key}`] = `Value cannot be less than minimum score of ${minScore}`;
+              }
+            }
+          }
+        }
+      });
+    });
+    setFieldErrors(newFieldErrors);
+  }, [minScore, maxScore, dataPoints, dataKeys]);
 
   // Fetch chart if editing
   const { data: existingChart, isLoading: loadingChart } = useQuery({
@@ -108,7 +135,10 @@ export const ChartBuilderPage = () => {
       setAnnotation(existingChart.annotation || '');
       setFarmerId((existingChart as any).farmer_id || null);
       setPhaseNumber((existingChart as any).phase_number || null);
-      setDataPoints(existingChart.chart_data.data || [{ name: '', value: 0 }]);
+      // CROSS-45: Load min/max scores from chart data, default to 0-10
+      setMinScore(existingChart.chart_data.minScore ?? 0);
+      setMaxScore(existingChart.chart_data.maxScore ?? 10);
+      setDataPoints(existingChart.chart_data.data || [{ name: '', value: null }]);
       const keys = existingChart.chart_data.dataKeys || ['value'];
       setDataKeys(keys);
       // Initialize colors from saved chart or use defaults
@@ -140,10 +170,10 @@ export const ChartBuilderPage = () => {
   }, [existingChart, isDark]);
 
   const addDataPoint = () => {
-    const newPoint: ChartDataPoint = { name: '', value: 0 };
+    const newPoint: ChartDataPoint = { name: '', value: null }; // CROSS-51: Default to null
     dataKeys.forEach(key => {
       if (key !== 'name') {
-        newPoint[key] = 0;
+        newPoint[key] = null; // CROSS-51: Default to null instead of 0
       }
     });
     setDataPoints([...dataPoints, newPoint]);
@@ -158,16 +188,58 @@ export const ChartBuilderPage = () => {
     }
   };
 
-  const updateDataPoint = (index: number, field: string, value: string | number) => {
+  const updateDataPoint = (index: number, field: string, value: string | number | null) => {
     const updated = [...dataPoints];
-    updated[index] = { ...updated[index], [field]: value };
+    const errorKey = `${index}-${field}`;
+    
+    // CROSS-51: Handle empty string as null for numeric fields
+    if (field !== 'name' && (value === '' || value === null)) {
+      updated[index] = { ...updated[index], [field]: null };
+      // Clear error when field is cleared
+      setFieldErrors(prev => {
+        const { [errorKey]: _, ...rest } = prev;
+        return rest;
+      });
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+      
+      // Validate against maxScore/minScore for numeric fields (only when value is a number)
+      if (field !== 'name' && value !== null && value !== undefined && value !== '') {
+        // Allow string values during editing, only validate when it's a number
+        if (typeof value === 'number') {
+          if (value > maxScore) {
+            setFieldErrors(prev => ({
+              ...prev,
+              [errorKey]: `Value cannot exceed maximum score of ${maxScore}`
+            }));
+          } else if (value < minScore) {
+            setFieldErrors(prev => ({
+              ...prev,
+              [errorKey]: `Value cannot be less than minimum score of ${minScore}`
+            }));
+          } else {
+            // Clear error if value is valid
+            setFieldErrors(prev => {
+              const { [errorKey]: _, ...rest } = prev;
+              return rest;
+            });
+          }
+        } else {
+          // String value during editing - clear errors, will validate on blur
+          setFieldErrors(prev => {
+            const { [errorKey]: _, ...rest } = prev;
+            return rest;
+          });
+        }
+      }
+    }
     setDataPoints(updated);
   };
 
   const addDataKey = () => {
     const newKey = `series${dataKeys.filter(k => k !== 'name').length + 1}`;
     setDataKeys([...dataKeys, newKey]);
-    setDataPoints(dataPoints.map(point => ({ ...point, [newKey]: 0 })));
+    setDataPoints(dataPoints.map(point => ({ ...point, [newKey]: null }))); // CROSS-51: Default to null instead of 0
     
     // Assign a unique default color to the new series
     const defaultColors = getChartColorArray(isDark);
@@ -250,16 +322,41 @@ export const ChartBuilderPage = () => {
       newErrors.push('At least one data point is required');
     }
 
+    // CROSS-45: Validate min/max scores
+    if (typeof minScore !== 'number' || isNaN(minScore)) {
+      newErrors.push('Minimum score must be a valid number');
+    }
+    if (typeof maxScore !== 'number' || isNaN(maxScore)) {
+      newErrors.push('Maximum score must be a valid number');
+    }
+    if (minScore >= maxScore) {
+      newErrors.push('Minimum score must be less than maximum score');
+    }
+
     dataPoints.forEach((point, index) => {
       if (!point.name || point.name.trim() === '') {
         newErrors.push(`Data point ${index + 1} must have a name`);
       }
       
+      // CROSS-51: Allow null/empty values - only validate if value is provided
       dataKeys.forEach(key => {
         if (key !== 'name') {
           const value = point[key];
-          if (typeof value !== 'number' || isNaN(value)) {
-            newErrors.push(`Data point ${index + 1}, ${key} must be a valid number`);
+          // Allow null/undefined (empty scores)
+          if (value !== null && value !== undefined && value !== '') {
+            // If a value is provided, it must be a valid number
+            if (typeof value !== 'number' || isNaN(value)) {
+              newErrors.push(`Data point ${index + 1}, ${key} must be a valid number or left empty`);
+            } else {
+              // Validate against maxScore
+              if (value > maxScore) {
+                newErrors.push(`Data point ${index + 1}, ${key} cannot exceed maximum score of ${maxScore}`);
+              }
+              // Validate against minScore
+              if (value < minScore) {
+                newErrors.push(`Data point ${index + 1}, ${key} cannot be less than minimum score of ${minScore}`);
+              }
+            }
           }
         }
       });
@@ -340,20 +437,52 @@ export const ChartBuilderPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check for field-level errors first
+    if (Object.keys(fieldErrors).length > 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix all errors before saving the chart.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!validateForm()) {
       return;
     }
+
+    // Convert string values to numbers before saving
+    const cleanedDataPoints = dataPoints.map(point => {
+      const cleanedPoint: ChartDataPoint = { name: point.name };
+      dataKeys.forEach(key => {
+        if (key !== 'name') {
+          const value = point[key];
+          if (value === null || value === undefined || value === '') {
+            cleanedPoint[key] = null;
+          } else if (typeof value === 'string') {
+            // Convert string to number for saving
+            const numValue = parseFloat(value);
+            cleanedPoint[key] = isNaN(numValue) ? null : numValue;
+          } else {
+            cleanedPoint[key] = value;
+          }
+        }
+      });
+      return cleanedPoint;
+    });
 
     const chartData: any = {
       name: name.trim(),
       chart_type: chartType,
       chart_data: {
-        data: dataPoints,
+        data: cleanedDataPoints, // Use cleaned data points with numbers
         xAxisKey: 'name',
         yAxisKey: dataKeys.find(k => k !== 'name') || 'value',
         dataKeys: dataKeys.filter(k => k !== 'name'),
         seriesColors: seriesColors, // Save custom series colors
         dataPointColors: dataPointColors, // Save custom data point colors
+        minScore: minScore, // CROSS-45: Save min/max scores
+        maxScore: maxScore,
       },
       annotation: annotation.trim() || undefined,
       is_active: true,
@@ -390,7 +519,18 @@ export const ChartBuilderPage = () => {
         dataKeys.forEach(key => {
           if (key !== 'name') {
             const value = point[key];
-            cleanPoint[key] = typeof value === 'number' && !isNaN(value) ? value : 0;
+            // CROSS-51: Preserve null values, handle string values during editing, convert to number for preview
+            if (value === null || value === undefined || value === '') {
+              cleanPoint[key] = null;
+            } else if (typeof value === 'string') {
+              // String value during editing - try to parse it
+              const numValue = parseFloat(value);
+              cleanPoint[key] = isNaN(numValue) ? null : numValue;
+            } else if (typeof value === 'number' && !isNaN(value)) {
+              cleanPoint[key] = value;
+            } else {
+              cleanPoint[key] = null; // Fallback for invalid values
+            }
           }
         });
         return cleanPoint;
@@ -446,13 +586,24 @@ export const ChartBuilderPage = () => {
     const brandColors = getChartColorArray(isDark); // Use hex colors for better compatibility
 
     switch (chartType) {
-      case 'bar':
+      case 'bar': {
+        // CROSS-51: Filter out null values for preview
+        const filteredPreviewData = previewData.filter(point => {
+          return dataKeys.filter(k => k !== 'name').some(key => {
+            const value = point[key];
+            return value !== null && value !== undefined && value !== '';
+          });
+        });
+        
         return (
           <ChartContainer config={chartConfig}>
-            <BarChart data={previewData} margin={marginWithLabels}>
+            <BarChart data={filteredPreviewData} margin={marginWithLabels}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
-              <YAxis stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <YAxis 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
+                domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+              />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
               {previewDataKeys.map((key) => {
@@ -474,13 +625,26 @@ export const ChartBuilderPage = () => {
             </BarChart>
           </ChartContainer>
         );
+      }
 
-      case 'bar-horizontal':
+      case 'bar-horizontal': {
+        // CROSS-51: Filter out null values for preview
+        const filteredPreviewData = previewData.filter(point => {
+          return dataKeys.filter(k => k !== 'name').some(key => {
+            const value = point[key];
+            return value !== null && value !== undefined && value !== '';
+          });
+        });
+        
         return (
           <ChartContainer config={chartConfig}>
-            <BarChart data={previewData} margin={marginWithRightLabels} layout="vertical">
+            <BarChart data={filteredPreviewData} margin={marginWithRightLabels} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-              <XAxis type="number" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <XAxis 
+                type="number" 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
+                domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores for horizontal bar charts
+              />
               <YAxis dataKey="name" type="category" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
@@ -503,14 +667,26 @@ export const ChartBuilderPage = () => {
             </BarChart>
           </ChartContainer>
         );
+      }
 
-      case 'line':
+      case 'line': {
+        // CROSS-51: Filter out null values for preview
+        const filteredPreviewData = previewData.filter(point => {
+          return dataKeys.filter(k => k !== 'name').some(key => {
+            const value = point[key];
+            return value !== null && value !== undefined && value !== '';
+          });
+        });
+        
         return (
           <ChartContainer config={chartConfig}>
-            <LineChart data={previewData} margin={marginWithLabels}>
+            <LineChart data={filteredPreviewData} margin={marginWithLabels}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
-              <YAxis stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <YAxis 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
+                domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+              />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
               {previewDataKeys.map((key) => {
@@ -538,14 +714,26 @@ export const ChartBuilderPage = () => {
             </LineChart>
           </ChartContainer>
         );
+      }
 
-      case 'area':
+      case 'area': {
+        // CROSS-51: Filter out null values for preview
+        const filteredPreviewData = previewData.filter(point => {
+          return dataKeys.filter(k => k !== 'name').some(key => {
+            const value = point[key];
+            return value !== null && value !== undefined && value !== '';
+          });
+        });
+        
         return (
           <ChartContainer config={chartConfig}>
-            <AreaChart data={previewData} margin={marginWithLabels}>
+            <AreaChart data={filteredPreviewData} margin={marginWithLabels}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
-              <YAxis stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <YAxis 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
+                domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+              />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
               {previewDataKeys.map((key) => {
@@ -574,20 +762,27 @@ export const ChartBuilderPage = () => {
             </AreaChart>
           </ChartContainer>
         );
+      }
 
       case 'pie': {
         const pieDataKey = previewDataKeys[0] || 'value';
+        // CROSS-51: Filter out null values for pie charts
+        const filteredPreviewData = previewData.filter(point => {
+          const value = point[pieDataKey];
+          return value !== null && value !== undefined && value !== '';
+        });
+        
         return (
           <ChartContainer config={chartConfig}>
             <PieChart>
               <Pie
-                data={previewData}
+                data={filteredPreviewData}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
                 label={({ name, value, percent }) => {
                   // Show name and value for better clarity, especially for duplicate names
-                  const displayName = previewData.filter(p => p.name === name).length > 1 
+                  const displayName = filteredPreviewData.filter(p => p.name === name).length > 1 
                     ? `${name} (${value})` 
                     : name;
                   return `${displayName}: ${(percent * 100).toFixed(1)}%`;
@@ -596,7 +791,7 @@ export const ChartBuilderPage = () => {
                 fill="#8884d8"
                 dataKey={pieDataKey}
               >
-                {previewData.map((entry, index) => {
+                {filteredPreviewData.map((entry, index) => {
                   // For pie charts, use unique color per data point (by index if same name)
                   // Priority: data point color (by name) > index-based color > series color > brand color
                   const uniqueKey = `${entry.name}_${index}`;
@@ -614,7 +809,10 @@ export const ChartBuilderPage = () => {
                 content={<ChartTooltipContent />}
                 formatter={(value: number, name: string, props: any) => {
                   // Show both value and percentage in tooltip
-                  const total = previewData.reduce((sum, p) => sum + ((p[pieDataKey] as number) || 0), 0);
+                  const total = filteredPreviewData.reduce((sum, p) => {
+                    const val = p[pieDataKey];
+                    return sum + ((val !== null && val !== undefined && val !== '') ? (val as number) : 0);
+                  }, 0);
                   const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                   return [`${value} (${percent}%)`, pieDataKey];
                 }}
@@ -626,17 +824,23 @@ export const ChartBuilderPage = () => {
 
       case 'donut': {
         const donutDataKey = previewDataKeys[0] || 'value';
+        // CROSS-51: Filter out null values for donut charts
+        const filteredPreviewData = previewData.filter(point => {
+          const value = point[donutDataKey];
+          return value !== null && value !== undefined && value !== '';
+        });
+        
         return (
           <ChartContainer config={chartConfig}>
             <PieChart>
               <Pie
-                data={previewData}
+                data={filteredPreviewData}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
                 label={({ name, value, percent }) => {
                   // Show name and value for better clarity, especially for duplicate names
-                  const displayName = previewData.filter(p => p.name === name).length > 1 
+                  const displayName = filteredPreviewData.filter(p => p.name === name).length > 1
                     ? `${name} (${value})` 
                     : name;
                   return `${displayName}: ${(percent * 100).toFixed(1)}%`;
@@ -646,7 +850,7 @@ export const ChartBuilderPage = () => {
                 fill="#8884d8"
                 dataKey={donutDataKey}
               >
-                {previewData.map((entry, index) => {
+                {filteredPreviewData.map((entry, index) => {
                   // For donut charts, use unique color per data point (by index if same name)
                   // Priority: data point color (by name) > index-based color > series color > brand color
                   const uniqueKey = `${entry.name}_${index}`;
@@ -664,7 +868,10 @@ export const ChartBuilderPage = () => {
                 content={<ChartTooltipContent />}
                 formatter={(value: number, name: string, props: any) => {
                   // Show both value and percentage in tooltip
-                  const total = previewData.reduce((sum, p) => sum + ((p[donutDataKey] as number) || 0), 0);
+                  const total = filteredPreviewData.reduce((sum, p) => {
+                    const val = p[donutDataKey];
+                    return sum + ((val !== null && val !== undefined && val !== '') ? (val as number) : 0);
+                  }, 0);
                   const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                   return [`${value} (${percent}%)`, donutDataKey];
                 }}
@@ -677,8 +884,12 @@ export const ChartBuilderPage = () => {
       case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
         const gaugeDataKey = previewDataKeys[0] || 'value';
-        const gaugeValue = previewData.length > 0 ? (previewData[0][gaugeDataKey] as number || 0) : 0;
-        const maxValue = 10; // Default max, could be configurable
+        // CROSS-51: Handle null values for gauge
+        const firstDataPoint = previewData.length > 0 ? previewData[0] : null;
+        const gaugeValue = firstDataPoint && firstDataPoint[gaugeDataKey] !== null && firstDataPoint[gaugeDataKey] !== undefined
+          ? (firstDataPoint[gaugeDataKey] as number || 0)
+          : 0;
+        const maxValue = maxScore; // CROSS-45: Use configured max score
         const percentage = Math.min(Math.max((gaugeValue / maxValue) * 100, 0), 100);
         // Needle angle: starts at -90 (pointing left), rotates clockwise to 90 (pointing right)
         // 0% = -90 degrees, 100% = 90 degrees
@@ -762,13 +973,16 @@ export const ChartBuilderPage = () => {
         );
       }
 
-      case 'scatter':
+      case 'scatter': {
         return (
           <ChartContainer config={chartConfig}>
             <ScatterChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
               <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
-              <YAxis stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <YAxis 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
+                domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+              />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
               {previewDataKeys.map((key, index) => {
@@ -784,8 +998,9 @@ export const ChartBuilderPage = () => {
             </ScatterChart>
           </ChartContainer>
         );
+      }
 
-      case 'radar':
+      case 'radar': {
         return (
           <ChartContainer config={chartConfig}>
             <RadarChart data={previewData}>
@@ -810,6 +1025,7 @@ export const ChartBuilderPage = () => {
             </RadarChart>
           </ChartContainer>
         );
+      }
 
       default:
         return null;
@@ -952,6 +1168,92 @@ export const ChartBuilderPage = () => {
                       rows={3}
                     />
                   </div>
+
+                  {/* CROSS-45: Min/Max Score Configuration */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Score Range Configuration</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Set the minimum and maximum values for the Y-axis scale. This helps ensure consistent scaling across charts.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="min-score">Minimum Score</Label>
+                          <Input
+                            id="min-score"
+                            type="text"
+                            inputMode="decimal"
+                            value={minScore}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Allow empty string, numbers, decimals, and negative sign
+                              if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                if (value === '') {
+                                  setMinScore(0); // Default to 0 if cleared
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue)) {
+                                    setMinScore(numValue);
+                                  }
+                                }
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value.trim();
+                              if (value === '') {
+                                setMinScore(0);
+                              } else {
+                                const numValue = parseFloat(value);
+                                setMinScore(isNaN(numValue) ? 0 : numValue);
+                              }
+                            }}
+                            placeholder="0"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Default: 0
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="max-score">Maximum Score</Label>
+                          <Input
+                            id="max-score"
+                            type="text"
+                            inputMode="decimal"
+                            value={maxScore}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Allow empty string, numbers, decimals, and negative sign
+                              if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                if (value === '') {
+                                  setMaxScore(10); // Default to 10 if cleared
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue)) {
+                                    setMaxScore(numValue);
+                                  }
+                                }
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value.trim();
+                              if (value === '') {
+                                setMaxScore(10);
+                              } else {
+                                const numValue = parseFloat(value);
+                                setMaxScore(isNaN(numValue) ? 10 : numValue);
+                              }
+                            }}
+                            placeholder="10"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Default: 10
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
                   {/* Data Series Configuration */}
                   <Card>
@@ -1202,20 +1504,57 @@ export const ChartBuilderPage = () => {
                                               {key} <span className="text-destructive">*</span>
                                             </Label>
                                           </div>
-                                          <Input
-                                            id={`point-${index}-${key}`}
-                                            type="number"
-                                            step="0.01"
-                                            placeholder={chartType === 'pie' || chartType === 'donut' 
-                                              ? "e.g., 1500" 
-                                              : chartType === 'gauge'
-                                              ? "0-100"
-                                              : "0"}
-                                            value={point[key] || ''}
-                                            onChange={(e) => updateDataPoint(index, key, parseFloat(e.target.value) || 0)}
-                                            required
-                                            className="w-full"
-                                          />
+                                          <div className="space-y-1">
+                                            <Input
+                                              id={`point-${index}-${key}`}
+                                              type="text"
+                                              inputMode="decimal"
+                                              placeholder={chartType === 'pie' || chartType === 'donut' 
+                                                ? `e.g., 1500 (max: ${maxScore})` 
+                                                : chartType === 'gauge'
+                                                ? `${minScore}-${maxScore} (or leave empty)`
+                                                : `${minScore}-${maxScore} (or leave empty)`}
+                                              value={point[key] === null || point[key] === undefined ? '' : String(point[key])}
+                                              onChange={(e) => {
+                                                // Allow user to type freely - store as string during editing
+                                                const value = e.target.value;
+                                                // Allow empty string, numbers, decimals, and negative sign
+                                                if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                                  // Store as string while editing, will be converted on blur
+                                                  updateDataPoint(index, key, value === '' ? null : value);
+                                                }
+                                              }}
+                                              onBlur={(e) => {
+                                                // Convert to number when user finishes editing
+                                                const value = e.target.value.trim();
+                                                if (value === '') {
+                                                  updateDataPoint(index, key, null);
+                                                } else {
+                                                  const numValue = parseFloat(value);
+                                                  if (!isNaN(numValue)) {
+                                                    updateDataPoint(index, key, numValue);
+                                                  } else {
+                                                    // Invalid number, clear the field
+                                                    updateDataPoint(index, key, null);
+                                                  }
+                                                }
+                                              }}
+                                              className={`w-full ${
+                                                fieldErrors[`${index}-${key}`] 
+                                                  ? 'border-destructive focus-visible:ring-destructive' 
+                                                  : ''
+                                              }`}
+                                            />
+                                            {fieldErrors[`${index}-${key}`] ? (
+                                              <p className="text-xs text-destructive font-medium">
+                                                {fieldErrors[`${index}-${key}`]}
+                                              </p>
+                                            ) : (
+                                              <p className="text-xs text-muted-foreground">
+                                                Range: {minScore} - {maxScore}. Leave empty if no score for this phase.
+                                              </p>
+                                            )}
+                                          </div>
                                         </div>
                                       );
                                     })}

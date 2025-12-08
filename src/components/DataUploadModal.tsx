@@ -576,8 +576,14 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   });
 
   // Update local state when phase changes or data loads
+  // Use JSON comparison to avoid infinite loops from array reference changes
+  const prevPhaseIframesRef = useRef<string>('');
   useEffect(() => {
-    setIframeUrls(existingPhaseIframes);
+    const newDataStr = JSON.stringify(existingPhaseIframes);
+    if (newDataStr !== prevPhaseIframesRef.current) {
+      prevPhaseIframesRef.current = newDataStr;
+      setIframeUrls(existingPhaseIframes);
+    }
   }, [existingPhaseIframes]);
 
   // Handle iframe URL addition with auto-save

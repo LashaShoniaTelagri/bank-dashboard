@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Download, MoreVertical, Maximize2, Edit, GripVertical } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Download, MoreVertical, Maximize2, Edit, GripVertical, Trash2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { ChartTemplate } from "@/types/chart";
@@ -10,14 +11,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useState, useRef } from "react";
 import { ChartFullscreenModal } from "@/components/ChartFullscreenModal";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 type ChartSize = "small" | "medium" | "large" | "full";
 
 const CHART_SIZES = {
-  small: { height: "h-[280px]", span: "col-span-1" },
-  medium: { height: "h-[350px]", span: "col-span-1" },
-  large: { height: "h-[450px]", span: "col-span-1 sm:col-span-2" },
-  full: { height: "h-[500px]", span: "col-span-1 sm:col-span-2 lg:col-span-3" },
+  small: { height: "h-[350px]", span: "col-span-1" },
+  medium: { height: "h-[450px]", span: "col-span-1" },
+  large: { height: "h-[550px]", span: "col-span-1 lg:col-span-2" },
+  full: { height: "h-[650px]", span: "col-span-1 lg:col-span-2" },
 };
 
 interface ChartCardProps {
@@ -35,12 +38,54 @@ interface ChartCardProps {
 export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart, dragHandleProps, isAdmin }: ChartCardProps) => {
   const [size, setSize] = useState<ChartSize>(defaultSize);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   // Use prop isAdmin if provided, otherwise check auth (for backward compatibility)
   const effectiveIsAdmin = isAdmin !== undefined ? isAdmin : profile?.role === 'admin';
+
+  // CROSS-47: Delete chart mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (chartId: string) => {
+      // Soft delete by setting is_active to false
+      const { error } = await supabase
+        .from('chart_templates')
+        .update({ is_active: false })
+        .eq('id', chartId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chart-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['f100-charts'] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-charts'] });
+      toast({
+        title: "Chart deleted successfully",
+        description: "The chart has been removed.",
+      });
+      setDeleteConfirmOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error deleting chart",
+        description: error.message || "Failed to delete chart",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = () => {
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (chart.id) {
+      deleteMutation.mutate(chart.id);
+    }
+  };
 
   const exportAsImage = async () => {
     if (!chartRef.current) return;
@@ -164,6 +209,13 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
                       <Edit className="mr-2 h-4 w-4" />
                       Edit Chart
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={handleDeleteClick}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Chart
+                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -171,13 +223,13 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
           </div>
         </CardHeader>
         
-        <CardContent className={`${CHART_SIZES[size].height} overflow-hidden px-2 py-1`}>
+        <CardContent className={`${CHART_SIZES[size].height} overflow-hidden px-1 pb-4`}>
           {chart.annotation && (
-            <p className="text-xs text-muted-foreground mb-2 px-2">
+            <p className="text-xs text-muted-foreground mb-1 px-2 line-clamp-2">
               {chart.annotation}
             </p>
           )}
-          <div ref={chartRef} className="h-full w-full" style={{ minHeight: '200px' }}>
+          <div ref={chartRef} className="h-full w-full overflow-visible" style={{ minHeight: '280px', padding: '4px 4px 40px 4px' }}>
             {children}
           </div>
         </CardContent>
@@ -192,6 +244,29 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
           renderChart={renderChart}
         />
       )}
+
+      {/* CROSS-47: Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{chart.name}"? This action cannot be undone.
+              The chart will be removed from all farmer profiles.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
