@@ -23,6 +23,7 @@ interface MonitoredIssueEditorProps {
   issue: MonitoredIssue | null;
   farmerId?: string;
   phaseNumber?: number;
+  readOnly?: boolean;
 }
 
 export const MonitoredIssueEditor = ({
@@ -31,6 +32,7 @@ export const MonitoredIssueEditor = ({
   issue,
   farmerId,
   phaseNumber,
+  readOnly = false,
 }: MonitoredIssueEditorProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -203,12 +205,18 @@ export const MonitoredIssueEditor = ({
       >
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
           <DialogTitle className="text-2xl font-bold">
-            {isPhaseSpecific ? `Edit Phase ${phaseNumber} - ${issue?.name}` : 'Edit Monitored Issue'}
+            {readOnly 
+              ? (isPhaseSpecific ? `View Phase ${phaseNumber} - ${issue?.name}` : 'View Monitored Issue')
+              : (isPhaseSpecific ? `Edit Phase ${phaseNumber} - ${issue?.name}` : 'Edit Monitored Issue')}
           </DialogTitle>
           <DialogDescription id="monitored-issue-editor-description">
-            {isPhaseSpecific 
-              ? `Add or update the description for this monitoring issue specific to Phase ${phaseNumber}. This description will only appear in the One Pager for Phase ${phaseNumber}.`
-              : 'Update the name and description for this monitored issue. Use the rich text editor to format content and add tables.'}
+            {readOnly 
+              ? (isPhaseSpecific 
+                  ? `View the description for this monitoring issue specific to Phase ${phaseNumber}.`
+                  : 'View the description for this monitored issue.')
+              : (isPhaseSpecific 
+                  ? `Add or update the description for this monitoring issue specific to Phase ${phaseNumber}. This description will only appear in the One Pager for Phase ${phaseNumber}.`
+                  : 'Update the name and description for this monitored issue. Use the rich text editor to format content and add tables.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -240,24 +248,41 @@ export const MonitoredIssueEditor = ({
                 <Label className="text-base font-semibold">
                   Description
                 </Label>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="edit">Edit</TabsTrigger>
-                    <TabsTrigger value="preview">
-                      <Eye className="h-4 w-4 mr-2" />
-                      Preview
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="edit" className="mt-4 border rounded-lg">
-                    <RichTextEditor
-                      value={description}
-                      onChange={setDescription}
-                      placeholder="Add detailed description, best practices, guidelines, or any relevant information about this monitored issue..."
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="preview" className="mt-4">
+                {readOnly ? (
+                  // Read-only mode - show only content without tabs
+                  <div className="mt-4">
+                    <div className="border rounded-lg p-6 min-h-[300px] bg-background overflow-auto">
+                      {description ? (
+                        <div
+                          className="prose prose-sm dark:prose-invert max-w-none rich-text-preview"
+                          dangerouslySetInnerHTML={{ __html: description }}
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-12">
+                          No description has been added for this monitoring issue yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="edit">Edit</TabsTrigger>
+                      <TabsTrigger value="preview">
+                        <Eye className="h-4 w-4 mr-2" />
+                        Preview
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="edit" className="mt-4 border rounded-lg">
+                      <RichTextEditor
+                        value={description}
+                        onChange={setDescription}
+                        placeholder="Add detailed description, best practices, guidelines, or any relevant information about this monitored issue..."
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="preview" className="mt-4">
                     <div className="border rounded-lg p-6 min-h-[300px] bg-background overflow-auto">
                       {description ? (
                         <div
@@ -379,11 +404,14 @@ export const MonitoredIssueEditor = ({
                     `}</style>
                   </TabsContent>
                 </Tabs>
-                <p className="text-xs text-muted-foreground">
-                  {isPhaseSpecific
-                    ? `This description will appear in the One Pager for Phase ${phaseNumber} for this farmer. Bank viewers will see this when they view the Phase ${phaseNumber} One Pager.`
-                    : 'Bank viewers will see this description when they click "View Details" on comparison items'}
-                </p>
+                )}
+                {!readOnly && (
+                  <p className="text-xs text-muted-foreground">
+                    {isPhaseSpecific
+                      ? `This description will appear in the One Pager for Phase ${phaseNumber} for this farmer. Bank viewers will see this when they view the Phase ${phaseNumber} One Pager.`
+                      : 'Bank viewers will see this description when they click "View Details" on comparison items'}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -395,24 +423,26 @@ export const MonitoredIssueEditor = ({
                 type="button"
                 variant="outline"
                 onClick={handleClose}
-                disabled={updateIssueMutation.isPending}
+                disabled={!readOnly && updateIssueMutation.isPending}
               >
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </Button>
-              <Button
-                type="submit"
-                disabled={updateIssueMutation.isPending || (!isPhaseSpecific && !name.trim())}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                {updateIssueMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
+              {!readOnly && (
+                <Button
+                  type="submit"
+                  disabled={updateIssueMutation.isPending || (!isPhaseSpecific && !name.trim())}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {updateIssueMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </form>

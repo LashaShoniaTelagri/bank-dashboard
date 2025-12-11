@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FarmerPhase, MonitoredIssue } from "@/types/phase";
-import { Edit, FileText, Settings } from "lucide-react";
+import { Edit, FileText, Settings, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getPhaseScoreColors } from "@/lib/phaseColors";
@@ -15,6 +15,7 @@ interface PhaseCardProps {
   onEditPhase?: () => void;
   onViewF100?: () => void;
   onEditIssue?: (issue: MonitoredIssue, phaseNumber: number) => void;
+  onViewIssue?: (issue: MonitoredIssue, phaseNumber: number) => void;
   onToggleSelection?: (issueId: string) => void;
   selectedIssues?: Set<string>;
   isAdmin: boolean;
@@ -28,6 +29,7 @@ export const PhaseCard = ({
   onEditPhase,
   onViewF100,
   onEditIssue,
+  onViewIssue,
   onToggleSelection,
   selectedIssues = new Set(),
   isAdmin,
@@ -127,6 +129,20 @@ export const PhaseCard = ({
                           title="Edit issue details"
                         >
                           <Settings className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {!isAdmin && onViewIssue && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewIssue(issue, phaseNumber);
+                          }}
+                          title="View issue details"
+                        >
+                          <Eye className="h-3 w-3" />
                         </Button>
                       )}
                     </div>

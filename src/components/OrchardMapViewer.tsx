@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,8 @@ import {
   HardDrive,
   Loader2,
   MapIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -56,15 +59,17 @@ interface OrchardMap {
 
 interface OrchardMapViewerProps {
   farmerId: string;
-  isAdmin: boolean;
+  isAdmin?: boolean;
+  compactMode?: boolean;
 }
 
-export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) => {
+export const OrchardMapViewer = ({ farmerId, isAdmin = false, compactMode = false }: OrchardMapViewerProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [selectedMap, setSelectedMap] = useState<OrchardMap | null>(null);
+  const [currentMapIndex, setCurrentMapIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [mapToDelete, setMapToDelete] = useState<OrchardMap | null>(null);
@@ -115,8 +120,26 @@ export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) =
   };
 
   const handleView = (map: OrchardMap) => {
+    const index = maps.findIndex(m => m.id === map.id);
+    setCurrentMapIndex(index);
     setSelectedMap(map);
     setViewerOpen(true);
+  };
+
+  const handlePreviousMap = () => {
+    if (currentMapIndex > 0) {
+      const newIndex = currentMapIndex - 1;
+      setCurrentMapIndex(newIndex);
+      setSelectedMap(maps[newIndex]);
+    }
+  };
+
+  const handleNextMap = () => {
+    if (currentMapIndex < maps.length - 1) {
+      const newIndex = currentMapIndex + 1;
+      setCurrentMapIndex(newIndex);
+      setSelectedMap(maps[newIndex]);
+    }
   };
 
   const handleDownload = async (map: OrchardMap) => {
@@ -297,7 +320,7 @@ export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) =
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={compactMode ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
         {maps.map((map) => (
           <Card key={map.id} className="overflow-hidden hover:shadow-lg transition-shadow">
             {/* Map Preview */}
@@ -331,38 +354,40 @@ export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) =
             </div>
 
             {/* Map Info */}
-            <CardContent className="p-4 space-y-3">
+            <CardContent className={cn("space-y-3", compactMode ? "p-3" : "p-4")}>
               <div className="flex items-start justify-between gap-2">
-                <h4 className="font-semibold text-foreground line-clamp-1">{map.file_name}</h4>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleView(map)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDownload(map)}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </DropdownMenuItem>
-                    {isAdmin && (
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteClick(map)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
+                <h4 className={cn("font-semibold text-foreground line-clamp-1", compactMode ? "text-sm" : "")}>{map.file_name}</h4>
+                {!compactMode && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleView(map)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        View
                       </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <DropdownMenuItem onClick={() => handleDownload(map)}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </DropdownMenuItem>
+                      {isAdmin && (
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteClick(map)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
 
-              {map.notes && (
+              {map.notes && !compactMode && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{map.notes}</p>
               )}
 
@@ -377,10 +402,12 @@ export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) =
                 </Badge>
               </div>
 
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
-                {formatDate(map.created_at)}
-              </div>
+              {!compactMode && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  {formatDate(map.created_at)}
+                </div>
+              )}
 
               <Button
                 variant="outline"
@@ -388,8 +415,8 @@ export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) =
                 className="w-full"
                 onClick={() => handleView(map)}
               >
-                <Eye className="h-4 w-4 mr-2" />
-                View Map
+                <Eye className={cn(compactMode ? "h-3 w-3 mr-1" : "h-4 w-4 mr-2")} />
+                {compactMode ? "View" : "View Map"}
               </Button>
             </CardContent>
           </Card>
@@ -402,32 +429,90 @@ export const OrchardMapViewer = ({ farmerId, isAdmin }: OrchardMapViewerProps) =
           className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col gap-0"
           aria-describedby="map-viewer-description"
         >
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
-            <DialogTitle className="text-2xl font-bold text-heading-primary">
-              {selectedMap?.file_name}
-            </DialogTitle>
-            <DialogDescription id="map-viewer-description" className="text-sm text-muted-foreground">
-              {selectedMap?.notes || "Orchard sector map for detailed viewing"}
-            </DialogDescription>
+          <DialogHeader className="px-6 pt-6 pb-4 pr-16 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-2xl font-bold text-heading-primary truncate">
+                  {selectedMap?.file_name}
+                </DialogTitle>
+                <DialogDescription id="map-viewer-description" className="text-sm text-muted-foreground">
+                  {selectedMap?.notes || "Orchard sector map for detailed viewing"}
+                </DialogDescription>
+              </div>
+              {maps.length > 1 && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePreviousMap}
+                    disabled={currentMapIndex === 0}
+                    title="Previous map"
+                    className="h-9 w-9"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground min-w-[70px] text-center font-medium">
+                    {currentMapIndex + 1} of {maps.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleNextMap}
+                    disabled={currentMapIndex === maps.length - 1}
+                    title="Next map"
+                    className="h-9 w-9"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </DialogHeader>
 
-          <div className="flex-1 p-6 overflow-auto">
+          <div className="flex-1 p-6 overflow-auto relative">
             {selectedMap && (
-              <div className="w-full h-full flex items-center justify-center bg-muted/30 rounded-lg">
-                {selectedMap.file_type.includes('pdf') || selectedMap.file_type === 'application/pdf' ? (
-                  <iframe
-                    src={getFileUrl(selectedMap.file_url, selectedMap)}
-                    className="w-full h-full rounded-lg"
-                    title={selectedMap.file_name}
-                  />
-                ) : (
-                  <img
-                    src={getFileUrl(selectedMap.file_url, selectedMap)}
-                    alt={selectedMap.file_name}
-                    className="max-w-full max-h-full object-contain"
-                  />
+              <>
+                <div className="w-full h-full flex items-center justify-center bg-muted/30 rounded-lg">
+                  {selectedMap.file_type.includes('pdf') || selectedMap.file_type === 'application/pdf' ? (
+                    <iframe
+                      src={getFileUrl(selectedMap.file_url, selectedMap)}
+                      className="w-full h-full rounded-lg"
+                      title={selectedMap.file_name}
+                    />
+                  ) : (
+                    <img
+                      src={getFileUrl(selectedMap.file_url, selectedMap)}
+                      alt={selectedMap.file_name}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  )}
+                </div>
+                {/* Navigation arrows overlay for images (not PDFs) */}
+                {maps.length > 1 && !(selectedMap.file_type.includes('pdf') || selectedMap.file_type === 'application/pdf') && (
+                  <>
+                    {currentMapIndex > 0 && (
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="absolute left-8 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full shadow-lg opacity-70 hover:opacity-100 transition-opacity"
+                        onClick={handlePreviousMap}
+                      >
+                        <ChevronLeft className="h-6 w-6" />
+                      </Button>
+                    )}
+                    {currentMapIndex < maps.length - 1 && (
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="absolute right-8 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full shadow-lg opacity-70 hover:opacity-100 transition-opacity"
+                        onClick={handleNextMap}
+                      >
+                        <ChevronRight className="h-6 w-6" />
+                      </Button>
+                    )}
+                  </>
                 )}
-              </div>
+              </>
             )}
           </div>
 

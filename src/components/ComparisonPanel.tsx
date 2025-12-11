@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,22 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Maximize2,
+  Minimize2,
+  PanelRightOpen,
 } from "lucide-react";
 import { ComparisonSelection, MonitoredIssue } from "@/types/phase";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { OrchardMapViewer } from "@/components/OrchardMapViewer";
+
+type PanelWidth = 'compact' | 'half' | 'full';
+
+const PANEL_WIDTHS: Record<PanelWidth, string> = {
+  compact: 'w-80',    // 320px - default
+  half: 'w-1/2',      // 50% - side-by-side comparison
+  full: 'w-[90%]',    // 90% - full content view
+};
 
 interface ComparisonPanelProps {
   selections: ComparisonSelection[];
@@ -38,6 +49,8 @@ export const ComparisonPanel = ({
 }: ComparisonPanelProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
+  const [panelWidth, setPanelWidth] = useState<PanelWidth>('compact');
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
 
   // Fetch phase-specific descriptions for all selected phase-issue combinations
   const { data: phaseDescriptions = {} } = useQuery({
@@ -53,7 +66,7 @@ export const ComparisonPanel = ({
           .select('description')
           .eq('farmer_id', farmerId)
           .eq('phase_number', selection.phaseNumber)
-          .eq('monitored_issue_id', selection.issueId)
+          .eq('issue_id', selection.issueId)
           .maybeSingle();
         
         if (!error && data?.description) {
@@ -78,6 +91,46 @@ export const ComparisonPanel = ({
       return newSet;
     });
   };
+
+  const cycleWidth = () => {
+    setPanelWidth(current => {
+      if (current === 'compact') return 'half';
+      if (current === 'half') return 'full';
+      return 'compact';
+    });
+  };
+
+  const getWidthIcon = () => {
+    if (panelWidth === 'compact') return <PanelRightOpen className="h-4 w-4" />;
+    if (panelWidth === 'half') return <Maximize2 className="h-4 w-4" />;
+    return <Minimize2 className="h-4 w-4" />;
+  };
+
+  const getWidthLabel = () => {
+    if (panelWidth === 'compact') return 'Expand to Half';
+    if (panelWidth === 'half') return 'Expand to Full';
+    return 'Compact View';
+  };
+
+  // Auto-expand descriptions and set half-width when comparing 2+ items
+  useEffect(() => {
+    if (selections.length >= 2 && !hasAutoExpanded) {
+      // Expand all issues
+      const allIssueIds = new Set(selections.map(s => s.issueId));
+      setExpandedIssues(allIssueIds);
+      
+      // Set panel to half width
+      setPanelWidth('half');
+      
+      // Mark as auto-expanded to prevent re-triggering
+      setHasAutoExpanded(true);
+    } else if (selections.length < 2) {
+      // Reset when selections drop below 2
+      setHasAutoExpanded(false);
+      setExpandedIssues(new Set());
+      setPanelWidth('compact');
+    }
+  }, [selections.length, hasAutoExpanded]);
 
   const getIssueDetails = (issueId: string) => {
     return monitoredIssues.find((issue) => issue.id === issueId);
@@ -116,7 +169,10 @@ export const ComparisonPanel = ({
 
   return (
     <div 
-      className="fixed right-0 top-20 bottom-0 z-40 w-80 bg-background border-l border-border shadow-2xl animate-in slide-in-from-right duration-300"
+      className={cn(
+        "fixed right-0 top-20 bottom-0 z-40 bg-background border-l border-border shadow-2xl transition-all duration-300 ease-in-out",
+        PANEL_WIDTHS[panelWidth]
+      )}
       style={{
         animation: 'slideInFromRight 0.3s ease-out'
       }}
@@ -151,16 +207,30 @@ export const ComparisonPanel = ({
               <CardTitle className="text-lg">
                 Comparison Panel
               </CardTitle>
+              <Badge variant="outline" className="text-xs">
+                {panelWidth === 'compact' ? 'Compact' : panelWidth === 'half' ? 'Half Screen' : 'Full Width'}
+              </Badge>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsCollapsed(true)}
-              className="h-8 w-8 transition-all duration-200 hover:scale-110"
-              title="Collapse panel"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={cycleWidth}
+                className="h-8 w-8 transition-all duration-200 hover:scale-110"
+                title={getWidthLabel()}
+              >
+                {getWidthIcon()}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsCollapsed(true)}
+                className="h-8 w-8 transition-all duration-200 hover:scale-110"
+                title="Collapse panel"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="flex items-center justify-between mt-2">
             <Badge variant="secondary" className="text-xs">
@@ -273,11 +343,18 @@ export const ComparisonPanel = ({
                         {expandedIssues.has(issueId) && (
                           <div className="mt-4 pt-4 border-t border-border">
                             <h5 className="text-xs font-semibold text-foreground mb-3">Phase Descriptions:</h5>
-                            <div className={`grid gap-3 max-h-[400px] overflow-y-auto ${
-                              items.length === 1 ? 'grid-cols-1' : 
-                              items.length === 2 ? 'grid-cols-2' : 
-                              'grid-cols-2 lg:grid-cols-3'
-                            }`}>
+                            <div className={cn(
+                              "grid gap-3 overflow-y-auto",
+                              panelWidth === 'compact' && "max-h-[400px] grid-cols-1",
+                              panelWidth === 'half' && "max-h-[600px]",
+                              panelWidth === 'full' && "max-h-[800px]",
+                              (panelWidth === 'half' || panelWidth === 'full') && (
+                                items.length === 1 ? 'grid-cols-1' : 
+                                items.length === 2 ? 'grid-cols-2' : 
+                                items.length === 3 ? 'grid-cols-3' :
+                                'grid-cols-4'
+                              )
+                            )}>
                               {items.sort((a, b) => a.phaseNumber - b.phaseNumber).map((item) => {
                                 const descriptionKey = `${item.phaseNumber}-${item.issueId}`;
                                 const description = phaseDescriptions[descriptionKey];
@@ -285,7 +362,11 @@ export const ComparisonPanel = ({
                                 return (
                                   <div 
                                     key={`desc-${item.phaseNumber}-${item.issueId}`}
-                                    className="p-3 rounded-md bg-muted/50 border border-border min-w-0"
+                                    className={cn(
+                                      "p-3 rounded-md bg-muted/50 border border-border min-w-0 flex flex-col",
+                                      panelWidth === 'compact' && "min-h-[100px]",
+                                      (panelWidth === 'half' || panelWidth === 'full') && "min-h-[200px]"
+                                    )}
                                   >
                                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                                       <Badge variant="outline" className="text-xs font-mono">
@@ -302,11 +383,21 @@ export const ComparisonPanel = ({
                                     </div>
                                     {description ? (
                                       <div 
-                                        className="prose prose-xs dark:prose-invert max-w-none text-xs"
+                                        className={cn(
+                                          "prose dark:prose-invert max-w-none flex-1 overflow-y-auto",
+                                          panelWidth === 'compact' && "prose-xs text-xs",
+                                          panelWidth === 'half' && "prose-sm text-sm",
+                                          panelWidth === 'full' && "prose-base text-base"
+                                        )}
                                         dangerouslySetInnerHTML={{ __html: description }}
                                       />
                                     ) : (
-                                      <p className="text-xs text-muted-foreground italic">No description available</p>
+                                      <p className={cn(
+                                        "text-muted-foreground italic",
+                                        panelWidth === 'compact' && "text-xs",
+                                        panelWidth === 'half' && "text-sm",
+                                        panelWidth === 'full' && "text-base"
+                                      )}>No description available</p>
                                     )}
                                   </div>
                                 );
@@ -330,7 +421,7 @@ export const ComparisonPanel = ({
                     <GitCompare className="h-4 w-4 text-emerald-600" />
                     Orchard Sector Maps
                   </h3>
-                  <OrchardMapViewer farmerId={farmerId} />
+                  <OrchardMapViewer farmerId={farmerId} isAdmin={false} compactMode={true} />
                 </div>
               </>
             )}

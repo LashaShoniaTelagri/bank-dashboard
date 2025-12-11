@@ -315,6 +315,12 @@ const FarmerProfilePage = () => {
     setIssueEditorOpen(true);
   };
 
+  const handleViewIssue = (issue: MonitoredIssue, phaseNumber: number) => {
+    setSelectedIssue(issue);
+    setSelectedPhaseNumber(phaseNumber);
+    setIssueEditorOpen(true);
+  };
+
   if (farmerLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -951,6 +957,7 @@ const FarmerProfilePage = () => {
                             onEditPhase={() => handleEditPhase(phaseNumber)}
                             onViewF100={() => handleViewF100(phaseNumber)}
                             onEditIssue={isAdmin ? handleEditIssue : undefined}
+                            onViewIssue={!isAdmin ? handleViewIssue : undefined}
                             onToggleSelection={(issueId) => handleToggleSelection(phaseNumber, issueId)}
                             selectedIssues={selectedIssues}
                             isAdmin={isAdmin}
@@ -1027,21 +1034,22 @@ const FarmerProfilePage = () => {
                   phaseNumber={selectedPhaseNumber || 1}
                   existingPhase={selectedPhaseNumber ? getPhaseData(selectedPhaseNumber) : null}
                 />
-                
-                {/* Monitored Issue Editor (Admin only) */}
-                <MonitoredIssueEditor
-                  isOpen={issueEditorOpen}
-                  onClose={() => {
-                    setIssueEditorOpen(false);
-                    setSelectedIssue(null);
-                    setSelectedPhaseNumber(null);
-                  }}
-                  issue={selectedIssue}
-                  farmerId={farmerId || undefined}
-                  phaseNumber={selectedPhaseNumber || undefined}
-                />
               </>
             )}
+            
+            {/* Monitored Issue Editor - Available to both Admin (edit) and Bank Viewer (view-only) */}
+            <MonitoredIssueEditor
+              isOpen={issueEditorOpen}
+              onClose={() => {
+                setIssueEditorOpen(false);
+                setSelectedIssue(null);
+                setSelectedPhaseNumber(null);
+              }}
+              issue={selectedIssue}
+              farmerId={farmerId || undefined}
+              phaseNumber={selectedPhaseNumber || undefined}
+              readOnly={!isAdmin}
+            />
           </>
         )}
         

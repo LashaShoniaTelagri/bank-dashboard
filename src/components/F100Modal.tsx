@@ -127,6 +127,27 @@ export const F100Modal = ({
     phase_description?: string | null; // Description from phase_monitored_data
   }
 
+  // Fetch phase data to get the issue_date
+  const { data: phaseData } = useQuery({
+    queryKey: ['farmer-phase', farmerId, phaseNumber],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('farmer_phases')
+        .select('issue_date, score')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phaseNumber)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ F100Modal - Error fetching phase data:', error);
+        return null;
+      }
+
+      return data;
+    },
+    enabled: isOpen && !!farmerId && !!phaseNumber,
+  });
+
   const { data: monitoredIssues = [] } = useQuery<PhaseSpecificIssue[]>({
     queryKey: ['phase-monitored-issues', farmerId, phaseNumber],
     queryFn: async () => {
@@ -707,11 +728,15 @@ export const F100Modal = ({
             <h1 className="text-3xl font-bold text-heading-primary">{farmerName}</h1>
             <h2 className="text-xl text-muted-foreground">Phase {phaseNumber} Overview</h2>
             <p className="text-sm text-muted-foreground">
-              Generated on {new Date().toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
+              {phaseData?.issue_date ? (
+                <>Generated on {new Date(phaseData.issue_date).toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}</>
+              ) : (
+                <>Report Date Not Set</>
+              )}
             </p>
           </div>
 
