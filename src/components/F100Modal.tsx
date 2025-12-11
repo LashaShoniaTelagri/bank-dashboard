@@ -492,6 +492,16 @@ export const F100Modal = ({
 
   const handleDownloadPDF = async () => {
     setIsExporting(true);
+    console.log('📊 PDF Export: Starting with', charts.length, 'charts');
+    
+    // Show informative toast for large reports
+    if (charts.length >= 5) {
+      toast({
+        title: "Generating Large PDF",
+        description: `Processing ${charts.length} charts. This may take a moment, please wait...`,
+      });
+    }
+    
     try {
       const element = document.getElementById('one-pager-content');
       if (!element) {
@@ -532,17 +542,23 @@ export const F100Modal = ({
 
       // Force all SVG elements to be fully rendered
       const svgElements = element.querySelectorAll('svg');
+      console.log('📊 PDF Export: Found', svgElements.length, 'SVG elements');
       svgElements.forEach((svg) => {
         // Trigger re-render of SVG by accessing computed styles
         window.getComputedStyle(svg).getPropertyValue('width');
       });
 
+      // Yield control back to browser to prevent "page unresponsive" warning
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       // Always use white background for PDFs (best compatibility across platforms)
       const backgroundColor = '#ffffff';
       
-      // Enhanced html2canvas configuration for Windows compatibility
+      console.log('📊 PDF Export: Starting html2canvas conversion...');
+      
+      // Optimized html2canvas configuration for performance and Windows compatibility
       const canvas = await html2canvas(element, {
-        scale: 2, // High quality
+        scale: 1.5, // Balanced quality/performance (reduced from 2 for better performance)
         useCORS: true, // Allow cross-origin images
         logging: false, // Disable console logs
         backgroundColor: backgroundColor, // Force white background
@@ -606,6 +622,11 @@ export const F100Modal = ({
           }
         },
       });
+      
+      console.log('📊 PDF Export: Canvas generated', canvas.width, 'x', canvas.height);
+
+      // Yield control back to browser after heavy canvas operation
+      await new Promise(resolve => setTimeout(resolve, 0));
 
       // Restore original styles
       element.style.height = originalStyles.height;
@@ -623,13 +644,24 @@ export const F100Modal = ({
         throw new Error('Generated canvas is empty');
       }
 
-      const imgData = canvas.toDataURL('image/png', 1.0); // Maximum quality
+      console.log('📊 PDF Export: Converting canvas to image data...');
+      
+      // Optimized PNG quality for better performance (0.95 instead of 1.0)
+      // At scale 1.5, this still produces excellent quality while being faster
+      const imgData = canvas.toDataURL('image/png', 0.95);
       
       // Verify image data is valid
       if (!imgData || imgData === 'data:,') {
         throw new Error('Failed to generate image data from canvas');
       }
+      
+      console.log('📊 PDF Export: Image data ready, size:', (imgData.length / 1024 / 1024).toFixed(2), 'MB');
+      
+      // Yield control back to browser before PDF creation
+      await new Promise(resolve => setTimeout(resolve, 0));
 
+      console.log('📊 PDF Export: Creating PDF document...');
+      
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -642,6 +674,9 @@ export const F100Modal = ({
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       let position = 0;
+      
+      const estimatedPages = Math.ceil(imgHeight / pageHeight);
+      console.log('📊 PDF Export: Estimated pages:', estimatedPages);
 
       // Set PDF background color to white for consistency
       pdf.setFillColor(255, 255, 255);
@@ -650,9 +685,15 @@ export const F100Modal = ({
       // Add first page
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
+      
+      console.log('📊 PDF Export: Page 1 of', estimatedPages, 'added');
 
       // Add additional pages if needed
+      let pageCount = 1;
       while (heightLeft >= 0) {
+        // Yield control back to browser between pages to prevent freezing
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
         position = heightLeft - imgHeight;
         pdf.addPage();
         // Set white background for each new page
@@ -660,16 +701,22 @@ export const F100Modal = ({
         pdf.rect(0, 0, imgWidth, pageHeight, 'F');
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pageHeight;
+        pageCount++;
+        console.log('📊 PDF Export: Page', pageCount, 'of', estimatedPages, 'added');
       }
+      
+      console.log('📊 PDF Export: Saving file...');
 
       pdf.save(`${farmerName}_Phase${phaseNumber}_F100.pdf`);
+      
+      console.log('✅ PDF Export: Complete!', pageCount, 'pages saved successfully');
       
       toast({
         title: "PDF Downloaded",
         description: `F-100 report for ${farmerName} Phase ${phaseNumber} has been downloaded successfully.`,
       });
     } catch (error) {
-      console.error('❌ Error generating PDF:', error);
+      console.error('❌ PDF Export Error:', error);
       toast({
         title: "PDF Export Failed",
         description: error instanceof Error ? error.message : "Failed to generate PDF. Please try again.",
@@ -703,11 +750,16 @@ export const F100Modal = ({
                 className="flex items-center gap-2"
               >
                 {isExporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating PDF...
+                  </>
                 ) : (
-                  <Download className="h-4 w-4" />
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </>
                 )}
-                Download PDF
               </Button>
               <Button
                 onClick={onClose}
