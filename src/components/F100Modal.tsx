@@ -473,7 +473,9 @@ export const F100Modal = ({
     setIsExporting(true);
     try {
       const element = document.getElementById('one-pager-content');
-      if (!element) return;
+      if (!element) {
+        throw new Error('Content element not found');
+      }
 
       // Store original scroll position
       const scrollContainer = element.closest('.overflow-y-auto');
@@ -485,7 +487,7 @@ export const F100Modal = ({
       }
 
       // Wait for scroll to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 150));
 
       // Temporarily remove height restrictions on the original element
       const originalStyles = {
@@ -504,25 +506,84 @@ export const F100Modal = ({
       element.style.overflow = 'visible';
       element.style.width = containerWidth + 'px';
 
-      // Wait for layout to recalculate
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Wait for layout to recalculate and all images/charts to render
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Determine background color based on theme
-      const backgroundColor = isDark ? '#0a0a0a' : '#ffffff';
+      // Force all SVG elements to be fully rendered
+      const svgElements = element.querySelectorAll('svg');
+      svgElements.forEach((svg) => {
+        // Trigger re-render of SVG by accessing computed styles
+        window.getComputedStyle(svg).getPropertyValue('width');
+      });
+
+      // Always use white background for PDFs (best compatibility across platforms)
+      const backgroundColor = '#ffffff';
       
-      // Capture the full content (html2canvas will capture the full scrollHeight)
+      // Enhanced html2canvas configuration for Windows compatibility
       const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: backgroundColor,
-        allowTaint: false,
+        scale: 2, // High quality
+        useCORS: true, // Allow cross-origin images
+        logging: false, // Disable console logs
+        backgroundColor: backgroundColor, // Force white background
+        allowTaint: true, // Allow cross-origin content (needed for charts)
+        foreignObjectRendering: false, // Disable foreign object rendering (better SVG compatibility on Windows)
+        imageTimeout: 15000, // Wait longer for images to load
+        removeContainer: true, // Clean up after rendering
         height: element.scrollHeight,
         width: element.scrollWidth,
         windowWidth: element.scrollWidth,
         windowHeight: element.scrollHeight,
         scrollX: 0,
         scrollY: 0,
+        onclone: (clonedDoc) => {
+          // Force light theme in cloned document for consistent rendering
+          const clonedElement = clonedDoc.getElementById('one-pager-content');
+          if (clonedElement) {
+            // Remove dark theme classes
+            clonedElement.classList.remove('dark');
+            clonedDoc.documentElement.classList.remove('dark');
+            clonedDoc.body.classList.remove('dark');
+            
+            // Force light theme colors on all elements with theme-dependent styles
+            const allElements = clonedElement.querySelectorAll('*');
+            allElements.forEach((el: Element) => {
+              const htmlEl = el as HTMLElement;
+              // Ensure all text is black and backgrounds are light for PDF
+              if (window.getComputedStyle(htmlEl).color === 'rgb(255, 255, 255)' ||
+                  window.getComputedStyle(htmlEl).color.includes('rgba(255, 255, 255')) {
+                htmlEl.style.color = '#000000';
+              }
+            });
+
+            // Ensure all SVG text elements are visible
+            const svgTexts = clonedElement.querySelectorAll('svg text');
+            svgTexts.forEach((text: Element) => {
+              const svgText = text as SVGTextElement;
+              const fill = svgText.getAttribute('fill');
+              if (!fill || fill === 'currentColor' || fill.includes('var(')) {
+                svgText.setAttribute('fill', '#000000');
+              }
+            });
+
+            // Ensure all SVG paths and shapes have proper colors
+            const svgPaths = clonedElement.querySelectorAll('svg path, svg rect, svg circle, svg line');
+            svgPaths.forEach((shape: Element) => {
+              const svgShape = shape as SVGElement;
+              const stroke = svgShape.getAttribute('stroke');
+              const fill = svgShape.getAttribute('fill');
+              
+              if (stroke && (stroke === 'currentColor' || stroke.includes('var('))) {
+                svgShape.setAttribute('stroke', '#666666');
+              }
+              if (fill && (fill === 'currentColor' || fill.includes('var('))) {
+                // Don't change fill if it's already set to a specific color
+                if (fill.includes('var(')) {
+                  svgShape.setAttribute('fill', '#3b82f6'); // Default chart color
+                }
+              }
+            });
+          }
+        },
       });
 
       // Restore original styles
@@ -536,7 +597,18 @@ export const F100Modal = ({
         scrollContainer.scrollTop = originalScrollTop;
       }
 
-      const imgData = canvas.toDataURL('image/png');
+      // Verify canvas has content
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Generated canvas is empty');
+      }
+
+      const imgData = canvas.toDataURL('image/png', 1.0); // Maximum quality
+      
+      // Verify image data is valid
+      if (!imgData || imgData === 'data:,') {
+        throw new Error('Failed to generate image data from canvas');
+      }
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -550,31 +622,36 @@ export const F100Modal = ({
       let heightLeft = imgHeight;
       let position = 0;
 
-      // Set PDF background color based on theme
-      pdf.setFillColor(isDark ? 10 : 255, isDark ? 10 : 255, isDark ? 10 : 255);
+      // Set PDF background color to white for consistency
+      pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, imgWidth, pageHeight, 'F');
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
 
       // Add additional pages if needed
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        // Set background for each new page
-        pdf.setFillColor(isDark ? 10 : 255, isDark ? 10 : 255, isDark ? 10 : 255);
+        // Set white background for each new page
+        pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, imgWidth, pageHeight, 'F');
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pageHeight;
       }
 
       pdf.save(`${farmerName}_Phase${phaseNumber}_F100.pdf`);
+      
+      toast({
+        title: "PDF Downloaded",
+        description: `F-100 report for ${farmerName} Phase ${phaseNumber} has been downloaded successfully.`,
+      });
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('❌ Error generating PDF:', error);
       toast({
         title: "PDF Export Failed",
-        description: error instanceof Error ? error.message : "Failed to generate PDF",
+        description: error instanceof Error ? error.message : "Failed to generate PDF. Please try again.",
         variant: "destructive",
       });
     } finally {

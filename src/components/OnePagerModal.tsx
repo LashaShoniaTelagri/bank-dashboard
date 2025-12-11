@@ -440,20 +440,90 @@ export const OnePagerModal = ({
     setIsExporting(true);
     try {
       const element = document.getElementById('one-pager-content');
-      if (!element) return;
+      if (!element) {
+        throw new Error('Content element not found');
+      }
 
-      // Capture the content as canvas
+      // Wait for all content to render
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Force all SVG elements to be fully rendered
+      const svgElements = element.querySelectorAll('svg');
+      svgElements.forEach((svg) => {
+        window.getComputedStyle(svg).getPropertyValue('width');
+      });
+
+      // Enhanced html2canvas configuration for Windows compatibility
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        foreignObjectRendering: false,
+        imageTimeout: 15000,
+        removeContainer: true,
+        onclone: (clonedDoc) => {
+          // Force light theme for consistent rendering
+          const clonedElement = clonedDoc.getElementById('one-pager-content');
+          if (clonedElement) {
+            clonedElement.classList.remove('dark');
+            clonedDoc.documentElement.classList.remove('dark');
+            clonedDoc.body.classList.remove('dark');
+
+            // Fix text colors
+            const allElements = clonedElement.querySelectorAll('*');
+            allElements.forEach((el: Element) => {
+              const htmlEl = el as HTMLElement;
+              if (window.getComputedStyle(htmlEl).color === 'rgb(255, 255, 255)' ||
+                  window.getComputedStyle(htmlEl).color.includes('rgba(255, 255, 255')) {
+                htmlEl.style.color = '#000000';
+              }
+            });
+
+            // Fix SVG colors
+            const svgTexts = clonedElement.querySelectorAll('svg text');
+            svgTexts.forEach((text: Element) => {
+              const svgText = text as SVGTextElement;
+              const fill = svgText.getAttribute('fill');
+              if (!fill || fill === 'currentColor' || fill.includes('var(')) {
+                svgText.setAttribute('fill', '#000000');
+              }
+            });
+
+            const svgShapes = clonedElement.querySelectorAll('svg path, svg rect, svg circle, svg line');
+            svgShapes.forEach((shape: Element) => {
+              const svgShape = shape as SVGElement;
+              const stroke = svgShape.getAttribute('stroke');
+              const fill = svgShape.getAttribute('fill');
+              
+              if (stroke && (stroke === 'currentColor' || stroke.includes('var('))) {
+                svgShape.setAttribute('stroke', '#666666');
+              }
+              if (fill && fill.includes('var(')) {
+                svgShape.setAttribute('fill', '#3b82f6');
+              }
+            });
+          }
+        },
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      // Verify canvas has content
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Generated canvas is empty');
+      }
+
+      const imgData = canvas.toDataURL('image/png', 1.0);
+
+      if (!imgData || imgData === 'data:,') {
+        throw new Error('Failed to generate image data from canvas');
+      }
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
+        compress: true,
       });
 
       const imgWidth = 210; // A4 width in mm
@@ -462,21 +532,38 @@ export const OnePagerModal = ({
       let heightLeft = imgHeight;
       let position = 0;
 
+      // Set white background for first page
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, imgWidth, pageHeight, 'F');
+
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
 
       // Add additional pages if needed
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        // Set white background for each page
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, imgWidth, pageHeight, 'F');
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pageHeight;
       }
 
       pdf.save(`${farmerName}_Phase${phaseNumber}_OnePager.pdf`);
+      
+      toast({
+        title: "PDF Downloaded",
+        description: `One-pager for ${farmerName} Phase ${phaseNumber} has been downloaded successfully.`,
+      });
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('❌ Error generating PDF:', error);
+      toast({
+        title: "PDF Export Failed",
+        description: error instanceof Error ? error.message : "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsExporting(false);
     }

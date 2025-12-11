@@ -251,26 +251,92 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
         orientation: "portrait",
         unit: "mm",
         format: "a4",
+        compress: true,
       });
 
       const chartElements = chartsContainerRef.current.querySelectorAll("[data-chart-card]");
       
+      if (chartElements.length === 0) {
+        throw new Error("No charts found to export");
+      }
+
       for (let i = 0; i < chartElements.length; i++) {
         const element = chartElements[i] as HTMLElement;
         
         if (i > 0) {
           pdf.addPage();
         }
+
+        // Wait for any animations to complete
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Force all SVG elements to be fully rendered
+        const svgElements = element.querySelectorAll('svg');
+        svgElements.forEach((svg) => {
+          window.getComputedStyle(svg).getPropertyValue('width');
+        });
         
+        // Enhanced html2canvas configuration for cross-platform compatibility
         const canvas = await html2canvas(element, {
           backgroundColor: "#ffffff",
           scale: 2,
           logging: false,
+          useCORS: true,
+          allowTaint: true,
+          foreignObjectRendering: false, // Better SVG compatibility on Windows
+          imageTimeout: 15000,
+          removeContainer: true,
+          onclone: (clonedDoc) => {
+            // Force light theme for consistent rendering
+            const clonedElement = clonedDoc.querySelector("[data-chart-card]");
+            if (clonedElement) {
+              clonedElement.classList.remove('dark');
+              clonedDoc.documentElement.classList.remove('dark');
+              clonedDoc.body.classList.remove('dark');
+
+              // Fix SVG text colors
+              const svgTexts = clonedElement.querySelectorAll('svg text');
+              svgTexts.forEach((text: Element) => {
+                const svgText = text as SVGTextElement;
+                const fill = svgText.getAttribute('fill');
+                if (!fill || fill === 'currentColor' || fill.includes('var(')) {
+                  svgText.setAttribute('fill', '#000000');
+                }
+              });
+
+              // Fix SVG shape colors
+              const svgShapes = clonedElement.querySelectorAll('svg path, svg rect, svg circle, svg line');
+              svgShapes.forEach((shape: Element) => {
+                const svgShape = shape as SVGElement;
+                const stroke = svgShape.getAttribute('stroke');
+                
+                if (stroke && (stroke === 'currentColor' || stroke.includes('var('))) {
+                  svgShape.setAttribute('stroke', '#666666');
+                }
+              });
+            }
+          },
         });
+
+        // Verify canvas has content
+        if (canvas.width === 0 || canvas.height === 0) {
+          console.warn(`Chart ${i + 1} generated empty canvas, skipping...`);
+          continue;
+        }
         
-        const imgData = canvas.toDataURL("image/png");
+        const imgData = canvas.toDataURL("image/png", 1.0);
+        
+        if (!imgData || imgData === 'data:,') {
+          console.warn(`Chart ${i + 1} failed to generate image data, skipping...`);
+          continue;
+        }
+
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
+        
+        // Set white background
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
         
         // Calculate dimensions to fit page while maintaining aspect ratio
         const imgWidth = canvas.width;
@@ -283,20 +349,20 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
         const x = (pdfWidth - width) / 2;
         const y = (pdfHeight - height) / 2;
         
-        pdf.addImage(imgData, "PNG", x, y, width, height);
+        pdf.addImage(imgData, "PNG", x, y, width, height, undefined, 'FAST');
       }
       
       pdf.save(`farmer_analytics_${new Date().toISOString().split("T")[0]}.pdf`);
       
       toast({
         title: "Charts Exported",
-        description: `All ${charts.length} charts have been exported to PDF.`,
+        description: `All ${charts.length} charts have been exported to PDF successfully.`,
       });
     } catch (error) {
-      console.error("Error exporting charts:", error);
+      console.error("❌ Error exporting charts:", error);
       toast({
         title: "Export Failed",
-        description: "Unable to export charts. Please try again.",
+        description: error instanceof Error ? error.message : "Unable to export charts. Please try again.",
         variant: "destructive",
       });
     } finally {

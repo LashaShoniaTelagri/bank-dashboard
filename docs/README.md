@@ -48,6 +48,9 @@ npm run dev
 - [Product Templates](docs/development/product-templates.md) - Templates for feature requests
 - [Project Architecture](docs/development/project-prompt.md) - Detailed project structure
 
+### 🔧 Bug Fixes & Improvements
+- [PDF Generation Windows Fix](docs/fixes/PDF_GENERATION_WINDOWS_FIX.md) - Resolved black PDF downloads on Windows
+
 ## 🔐 Security Features
 
 - **Banking-Grade Security**: End-to-end encryption, secure authentication

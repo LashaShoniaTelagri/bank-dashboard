@@ -68,10 +68,7 @@ export const PhaseCard = ({
 
           {/* Phase Title */}
           <div className="text-center">
-            <h3 className={cn(
-              "text-lg font-semibold text-foreground",
-              (phaseNumber === 1 || phaseNumber === 4) && "underline"
-            )}>
+            <h3 className="text-lg font-semibold text-foreground">
               Phase: {phaseNumber}
             </h3>
             {isAdmin && (

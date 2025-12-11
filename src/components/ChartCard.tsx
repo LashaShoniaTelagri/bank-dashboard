@@ -91,14 +91,55 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
     if (!chartRef.current) return;
 
     try {
+      // Wait for rendering to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Force SVG elements to render
+      const svgElements = chartRef.current.querySelectorAll('svg');
+      svgElements.forEach((svg) => {
+        window.getComputedStyle(svg).getPropertyValue('width');
+      });
+
       const canvas = await html2canvas(chartRef.current, {
-        backgroundColor: null,
+        backgroundColor: "#ffffff",
         scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        foreignObjectRendering: false,
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Force light theme for consistent rendering
+          const clonedElements = clonedDoc.querySelectorAll('*');
+          clonedElements.forEach((el) => {
+            el.classList.remove('dark');
+          });
+          clonedDoc.documentElement.classList.remove('dark');
+          clonedDoc.body.classList.remove('dark');
+
+          // Fix SVG colors
+          const svgTexts = clonedDoc.querySelectorAll('svg text');
+          svgTexts.forEach((text: Element) => {
+            const svgText = text as SVGTextElement;
+            const fill = svgText.getAttribute('fill');
+            if (!fill || fill === 'currentColor' || fill.includes('var(')) {
+              svgText.setAttribute('fill', '#000000');
+            }
+          });
+
+          const svgShapes = clonedDoc.querySelectorAll('svg path, svg rect, svg circle, svg line');
+          svgShapes.forEach((shape: Element) => {
+            const svgShape = shape as SVGElement;
+            const stroke = svgShape.getAttribute('stroke');
+            if (stroke && (stroke === 'currentColor' || stroke.includes('var('))) {
+              svgShape.setAttribute('stroke', '#666666');
+            }
+          });
+        },
       });
 
       const link = document.createElement("a");
       link.download = `${chart.name.replace(/\s+/g, "_")}.png`;
-      link.href = canvas.toDataURL();
+      link.href = canvas.toDataURL("image/png", 1.0);
       link.click();
 
       toast({
@@ -106,10 +147,10 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
         description: `${chart.name} has been downloaded as an image.`,
       });
     } catch (error) {
-      console.error("Error exporting chart:", error);
+      console.error("❌ Error exporting chart:", error);
       toast({
         title: "Export failed",
-        description: "Failed to export chart as image.",
+        description: error instanceof Error ? error.message : "Failed to export chart as image.",
         variant: "destructive",
       });
     }
@@ -119,19 +160,73 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
     if (!chartRef.current) return;
 
     try {
+      // Wait for rendering to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Force SVG elements to render
+      const svgElements = chartRef.current.querySelectorAll('svg');
+      svgElements.forEach((svg) => {
+        window.getComputedStyle(svg).getPropertyValue('width');
+      });
+
       const canvas = await html2canvas(chartRef.current, {
         backgroundColor: "#ffffff",
         scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        foreignObjectRendering: false,
+        imageTimeout: 15000,
+        removeContainer: true,
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Force light theme for consistent rendering
+          const clonedElements = clonedDoc.querySelectorAll('*');
+          clonedElements.forEach((el) => {
+            el.classList.remove('dark');
+          });
+          clonedDoc.documentElement.classList.remove('dark');
+          clonedDoc.body.classList.remove('dark');
+
+          // Fix SVG colors
+          const svgTexts = clonedDoc.querySelectorAll('svg text');
+          svgTexts.forEach((text: Element) => {
+            const svgText = text as SVGTextElement;
+            const fill = svgText.getAttribute('fill');
+            if (!fill || fill === 'currentColor' || fill.includes('var(')) {
+              svgText.setAttribute('fill', '#000000');
+            }
+          });
+
+          const svgShapes = clonedDoc.querySelectorAll('svg path, svg rect, svg circle, svg line');
+          svgShapes.forEach((shape: Element) => {
+            const svgShape = shape as SVGElement;
+            const stroke = svgShape.getAttribute('stroke');
+            if (stroke && (stroke === 'currentColor' || stroke.includes('var('))) {
+              svgShape.setAttribute('stroke', '#666666');
+            }
+          });
+        },
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      // Verify canvas has content
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Generated canvas is empty');
+      }
+
+      const imgData = canvas.toDataURL("image/png", 1.0);
+
+      if (!imgData || imgData === 'data:,') {
+        throw new Error('Failed to generate image data');
+      }
+
       const pdf = new jsPDF({
         orientation: canvas.width > canvas.height ? "landscape" : "portrait",
         unit: "px",
         format: [canvas.width, canvas.height],
+        compress: true,
       });
 
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height, undefined, 'FAST');
       pdf.save(`${chart.name.replace(/\s+/g, "_")}.pdf`);
 
       toast({
@@ -139,10 +234,10 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
         description: `${chart.name} has been downloaded as a PDF.`,
       });
     } catch (error) {
-      console.error("Error exporting chart:", error);
+      console.error("❌ Error exporting chart:", error);
       toast({
         title: "Export failed",
-        description: "Failed to export chart as PDF.",
+        description: error instanceof Error ? error.message : "Failed to export chart as PDF.",
         variant: "destructive",
       });
     }
