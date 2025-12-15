@@ -1061,16 +1061,18 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
-                angle={0}
-                textAnchor="middle"
+                angle={labelAngle}
+                textAnchor={labelTextAnchor}
                 height={isFullscreen ? undefined : 50}
                 interval={0}
                 tick={(props: any) => {
                   const { x, y, payload } = props;
                   const fullText = String(payload.value);
-                  const maxLen = isFullscreen ? 100 : 16;
+                  const maxLen = isFullscreen ? 100 : 20;
                   const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
                   const isTruncated = fullText.length > maxLen;
+                  const dy = labelAngle === 0 ? 16 : 8;
+                  const dx = labelAngle === 0 ? 0 : -2;
                   return (
                     <g 
                       transform={`translate(${x},${y})`}
@@ -1082,7 +1084,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                       }}
                       onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
                     >
-                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                      <text x={0} y={0} dy={dy} dx={dx} textAnchor={labelTextAnchor} transform={`rotate(${labelAngle})`} fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
                         {truncated}
                       </text>
                     </g>
@@ -1093,6 +1095,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]}
+                ticks={yAxisTicks}
                 width={isFullscreen ? 60 : 50}
                 tick={{ fontSize: fontSize }}
               />
