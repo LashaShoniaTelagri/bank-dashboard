@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import TextAlign from '@tiptap/extension-text-align';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
@@ -31,6 +32,10 @@ import {
   ImageIcon,
   LinkIcon,
   Loader2,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -105,6 +110,10 @@ export const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorP
   const editor = useEditor({
     extensions: [
       StarterKit,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right', 'justify'],
+      }),
       Table.configure({
         resizable: true,
       }),
@@ -229,6 +238,40 @@ export const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorP
           title="Strikethrough"
         >
           <Strikethrough className="h-4 w-4" />
+        </MenuButton>
+
+        <Separator orientation="vertical" className="h-6 mx-1" />
+
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign('left').run()}
+          active={editor.isActive({ textAlign: 'left' })}
+          title="Align Left"
+        >
+          <AlignLeft className="h-4 w-4" />
+        </MenuButton>
+
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign('center').run()}
+          active={editor.isActive({ textAlign: 'center' })}
+          title="Align Center"
+        >
+          <AlignCenter className="h-4 w-4" />
+        </MenuButton>
+
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign('right').run()}
+          active={editor.isActive({ textAlign: 'right' })}
+          title="Align Right"
+        >
+          <AlignRight className="h-4 w-4" />
+        </MenuButton>
+
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+          active={editor.isActive({ textAlign: 'justify' })}
+          title="Justify"
+        >
+          <AlignJustify className="h-4 w-4" />
         </MenuButton>
 
         <Separator orientation="vertical" className="h-6 mx-1" />
@@ -460,6 +503,38 @@ export const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorP
           margin-top: 0.5em;
           margin-bottom: 0.5em;
           color: hsl(var(--foreground));
+        }
+        
+        .ProseMirror [style*="text-align: left"],
+        .ProseMirror p[style*="text-align: left"],
+        .ProseMirror h1[style*="text-align: left"],
+        .ProseMirror h2[style*="text-align: left"],
+        .ProseMirror h3[style*="text-align: left"] {
+          text-align: left;
+        }
+        
+        .ProseMirror [style*="text-align: center"],
+        .ProseMirror p[style*="text-align: center"],
+        .ProseMirror h1[style*="text-align: center"],
+        .ProseMirror h2[style*="text-align: center"],
+        .ProseMirror h3[style*="text-align: center"] {
+          text-align: center;
+        }
+        
+        .ProseMirror [style*="text-align: right"],
+        .ProseMirror p[style*="text-align: right"],
+        .ProseMirror h1[style*="text-align: right"],
+        .ProseMirror h2[style*="text-align: right"],
+        .ProseMirror h3[style*="text-align: right"] {
+          text-align: right;
+        }
+        
+        .ProseMirror [style*="text-align: justify"],
+        .ProseMirror p[style*="text-align: justify"],
+        .ProseMirror h1[style*="text-align: justify"],
+        .ProseMirror h2[style*="text-align: justify"],
+        .ProseMirror h3[style*="text-align: justify"] {
+          text-align: justify;
         }
         
         .ProseMirror ul,

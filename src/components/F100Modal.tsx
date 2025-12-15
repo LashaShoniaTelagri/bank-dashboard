@@ -660,7 +660,7 @@ export const F100Modal = ({
       // Yield control back to browser before PDF creation
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      console.log('📊 PDF Export: Creating PDF document...');
+      console.log('📊 PDF Export: Creating PDF with smart page breaks...');
       
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -669,43 +669,197 @@ export const F100Modal = ({
         compress: true,
       });
 
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
+      const pdfWidth = 210; // A4 width in mm
+      const pdfHeight = 297; // A4 height in mm
+      const margin = 10; // Margin in mm
+      const contentHeight = pdfHeight - (margin * 2); // Usable height per page
       
-      const estimatedPages = Math.ceil(imgHeight / pageHeight);
-      console.log('📊 PDF Export: Estimated pages:', estimatedPages);
-
-      // Set PDF background color to white for consistency
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(0, 0, imgWidth, pageHeight, 'F');
-
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pageHeight;
+      // Calculate scaling
+      const imgWidth = pdfWidth - (margin * 2);
+      const scaleFactor = imgWidth / canvas.width;
+      const totalContentHeight = canvas.height * scaleFactor;
       
-      console.log('📊 PDF Export: Page 1 of', estimatedPages, 'added');
+      console.log('📊 PDF Export: Content dimensions:', {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        pdfContentHeight: totalContentHeight,
+        estimatedPages: Math.ceil(totalContentHeight / contentHeight)
+      });
 
-      // Add additional pages if needed
-      let pageCount = 1;
-      while (heightLeft >= 0) {
-        // Yield control back to browser between pages to prevent freezing
-        await new Promise(resolve => setTimeout(resolve, 0));
+      // Split content into pages with intelligent breaks
+      let currentY = 0; // Current position in mm
+      let pageCount = 0;
+      
+      // Get all major sections to determine break points
+      // For charts in grid: detect ROWS not individual cards to keep pairs together
+      const chartGrid = element.querySelector('.grid.grid-cols-1.md\\:grid-cols-2');
+      const monitoringSection = element.querySelector('.space-y-6');
+      const sectionHeaders = element.querySelectorAll('.pdf-section-header');
+      const separators = element.querySelectorAll('.pdf-section-break');
+      const breakPoints: number[] = [0]; // Start of document
+      
+      // Add section headers and separators
+      const majorElements = [...Array.from(sectionHeaders), ...Array.from(separators)];
+      majorElements.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        const elementRect = element.getBoundingClientRect();
+        const relativeTop = rect.top - elementRect.top + element.scrollTop;
+        const topInMm = relativeTop * scaleFactor;
         
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        // Set white background for each new page
-        pdf.setFillColor(255, 255, 255);
-        pdf.rect(0, 0, imgWidth, pageHeight, 'F');
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pageHeight;
-        pageCount++;
-        console.log('📊 PDF Export: Page', pageCount, 'of', estimatedPages, 'added');
+        if (topInMm > 10) {
+          breakPoints.push(topInMm);
+        }
+      });
+      
+      // For chart grid: group charts into rows and add break points per row
+      if (chartGrid) {
+        const chartCards = chartGrid.querySelectorAll('.pdf-chart-card');
+        const chartPositions: Array<{top: number, height: number}> = [];
+        
+        chartCards.forEach((card) => {
+          const rect = card.getBoundingClientRect();
+          const elementRect = element.getBoundingClientRect();
+          const relativeTop = rect.top - elementRect.top + element.scrollTop;
+          chartPositions.push({
+            top: relativeTop * scaleFactor,
+            height: rect.height * scaleFactor
+          });
+        });
+        
+        // Group charts by row (charts with similar top positions are in same row)
+        const rowTolerance = 5; // mm - charts within 5mm are considered same row
+        const rows: number[] = [];
+        
+        chartPositions.forEach((pos, index) => {
+          // Check if this chart starts a new row
+          const isNewRow = !chartPositions.slice(0, index).some(
+            prevPos => Math.abs(prevPos.top - pos.top) < rowTolerance
+          );
+          
+          if (isNewRow && pos.top > 10) {
+            rows.push(pos.top);
+            // Also add break point after the row (top + height)
+            rows.push(pos.top + pos.height + 5); // 5mm gap after row
+          }
+        });
+        
+        rows.forEach(rowTop => breakPoints.push(rowTop));
+        console.log('📊 PDF Export: Detected', rows.length / 2, 'chart rows');
       }
       
-      console.log('📊 PDF Export: Saving file...');
+      // For monitoring section: add each card as break point
+      if (monitoringSection) {
+        const monitoringCards = monitoringSection.querySelectorAll('.pdf-monitoring-card');
+        monitoringCards.forEach((card) => {
+          const rect = card.getBoundingClientRect();
+          const elementRect = element.getBoundingClientRect();
+          const relativeTop = rect.top - elementRect.top + element.scrollTop;
+          const topInMm = relativeTop * scaleFactor;
+          
+          if (topInMm > 10) {
+            breakPoints.push(topInMm);
+          }
+        });
+      }
+      
+      // Add end point
+      breakPoints.push(totalContentHeight);
+      
+      // Remove duplicates and sort
+      const uniqueBreakPoints = Array.from(new Set(breakPoints.map(bp => Math.round(bp * 10) / 10))).sort((a, b) => a - b);
+      
+      console.log('📊 PDF Export: Found', uniqueBreakPoints.length - 1, 'content sections for intelligent page breaks');
+      
+      // Generate pages
+      while (currentY < totalContentHeight) {
+        if (pageCount > 0) {
+          pdf.addPage();
+        }
+        pageCount++;
+        
+        // Set white background
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
+        
+        // Determine how much content to include on this page
+        let nextBreak = currentY + contentHeight;
+        
+        // Find the best break point before the page limit
+        const idealBreaks = uniqueBreakPoints.filter(bp => 
+          bp > currentY && bp <= currentY + contentHeight
+        );
+        
+        // If we have content that would be split, and we have a better break point
+        if (idealBreaks.length > 0) {
+          // Find the last break point that fits
+          const lastGoodBreak = idealBreaks[idealBreaks.length - 1];
+          
+          // Only use this break if it's not too early in the page
+          // (avoid mostly empty pages - at least 30% filled for better flow)
+          const minContentHeight = contentHeight * 0.3;
+          if (lastGoodBreak - currentY > minContentHeight || pageCount === 1) {
+            nextBreak = lastGoodBreak;
+          } else if (idealBreaks.length > 1) {
+            // If last break is too early, try second-to-last
+            const secondLastBreak = idealBreaks[idealBreaks.length - 2];
+            if (secondLastBreak - currentY > minContentHeight * 0.7) {
+              nextBreak = secondLastBreak;
+            }
+          }
+        }
+        
+        // Calculate how much of the canvas to show
+        const sourceY = currentY / scaleFactor; // Convert back to canvas pixels
+        const sourceHeight = Math.min(
+          (nextBreak - currentY) / scaleFactor,
+          canvas.height - sourceY
+        );
+        
+        if (sourceHeight <= 0) break;
+        
+        // Create a temporary canvas for this page's content
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sourceHeight;
+        const pageCtx = pageCanvas.getContext('2d');
+        
+        if (pageCtx) {
+          // Fill with white background
+          pageCtx.fillStyle = '#ffffff';
+          pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          
+          // Draw the slice from the main canvas
+          pageCtx.drawImage(
+            canvas,
+            0, sourceY, canvas.width, sourceHeight, // Source rectangle
+            0, 0, canvas.width, sourceHeight         // Destination rectangle
+          );
+          
+          // Convert to image and add to PDF
+          const pageImgData = pageCanvas.toDataURL('image/png', 0.95);
+          const pageImgHeight = sourceHeight * scaleFactor;
+          
+          pdf.addImage(
+            pageImgData,
+            'PNG',
+            margin,
+            margin,
+            imgWidth,
+            pageImgHeight,
+            undefined,
+            'FAST'
+          );
+        }
+        
+        console.log('📊 PDF Export: Page', pageCount, 'added (', currentY.toFixed(0), 'mm -', nextBreak.toFixed(0), 'mm )');
+        
+        currentY = nextBreak;
+        
+        // Yield control back to browser between pages
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      
+      console.log('📊 PDF Export: Saving file with', pageCount, 'pages...');
 
       pdf.save(`${farmerName}_Phase${phaseNumber}_F100.pdf`);
       
@@ -792,12 +946,12 @@ export const F100Modal = ({
             </p>
           </div>
 
-          <Separator />
+          <Separator className="pdf-section-break" />
 
           {/* Charts Section */}
           {charts.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="space-y-4" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+              <div className="flex items-center justify-between pdf-section-header">
                 <h3 className="text-xl font-semibold text-heading-primary">Analytics & Charts</h3>
                 {isAdmin && (
                   <Button
@@ -815,7 +969,7 @@ export const F100Modal = ({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {charts.map((chart) => (
-                  <Card key={chart.id} className="overflow-hidden">
+                  <Card key={chart.id} className="overflow-hidden pdf-chart-card" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
@@ -859,17 +1013,17 @@ export const F100Modal = ({
             </div>
           )}
 
-          <Separator />
+          <Separator className="pdf-section-break" />
 
           {/* Monitored Issues Section - Phase Specific */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-heading-primary">
+          <div className="space-y-4" style={{ pageBreakBefore: 'auto' }}>
+            <h3 className="text-xl font-semibold text-heading-primary pdf-section-header">
               Phase {phaseNumber} - Monitoring Details
             </h3>
             {monitoredIssues.length > 0 ? (
               <div className="space-y-6">
                 {monitoredIssues.map((issue, index) => (
-                  <Card key={issue.id} className="overflow-hidden">
+                  <Card key={issue.id} className="overflow-hidden pdf-monitoring-card" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <CardHeader className="bg-muted/30 border-b">
                       <div className="flex items-start justify-between gap-2">
                         <CardTitle className="text-lg flex items-center gap-2 flex-1">

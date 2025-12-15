@@ -21,6 +21,7 @@ import { X, Plus, Trash2, AlertCircle, Eye, BarChart3, TrendingUp, AreaChart as 
 import { getChartColorArrayHSL, getChartColorArray } from "@/lib/chartColors";
 import { useTheme } from "@/hooks/useTheme";
 import { SeriesColorPicker } from "@/components/SeriesColorPicker";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   BarChart,
   Bar,
@@ -71,6 +72,7 @@ export const ChartBuilderPage = () => {
   const [name, setName] = useState('');
   const [chartType, setChartType] = useState<ChartType>('bar');
   const [annotation, setAnnotation] = useState('');
+  const [bottomDescription, setBottomDescription] = useState('');
   const [farmerId, setFarmerId] = useState<string | null>(farmerIdFromUrl);
   const [phaseNumber, setPhaseNumber] = useState<number | null>(null);
   const [minScore, setMinScore] = useState<number>(0); // CROSS-45: Default min score
@@ -133,6 +135,7 @@ export const ChartBuilderPage = () => {
       setName(existingChart.name);
       setChartType(existingChart.chart_type);
       setAnnotation(existingChart.annotation || '');
+      setBottomDescription(existingChart.bottom_description || '');
       setFarmerId((existingChart as any).farmer_id || null);
       setPhaseNumber((existingChart as any).phase_number || null);
       // CROSS-45: Load min/max scores from chart data, default to 0-10
@@ -485,6 +488,7 @@ export const ChartBuilderPage = () => {
         maxScore: maxScore,
       },
       annotation: annotation.trim() || undefined,
+      bottom_description: bottomDescription.trim() || undefined,
       is_active: true,
       farmer_id: farmerId, // Associate chart with specific farmer
       phase_number: phaseNumber, // Optional: Associate chart with specific phase
@@ -1169,6 +1173,19 @@ export const ChartBuilderPage = () => {
                     />
                   </div>
 
+                  {/* Bottom Description */}
+                  <div className="space-y-2">
+                    <Label htmlFor="bottom-description">Bottom Description (Optional)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Add formatted text that will appear at the bottom of the chart, after the data points.
+                    </p>
+                    <RichTextEditor
+                      value={bottomDescription}
+                      onChange={setBottomDescription}
+                      placeholder="Add detailed description, notes, or additional context for this chart..."
+                    />
+                  </div>
+
                   {/* CROSS-45: Min/Max Score Configuration */}
                   <Card>
                     <CardHeader>
@@ -1623,10 +1640,23 @@ export const ChartBuilderPage = () => {
                   </Alert>
                 )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="h-[600px]">
                   {renderPreview()}
                 </div>
+                
+                {/* Bottom Description Preview */}
+                {bottomDescription && (
+                  <div className="border-t border-border pt-4">
+                    <div className="text-sm font-semibold text-heading-primary mb-2">
+                      Bottom Description Preview:
+                    </div>
+                    <div 
+                      className="prose prose-sm dark:prose-invert max-w-none text-sm text-foreground bg-muted/30 p-4 rounded-lg border border-border"
+                      dangerouslySetInnerHTML={{ __html: bottomDescription }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

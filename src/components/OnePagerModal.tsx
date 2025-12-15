@@ -667,10 +667,20 @@ export const OnePagerModal = ({
                         </p>
                       )}
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                       <div className="w-full">
                         {renderChart(chart)}
                       </div>
+                      
+                      {/* Bottom Description */}
+                      {chart.bottom_description && (
+                        <div className="border-t border-border pt-4">
+                          <div 
+                            className="prose prose-sm dark:prose-invert max-w-none text-sm text-foreground"
+                            dangerouslySetInnerHTML={{ __html: chart.bottom_description }}
+                          />
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

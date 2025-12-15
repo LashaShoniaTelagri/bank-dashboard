@@ -17,8 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 type ChartSize = "small" | "medium" | "large" | "full";
 
 const CHART_SIZES = {
-  small: { height: "h-[350px]", span: "col-span-1" },
-  medium: { height: "h-[450px]", span: "col-span-1" },
+  small: { height: "h-[250px]", span: "col-span-1" },
+  medium: { height: "h-[300px] [@media(min-height:780px)]:h-[450px]", span: "col-span-1" },
   large: { height: "h-[550px]", span: "col-span-1 lg:col-span-2" },
   full: { height: "h-[650px]", span: "col-span-1 lg:col-span-2" },
 };
@@ -318,15 +318,30 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
           </div>
         </CardHeader>
         
-        <CardContent className={`${CHART_SIZES[size].height} overflow-hidden px-1 pb-4`}>
+        <CardContent className="flex flex-col px-1 pb-4 overflow-hidden">
+          {/* Top Annotation */}
           {chart.annotation && (
             <p className="text-xs text-muted-foreground mb-1 px-2 line-clamp-2">
               {chart.annotation}
             </p>
           )}
-          <div ref={chartRef} className="h-full w-full overflow-visible" style={{ minHeight: '280px', padding: '4px 4px 40px 4px' }}>
-            {children}
+          
+          {/* Chart Area */}
+          <div className={`${CHART_SIZES[size].height} overflow-hidden`}>
+            <div ref={chartRef} className="h-full w-full overflow-visible" style={{ minHeight: '280px', padding: '4px 4px 40px 4px' }}>
+              {children}
+            </div>
           </div>
+          
+          {/* Bottom Description */}
+          {chart.bottom_description && (
+            <div className="mt-2 px-4 overflow-auto max-h-[200px]">
+              <div 
+                className="prose prose-sm dark:prose-invert max-w-none text-sm text-foreground"
+                dangerouslySetInnerHTML={{ __html: chart.bottom_description }}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

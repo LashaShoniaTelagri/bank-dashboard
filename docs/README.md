@@ -47,6 +47,9 @@ npm run dev
 - [PWA Development](docs/development/pwa.md) - Progressive Web App features
 - [Product Templates](docs/development/product-templates.md) - Templates for feature requests
 - [Project Architecture](docs/development/project-prompt.md) - Detailed project structure
+- [Chart Bottom Description](docs/development/CHART_BOTTOM_DESCRIPTION.md) - Rich text descriptions for charts
+- [F-100 PDF Performance Optimization](docs/development/F100_PDF_PERFORMANCE_OPTIMIZATION.md) - PDF generation performance improvements
+- [F-100 Intelligent Page Breaking](docs/development/F100_INTELLIGENT_PAGE_BREAKING.md) - Smart page breaks for professional PDFs
 
 ### 🔧 Bug Fixes & Improvements
 - [PDF Generation Windows Fix](docs/fixes/PDF_GENERATION_WINDOWS_FIX.md) - Resolved black PDF downloads on Windows

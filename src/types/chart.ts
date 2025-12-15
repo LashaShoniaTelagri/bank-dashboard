@@ -21,6 +21,7 @@ export interface ChartTemplate {
     dataPointColors?: Record<string, string>; // Color mapping for individual data points (by name) - useful for pie/donut
   };
   annotation?: string;
+  bottom_description?: string; // Rich text HTML description displayed at the bottom of the chart
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
