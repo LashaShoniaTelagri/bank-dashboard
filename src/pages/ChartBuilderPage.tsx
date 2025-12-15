@@ -572,6 +572,22 @@ export const ChartBuilderPage = () => {
       );
     }
 
+    // Generate evenly spaced ticks (0-2-4-6-8-10 for max=10)
+    const generateTicks = (min: number, max: number) => {
+      const range = max - min;
+      const tickInterval = range <= 10 ? 2 : Math.ceil(range / 5);
+      const ticks: number[] = [];
+      for (let i = min; i <= max; i += tickInterval) {
+        ticks.push(i);
+      }
+      if (ticks[ticks.length - 1] !== max) {
+        ticks.push(max);
+      }
+      return ticks;
+    };
+    
+    const yAxisTicks = generateTicks(minScore, maxScore);
+
     // Base margins for preview
     const baseMargin = { top: 20, right: 30, left: 20, bottom: 5 };
     
@@ -607,6 +623,7 @@ export const ChartBuilderPage = () => {
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+                ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
@@ -648,6 +665,7 @@ export const ChartBuilderPage = () => {
                 type="number" 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores for horizontal bar charts
+                ticks={yAxisTicks}
               />
               <YAxis dataKey="name" type="category" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
               <ChartTooltip content={<ChartTooltipContent />} />
@@ -690,6 +708,7 @@ export const ChartBuilderPage = () => {
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+                ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
@@ -737,6 +756,7 @@ export const ChartBuilderPage = () => {
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+                ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
@@ -986,6 +1006,7 @@ export const ChartBuilderPage = () => {
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
+                ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />

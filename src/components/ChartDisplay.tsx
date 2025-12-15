@@ -407,6 +407,22 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
     const yAxisMin = minScore ?? 0;
     const yAxisMax = maxScore ?? 10;
     
+    // Generate evenly spaced ticks (0-2-4-6-8-10 for max=10)
+    const generateTicks = (min: number, max: number) => {
+      const range = max - min;
+      const tickInterval = range <= 10 ? 2 : Math.ceil(range / 5);
+      const ticks: number[] = [];
+      for (let i = min; i <= max; i += tickInterval) {
+        ticks.push(i);
+      }
+      if (ticks[ticks.length - 1] !== max) {
+        ticks.push(max);
+      }
+      return ticks;
+    };
+    
+    const yAxisTicks = generateTicks(yAxisMin, yAxisMax);
+    
     // CROSS-51: Filter out null values for charts that don't support them, or handle them gracefully
     // For pie/donut charts, we'll filter out null values
     // For other charts, we'll keep them but they won't render (which is fine)
@@ -512,6 +528,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]}
+                ticks={yAxisTicks}
                 width={isMobile ? 40 : isTablet ? 50 : 60}
                 tick={{ fontSize: fontSize }}
               />
@@ -559,6 +576,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores for horizontal bar charts
+                ticks={yAxisTicks}
                 width={isFullscreen ? 60 : 50} // Adequate width for X-axis labels
                 tick={{ fontSize: fontSize }}
               />
@@ -668,6 +686,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores
+                ticks={yAxisTicks}
                 width={isMobile ? 40 : isTablet ? 50 : 60} // Responsive width for Y-axis labels
                 tick={{ fontSize: fontSize }}
               />
@@ -754,6 +773,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores
+                ticks={yAxisTicks}
                 width={isMobile ? 40 : isTablet ? 50 : 60} // Responsive width for Y-axis labels
                 tick={{ fontSize: fontSize }}
               />
@@ -944,14 +964,13 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
             config={chartConfig}
             className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
           >
-            <div className={`relative w-full flex items-center justify-center pb-8 ${isFullscreen ? 'min-h-[600px] h-[600px]' : 'min-h-[220px] h-[220px]'}`}>
+            <div className={`relative w-full flex items-center justify-center overflow-visible ${isFullscreen ? 'h-full min-h-[600px]' : 'h-full min-h-[280px]'}`}>
               <svg 
                 width="100%" 
                 height="100%" 
-                viewBox="0 0 200 120" 
-                className="overflow-visible" 
+                viewBox="0 0 200 150" 
+                className="overflow-visible max-w-[300px] [@media(min-width:1400px)]:max-w-full" 
                 preserveAspectRatio="xMidYMid meet"
-                style={{ marginBottom: '30px' }}
               >
                 {/* Gauge background arc (from left to right) */}
                 <path
@@ -996,14 +1015,17 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                   />
                   <circle cx="0" cy="0" r="5" fill="hsl(var(--foreground))" />
                 </g>
-              </svg>
-              
-              {/* Value display positioned below with proper spacing to avoid overlap */}
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-center">
-                <div className={`font-bold text-foreground ${isFullscreen ? 'text-3xl' : 'text-xl'}`}>
+                {/* Value display inside SVG for consistent scaling */}
+                <text 
+                  x="100" 
+                  y="130" 
+                  textAnchor="middle" 
+                  className="fill-foreground font-bold"
+                  style={{ fontSize: isFullscreen ? '20px' : '16px' }}
+                >
                   {gaugeValue} / {maxValue}
-                </div>
-              </div>
+                </text>
+              </svg>
             </div>
           </ChartContainer>
         );
