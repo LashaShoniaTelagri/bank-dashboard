@@ -521,7 +521,7 @@ const FarmerProfilePage = () => {
                       Last Harvest
                     </p>
                     <p className="text-sm font-medium">
-                      {farmer.last_year_harvest_amount.toLocaleString()} kg
+                      {farmer.last_year_harvest_amount.toLocaleString()} Tone
                     </p>
                   </div>
                 )}
