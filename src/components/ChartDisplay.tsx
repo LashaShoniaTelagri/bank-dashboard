@@ -401,11 +401,15 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
 
   const renderChart = (chart: ChartTemplate, isFullscreen: boolean = false) => {
     const { chart_type, chart_data, name, annotation } = chart;
-    const { data, dataKeys = ['value'], xAxisKey = 'name', yAxisKey = 'value', seriesColors = {}, dataPointColors = {}, minScore, maxScore } = chart_data;
+    const { data, dataKeys = ['value'], xAxisKey = 'name', yAxisKey = 'value', seriesColors = {}, dataPointColors = {}, minScore, maxScore, xAxisLabelAngle } = chart_data;
     
     // CROSS-45: Use configured min/max scores or defaults
     const yAxisMin = minScore ?? 0;
     const yAxisMax = maxScore ?? 10;
+    
+    // Use configured X-axis label angle or default to 0 (horizontal)
+    const labelAngle = xAxisLabelAngle ?? 0;
+    const labelTextAnchor = labelAngle === 0 ? "middle" : "end";
     
     // Generate evenly spaced ticks (0-2-4-6-8-10 for max=10)
     const generateTicks = (min: number, max: number) => {
@@ -462,20 +466,20 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
     const showLabels = !isMobile || isFullscreen;
 
     // Optimized margins for maximum space utilization while ensuring labels are fully visible
-    // Chart cards: generous bottom margin for X-axis labels and legend, fullscreen: comfortable margins
+    // Chart cards: legend at top, generous bottom margin for angled X-axis labels
     const baseMargin = isFullscreen
-      ? { top: 40, right: 40, left: 40, bottom: 60 }
-      : { top: 5, right: 5, left: 5, bottom: 80 }; // More bottom margin for X-axis labels + legend
+      ? { top: 50, right: 40, left: 40, bottom: 60 }
+      : { top: 35, right: 5, left: 5, bottom: 80 }; // Top margin for legend, bottom for angled X-axis labels
     
     // Extra top margin for charts with value labels on bars
     const marginWithLabels = isFullscreen
       ? { top: 60, right: 40, left: 40, bottom: 60 }
-      : { top: 15, right: 5, left: 5, bottom: 80 }; // More bottom margin for X-axis labels + legend
+      : { top: 45, right: 5, left: 5, bottom: 80 }; // More top margin for legend + bar labels
     
     // Extra right margin for horizontal bar charts with labels
     const marginWithRightLabels = isFullscreen
-      ? { top: 40, right: 60, left: 40, bottom: 60 }
-      : { top: 5, right: 50, left: 5, bottom: 80 }; // More bottom margin for legend
+      ? { top: 50, right: 60, left: 40, bottom: 60 }
+      : { top: 35, right: 50, left: 5, bottom: 80 }; // Top margin for legend, bottom for X-axis
 
     const commonProps = {
       data: processedData, // CROSS-51: Use processed data
@@ -496,16 +500,18 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
-                angle={0}
-                textAnchor="middle"
+                angle={labelAngle}
+                textAnchor={labelTextAnchor}
                 height={isFullscreen ? undefined : 50}
                 interval={0}
                 tick={(props: any) => {
                   const { x, y, payload } = props;
                   const fullText = String(payload.value);
-                  const maxLen = isFullscreen ? 100 : 16;
+                  const maxLen = isFullscreen ? 100 : 20;
                   const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
                   const isTruncated = fullText.length > maxLen;
+                  const dy = labelAngle === 0 ? 16 : 8;
+                  const dx = labelAngle === 0 ? 0 : -2;
                   return (
                     <g 
                       transform={`translate(${x},${y})`}
@@ -517,7 +523,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                       }}
                       onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
                     >
-                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                      <text x={0} y={0} dy={dy} dx={dx} textAnchor={labelTextAnchor} transform={`rotate(${labelAngle})`} fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
                         {truncated}
                       </text>
                     </g>
@@ -534,7 +540,9 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend 
-                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: `${fontSize}px`, paddingBottom: '20px' }} 
                 iconSize={isMobile ? 12 : 14}
                 wrapperClass={isMobile ? "!text-xs" : ""}
               />
@@ -613,7 +621,9 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend 
-                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: `${fontSize}px`, paddingBottom: '20px' }} 
                 iconSize={isMobile ? 12 : 14}
                 wrapperClass={isMobile ? "!text-xs" : ""}
               />
@@ -654,16 +664,18 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
-                angle={0}
-                textAnchor="middle"
+                angle={labelAngle}
+                textAnchor={labelTextAnchor}
                 height={isFullscreen ? undefined : 50}
                 interval={0}
                 tick={(props: any) => {
                   const { x, y, payload } = props;
                   const fullText = String(payload.value);
-                  const maxLen = isFullscreen ? 100 : 16;
+                  const maxLen = isFullscreen ? 100 : 20;
                   const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
                   const isTruncated = fullText.length > maxLen;
+                  const dy = labelAngle === 0 ? 16 : 8;
+                  const dx = labelAngle === 0 ? 0 : -2;
                   return (
                     <g 
                       transform={`translate(${x},${y})`}
@@ -675,7 +687,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                       }}
                       onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
                     >
-                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                      <text x={0} y={0} dy={dy} dx={dx} textAnchor={labelTextAnchor} transform={`rotate(${labelAngle})`} fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
                         {truncated}
                       </text>
                     </g>
@@ -692,7 +704,9 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend 
-                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: `${fontSize}px`, paddingBottom: '20px' }} 
                 iconSize={isMobile ? 12 : 14}
                 wrapperClass={isMobile ? "!text-xs" : ""}
               />
@@ -741,16 +755,18 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 dataKey={xAxisKey} 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
                 style={{ fontSize: `${labelFontSize}px`, fontWeight: 500 }}
-                angle={0}
-                textAnchor="middle"
+                angle={labelAngle}
+                textAnchor={labelTextAnchor}
                 height={isFullscreen ? undefined : 50}
                 interval={0}
                 tick={(props: any) => {
                   const { x, y, payload } = props;
                   const fullText = String(payload.value);
-                  const maxLen = isFullscreen ? 100 : 16;
+                  const maxLen = isFullscreen ? 100 : 20;
                   const truncated = fullText.length > maxLen ? fullText.substring(0, maxLen) + '...' : fullText;
                   const isTruncated = fullText.length > maxLen;
+                  const dy = labelAngle === 0 ? 16 : 8;
+                  const dx = labelAngle === 0 ? 0 : -2;
                   return (
                     <g 
                       transform={`translate(${x},${y})`}
@@ -762,7 +778,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                       }}
                       onMouseLeave={() => setLabelTooltip(prev => ({ ...prev, visible: false }))}
                     >
-                      <text x={0} y={0} dy={16} textAnchor="middle" fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
+                      <text x={0} y={0} dy={dy} dx={dx} textAnchor={labelTextAnchor} transform={`rotate(${labelAngle})`} fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'} fontSize={labelFontSize} fontWeight={500} style={{ cursor: isTruncated ? 'pointer' : 'default' }}>
                         {truncated}
                       </text>
                     </g>
@@ -779,7 +795,9 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend 
-                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: `${fontSize}px`, paddingBottom: '20px' }} 
                 iconSize={isMobile ? 12 : 14}
                 wrapperClass={isMobile ? "!text-xs" : ""}
               />
@@ -1080,7 +1098,9 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend 
-                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: `${fontSize}px`, paddingBottom: '20px' }} 
                 iconSize={isMobile ? 12 : 14}
                 wrapperClass={isMobile ? "!text-xs" : ""}
               />
@@ -1127,7 +1147,9 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
               />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend 
-                wrapperStyle={{ fontSize: `${fontSize}px` }} 
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: `${fontSize}px`, paddingBottom: '20px' }} 
                 iconSize={isMobile ? 12 : 14}
                 wrapperClass={isMobile ? "!text-xs" : ""}
               />

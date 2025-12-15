@@ -77,6 +77,7 @@ export const ChartBuilderPage = () => {
   const [phaseNumber, setPhaseNumber] = useState<number | null>(null);
   const [minScore, setMinScore] = useState<number>(0); // CROSS-45: Default min score
   const [maxScore, setMaxScore] = useState<number>(10); // CROSS-45: Default max score
+  const [xAxisLabelAngle, setXAxisLabelAngle] = useState<number>(0); // X-axis label rotation angle - default horizontal
   const [dataPoints, setDataPoints] = useState<ChartDataPoint[]>([
     { name: '', value: null } // CROSS-51: Allow null values
   ]);
@@ -141,6 +142,8 @@ export const ChartBuilderPage = () => {
       // CROSS-45: Load min/max scores from chart data, default to 0-10
       setMinScore(existingChart.chart_data.minScore ?? 0);
       setMaxScore(existingChart.chart_data.maxScore ?? 10);
+      // Load X-axis label angle, default to 0 degrees (horizontal)
+      setXAxisLabelAngle(existingChart.chart_data.xAxisLabelAngle ?? 0);
       setDataPoints(existingChart.chart_data.data || [{ name: '', value: null }]);
       const keys = existingChart.chart_data.dataKeys || ['value'];
       setDataKeys(keys);
@@ -486,6 +489,7 @@ export const ChartBuilderPage = () => {
         dataPointColors: dataPointColors, // Save custom data point colors
         minScore: minScore, // CROSS-45: Save min/max scores
         maxScore: maxScore,
+        xAxisLabelAngle: xAxisLabelAngle, // X-axis label rotation angle
       },
       annotation: annotation.trim() || undefined,
       bottom_description: bottomDescription.trim() || undefined,
@@ -588,14 +592,14 @@ export const ChartBuilderPage = () => {
     
     const yAxisTicks = generateTicks(minScore, maxScore);
 
-    // Base margins for preview
-    const baseMargin = { top: 20, right: 30, left: 20, bottom: 5 };
+    // Base margins for preview - legend now at top
+    const baseMargin = { top: 40, right: 30, left: 20, bottom: 80 };
     
     // Extra top margin for charts with labels to prevent cutoff
-    const marginWithLabels = { top: 40, right: 30, left: 20, bottom: 5 };
+    const marginWithLabels = { top: 50, right: 30, left: 20, bottom: 80 };
     
     // Extra right margin for horizontal bar charts
-    const marginWithRightLabels = { top: 20, right: 50, left: 20, bottom: 5 };
+    const marginWithRightLabels = { top: 40, right: 50, left: 20, bottom: 80 };
 
     const commonProps = {
       data: previewData,
@@ -619,14 +623,21 @@ export const ChartBuilderPage = () => {
           <ChartContainer config={chartConfig}>
             <BarChart data={filteredPreviewData} margin={marginWithLabels}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-              <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <XAxis 
+                dataKey="name" 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                angle={xAxisLabelAngle}
+                textAnchor={xAxisLabelAngle === 0 ? "middle" : "end"}
+                height={60}
+                interval={0}
+              />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
@@ -669,7 +680,7 @@ export const ChartBuilderPage = () => {
               />
               <YAxis dataKey="name" type="category" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
@@ -704,14 +715,21 @@ export const ChartBuilderPage = () => {
           <ChartContainer config={chartConfig}>
             <LineChart data={filteredPreviewData} margin={marginWithLabels}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-              <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <XAxis 
+                dataKey="name" 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                angle={xAxisLabelAngle}
+                textAnchor={xAxisLabelAngle === 0 ? "middle" : "end"}
+                height={60}
+                interval={0}
+              />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
@@ -752,14 +770,21 @@ export const ChartBuilderPage = () => {
           <ChartContainer config={chartConfig}>
             <AreaChart data={filteredPreviewData} margin={marginWithLabels}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-              <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <XAxis 
+                dataKey="name" 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                angle={xAxisLabelAngle}
+                textAnchor={xAxisLabelAngle === 0 ? "middle" : "end"}
+                height={60}
+                interval={0}
+              />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
                 return (
@@ -1002,14 +1027,21 @@ export const ChartBuilderPage = () => {
           <ChartContainer config={chartConfig}>
             <ScatterChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
-              <XAxis dataKey="name" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
+              <XAxis 
+                dataKey="name" 
+                stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                angle={xAxisLabelAngle}
+                textAnchor={xAxisLabelAngle === 0 ? "middle" : "end"}
+                height={60}
+                interval={0}
+              />
               <YAxis 
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
               />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key, index) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[index];
                 return (
@@ -1033,7 +1065,7 @@ export const ChartBuilderPage = () => {
               <PolarAngleAxis dataKey="name" tick={{ fill: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }} />
               <PolarRadiusAxis tick={{ fill: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key, index) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[index];
                 return (
@@ -1292,6 +1324,41 @@ export const ChartBuilderPage = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* X-Axis Label Angle Configuration */}
+                  {(chartType === 'bar' || chartType === 'line' || chartType === 'area' || chartType === 'scatter') && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">X-Axis Label Rotation</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Adjust the angle of X-axis labels to prevent overlap with long text.
+                        </p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="xaxis-angle">Label Angle (degrees)</Label>
+                          <Select
+                            value={xAxisLabelAngle.toString()}
+                            onValueChange={(value) => setXAxisLabelAngle(parseInt(value))}
+                          >
+                            <SelectTrigger id="xaxis-angle">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">Horizontal (0°) - Default</SelectItem>
+                              <SelectItem value="-30">Slight Angle (-30°)</SelectItem>
+                              <SelectItem value="-45">Medium Angle (-45°)</SelectItem>
+                              <SelectItem value="-60">Steep Angle (-60°)</SelectItem>
+                              <SelectItem value="-90">Vertical (-90°)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Use 0° for short labels. For labels with 10+ characters, try -45° to -60° to prevent overlap.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Data Series Configuration */}
                   <Card>

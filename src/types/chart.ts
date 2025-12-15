@@ -19,6 +19,9 @@ export interface ChartTemplate {
     dataKeys?: string[]; // For multi-series charts
     seriesColors?: Record<string, string>; // Color mapping for each series
     dataPointColors?: Record<string, string>; // Color mapping for individual data points (by name) - useful for pie/donut
+    minScore?: number; // Minimum Y-axis value
+    maxScore?: number; // Maximum Y-axis value
+    xAxisLabelAngle?: number; // X-axis label rotation angle (0, -30, -45, -60, -90)
   };
   annotation?: string;
   bottom_description?: string; // Rich text HTML description displayed at the bottom of the chart
