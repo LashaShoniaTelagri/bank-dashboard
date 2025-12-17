@@ -212,7 +212,15 @@ export const F100Modal = ({
     const dataKeys = chart.chart_data.dataKeys || [yAxisKey];
     const seriesColors = chart.chart_data.seriesColors || {};
     const dataPointColors = chart.chart_data.dataPointColors || {};
+    const valueType = chart.chart_data.valueType || 'numeric';
     const brandColors = getChartColorArray(false); // Always use light mode colors for PDF
+    
+    // Percentage symbol suffix
+    const valueSuffix = valueType === 'percentage' ? '%' : '';
+    
+    // Use configured min/max scores
+    const yAxisMin = chart.chart_data.minScore ?? 0;
+    const yAxisMax = chart.chart_data.maxScore ?? (valueType === 'percentage' ? 100 : 10);
 
     // Create chart config for recharts
     const chartConfig: any = {};
@@ -237,8 +245,11 @@ export const F100Modal = ({
             <BarChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey={xAxisKey} fontSize={11} />
-              <YAxis fontSize={11} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <YAxis fontSize={11} domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               {dataKeys.map((key) => (
                 <Bar
@@ -258,8 +269,11 @@ export const F100Modal = ({
             <LineChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey={xAxisKey} fontSize={11} />
-              <YAxis fontSize={11} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <YAxis fontSize={11} domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               {dataKeys.map((key) => (
                 <Line
@@ -281,8 +295,11 @@ export const F100Modal = ({
             <AreaChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey={xAxisKey} fontSize={11} />
-              <YAxis fontSize={11} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <YAxis fontSize={11} domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               {dataKeys.map((key) => (
                 <Area
@@ -304,9 +321,12 @@ export const F100Modal = ({
           <ChartContainer config={chartConfig}>
             <BarChart {...commonProps} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis type="number" fontSize={11} />
+              <XAxis type="number" fontSize={11} domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
               <YAxis dataKey={xAxisKey} type="category" fontSize={11} width={80} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               {dataKeys.map((key) => (
                 <Bar
@@ -347,7 +367,10 @@ export const F100Modal = ({
                       return <Cell key={`cell-${index}`} fill={color} />;
                     })}
                   </Pie>
-                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartTooltip 
+                    content={<ChartTooltipContent />}
+                    formatter={(value: number) => `${value}${valueSuffix}`}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -360,9 +383,12 @@ export const F100Modal = ({
           <ChartContainer config={chartConfig}>
             <ScatterChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey={xAxisKey} fontSize={11} type="number" />
-              <YAxis dataKey={yAxisKey} fontSize={11} type="number" />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <XAxis dataKey={xAxisKey} fontSize={11} type="number" domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
+              <YAxis dataKey={yAxisKey} fontSize={11} type="number" domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               <Scatter
                 name={yAxisKey}
@@ -379,8 +405,11 @@ export const F100Modal = ({
             <RadarChart cx="50%" cy="50%" outerRadius={80} width={450} height={250} data={data}>
               <PolarGrid opacity={0.3} />
               <PolarAngleAxis dataKey={xAxisKey} fontSize={10} />
-              <PolarRadiusAxis fontSize={10} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <PolarRadiusAxis fontSize={10} domain={[yAxisMin, yAxisMax]} tickFormatter={(value) => `${value}${valueSuffix}`} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               {dataKeys.map((key) => (
                 <Radar
@@ -400,7 +429,7 @@ export const F100Modal = ({
       case 'gauge': {
         // Gauge chart: semi-circular with needle pointing to value
         const gaugeValue = data.length > 0 ? (data[0][yAxisKey] as number || 0) : 0;
-        const maxValue = 10; // Default max, could be configurable
+        const maxValue = chart.chart_data.maxScore ?? (valueType === 'percentage' ? 100 : 10);
         const gaugePercentage = Math.min(Math.max((gaugeValue / maxValue) * 100, 0), 100);
         // Needle angle: starts at -90 (pointing left), rotates clockwise to 90 (pointing right)
         const needleAngle = -90 + (gaugePercentage / 100) * 180;
@@ -475,7 +504,7 @@ export const F100Modal = ({
             
             {/* Value display positioned below with proper spacing to avoid overlap */}
             <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-center">
-              <div className="text-xl font-bold text-foreground">{gaugeValue} / {maxValue}</div>
+              <div className="text-xl font-bold text-foreground">{gaugeValue}{valueSuffix} / {maxValue}{valueSuffix}</div>
             </div>
           </div>
         );
