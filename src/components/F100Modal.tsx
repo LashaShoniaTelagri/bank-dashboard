@@ -646,13 +646,25 @@ export const F100Modal = ({
 
       console.log('📊 PDF Export: Converting canvas to image data...');
       
-      // Optimized PNG quality for better performance (0.95 instead of 1.0)
-      // At scale 1.5, this still produces excellent quality while being faster
-      const imgData = canvas.toDataURL('image/png', 0.95);
-      
-      // Verify image data is valid
-      if (!imgData || imgData === 'data:,') {
-        throw new Error('Failed to generate image data from canvas');
+      // Windows Fix: Use JPEG instead of PNG to avoid "wrong PNG signature" error
+      // JPEG is more reliable across platforms and produces smaller file sizes
+      // White background already set via backgroundColor option, so transparency not needed
+      let imgData: string;
+      try {
+        imgData = canvas.toDataURL('image/jpeg', 0.92); // JPEG with 92% quality
+        
+        // Verify image data is valid
+        if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/jpeg')) {
+          throw new Error('Invalid JPEG data generated');
+        }
+      } catch (jpegError) {
+        console.warn('⚠️ JPEG generation failed, trying PNG fallback:', jpegError);
+        // Fallback to PNG if JPEG fails
+        imgData = canvas.toDataURL('image/png', 0.95);
+        
+        if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/')) {
+          throw new Error('Failed to generate image data from canvas (both JPEG and PNG failed)');
+        }
       }
       
       console.log('📊 PDF Export: Image data ready, size:', (imgData.length / 1024 / 1024).toFixed(2), 'MB');
@@ -711,55 +723,61 @@ export const F100Modal = ({
         }
       });
       
-      // For chart grid: group charts into rows and add break points per row
+      // For chart grid: Add break points for EVERY chart boundary
+      // This ensures no chart is ever split across pages
       if (chartGrid) {
         const chartCards = chartGrid.querySelectorAll('.pdf-chart-card');
-        const chartPositions: Array<{top: number, height: number}> = [];
+        let chartsProcessed = 0;
         
-        chartCards.forEach((card) => {
+        chartCards.forEach((card, index) => {
           const rect = card.getBoundingClientRect();
           const elementRect = element.getBoundingClientRect();
           const relativeTop = rect.top - elementRect.top + element.scrollTop;
-          chartPositions.push({
-            top: relativeTop * scaleFactor,
-            height: rect.height * scaleFactor
-          });
-        });
-        
-        // Group charts by row (charts with similar top positions are in same row)
-        const rowTolerance = 5; // mm - charts within 5mm are considered same row
-        const rows: number[] = [];
-        
-        chartPositions.forEach((pos, index) => {
-          // Check if this chart starts a new row
-          const isNewRow = !chartPositions.slice(0, index).some(
-            prevPos => Math.abs(prevPos.top - pos.top) < rowTolerance
-          );
+          const relativeBottom = relativeTop + rect.height;
           
-          if (isNewRow && pos.top > 10) {
-            rows.push(pos.top);
-            // Also add break point after the row (top + height)
-            rows.push(pos.top + pos.height + 5); // 5mm gap after row
-          }
-        });
-        
-        rows.forEach(rowTop => breakPoints.push(rowTop));
-        console.log('📊 PDF Export: Detected', rows.length / 2, 'chart rows');
-      }
-      
-      // For monitoring section: add each card as break point
-      if (monitoringSection) {
-        const monitoringCards = monitoringSection.querySelectorAll('.pdf-monitoring-card');
-        monitoringCards.forEach((card) => {
-          const rect = card.getBoundingClientRect();
-          const elementRect = element.getBoundingClientRect();
-          const relativeTop = rect.top - elementRect.top + element.scrollTop;
           const topInMm = relativeTop * scaleFactor;
+          const bottomInMm = relativeBottom * scaleFactor;
           
           if (topInMm > 10) {
+            // Add break BEFORE each chart (so we can start page here)
             breakPoints.push(topInMm);
+            
+            // Add break AFTER each chart (so we can end page here)
+            breakPoints.push(bottomInMm + 3); // 3mm gap
+            
+            chartsProcessed++;
+            
+            // Force page break after every 6 charts (regardless of rows)
+            if (chartsProcessed % 6 === 0 && index < chartCards.length - 1) {
+              breakPoints.push(bottomInMm + 10); // Extra gap after 6 charts
+              console.log(`📊 PDF Export: Forced break after chart ${chartsProcessed} (6 charts per page limit)`);
+            }
           }
         });
+        
+        console.log(`📊 PDF Export: Detected ${chartsProcessed} charts, added break points before and after each`);
+      }
+      
+      // For monitoring section: add break points before AND after each card
+      if (monitoringSection) {
+        const monitoringCards = monitoringSection.querySelectorAll('.pdf-monitoring-card');
+        monitoringCards.forEach((card, index) => {
+          const rect = card.getBoundingClientRect();
+          const elementRect = element.getBoundingClientRect();
+          const relativeTop = rect.top - elementRect.top + element.scrollTop;
+          const relativeBottom = relativeTop + rect.height;
+          
+          const topInMm = relativeTop * scaleFactor;
+          const bottomInMm = relativeBottom * scaleFactor;
+          
+          if (topInMm > 10) {
+            // Break BEFORE monitoring card
+            breakPoints.push(topInMm);
+            // Break AFTER monitoring card
+            breakPoints.push(bottomInMm + 3); // 3mm gap
+          }
+        });
+        console.log(`📊 PDF Export: Detected ${monitoringCards.length} monitoring issue cards`);
       }
       
       // Add end point
@@ -789,23 +807,17 @@ export const F100Modal = ({
           bp > currentY && bp <= currentY + contentHeight
         );
         
-        // If we have content that would be split, and we have a better break point
+        // CRITICAL: Always respect chart boundaries to prevent splitting
+        // For F-100 reports, chart integrity is more important than page fill optimization
         if (idealBreaks.length > 0) {
-          // Find the last break point that fits
-          const lastGoodBreak = idealBreaks[idealBreaks.length - 1];
+          // Use the last break point that fits on the page
+          // This ensures we break at chart boundaries, not mid-chart
+          nextBreak = idealBreaks[idealBreaks.length - 1];
           
-          // Only use this break if it's not too early in the page
-          // (avoid mostly empty pages - at least 30% filled for better flow)
-          const minContentHeight = contentHeight * 0.3;
-          if (lastGoodBreak - currentY > minContentHeight || pageCount === 1) {
-            nextBreak = lastGoodBreak;
-          } else if (idealBreaks.length > 1) {
-            // If last break is too early, try second-to-last
-            const secondLastBreak = idealBreaks[idealBreaks.length - 2];
-            if (secondLastBreak - currentY > minContentHeight * 0.7) {
-              nextBreak = secondLastBreak;
-            }
-          }
+          console.log(`📊 PDF Export: Page ${pageCount + 1} break point: ${nextBreak.toFixed(0)}mm (respecting chart boundary)`);
+        } else {
+          // No ideal break found within page, use full page height
+          console.log(`📊 PDF Export: Page ${pageCount + 1} using full page height (no break points)`);
         }
         
         // Calculate how much of the canvas to show
@@ -836,12 +848,16 @@ export const F100Modal = ({
           );
           
           // Convert to image and add to PDF
-          const pageImgData = pageCanvas.toDataURL('image/png', 0.95);
+          // Windows Fix: Use JPEG for reliability
+          const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
           const pageImgHeight = sourceHeight * scaleFactor;
+          
+          // Detect image format from data URL
+          const imageFormat = pageImgData.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
           
           pdf.addImage(
             pageImgData,
-            'PNG',
+            imageFormat,
             margin,
             margin,
             imgWidth,

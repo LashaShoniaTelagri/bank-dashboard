@@ -401,15 +401,18 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
 
   const renderChart = (chart: ChartTemplate, isFullscreen: boolean = false) => {
     const { chart_type, chart_data, name, annotation } = chart;
-    const { data, dataKeys = ['value'], xAxisKey = 'name', yAxisKey = 'value', seriesColors = {}, dataPointColors = {}, minScore, maxScore, xAxisLabelAngle } = chart_data;
+    const { data, dataKeys = ['value'], xAxisKey = 'name', yAxisKey = 'value', seriesColors = {}, dataPointColors = {}, minScore, maxScore, xAxisLabelAngle, valueType } = chart_data;
     
     // CROSS-45: Use configured min/max scores or defaults
     const yAxisMin = minScore ?? 0;
-    const yAxisMax = maxScore ?? 10;
+    const yAxisMax = maxScore ?? (valueType === 'percentage' ? 100 : 10);
     
     // Use configured X-axis label angle or default to 0 (horizontal)
     const labelAngle = xAxisLabelAngle ?? 0;
     const labelTextAnchor = labelAngle === 0 ? "middle" : "end";
+    
+    // Percentage symbol suffix
+    const valueSuffix = valueType === 'percentage' ? '%' : '';
     
     // Generate evenly spaced ticks (0-2-4-6-8-10 for max=10)
     const generateTicks = (min: number, max: number) => {
@@ -535,10 +538,14 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]}
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
                 width={isMobile ? 40 : isTablet ? 50 : 60}
                 tick={{ fontSize: fontSize }}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend 
                 verticalAlign="top"
                 height={36}
@@ -553,7 +560,8 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     {showLabels && (
                       <LabelList 
                         dataKey={key} 
-                        position="top" 
+                        position="top"
+                        formatter={(value: number) => `${value}${valueSuffix}`}
                         style={{ 
                           fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
                           fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
@@ -585,6 +593,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 style={{ fontSize: `${fontSize}px` }}
                 domain={[yAxisMin, yAxisMax]} // CROSS-45: Use configured min/max scores for horizontal bar charts
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
                 width={isFullscreen ? 60 : 50} // Adequate width for X-axis labels
                 tick={{ fontSize: fontSize }}
               />
@@ -619,7 +628,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                   );
                 }}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend 
                 verticalAlign="top"
                 height={36}
@@ -702,7 +714,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 width={isMobile ? 40 : isTablet ? 50 : 60} // Responsive width for Y-axis labels
                 tick={{ fontSize: fontSize }}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend 
                 verticalAlign="top"
                 height={36}
@@ -725,7 +740,8 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     {showLabels && (
                       <LabelList 
                         dataKey={key} 
-                        position="top" 
+                        position="top"
+                        formatter={(value: number) => `${value}${valueSuffix}`}
                         style={{ 
                           fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
                           fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
@@ -793,7 +809,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 width={isMobile ? 40 : isTablet ? 50 : 60} // Responsive width for Y-axis labels
                 tick={{ fontSize: fontSize }}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend 
                 verticalAlign="top"
                 height={36}
@@ -815,7 +834,8 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     {showLabels && (
                       <LabelList 
                         dataKey={key} 
-                        position="top" 
+                        position="top"
+                        formatter={(value: number) => `${value}${valueSuffix}`}
                         style={{ 
                           fill: isDark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)', // Full opacity for better visibility
                           fontSize: `${Math.max(labelFontSize, 11)}px`, // Ensure minimum readable size
@@ -882,7 +902,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     return sum + ((val !== null && val !== undefined && val !== '') ? (val as number) : 0);
                   }, 0);
                   const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                  return [`${value} (${percent}%)`, yAxisKey];
+                  return [`${value}${valueSuffix} (${percent}%)`, yAxisKey];
                 }}
               />
             </PieChart>
@@ -937,7 +957,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                     return sum + ((val !== null && val !== undefined && val !== '') ? (val as number) : 0);
                   }, 0);
                   const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                  return [`${value} (${percent}%)`, yAxisKey];
+                  return [`${value}${valueSuffix} (${percent}%)`, yAxisKey];
                 }}
               />
             </PieChart>
@@ -1041,7 +1061,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                   className="fill-foreground font-bold"
                   style={{ fontSize: isFullscreen ? '20px' : '16px' }}
                 >
-                  {gaugeValue} / {maxValue}
+                  {gaugeValue}{valueSuffix} / {maxValue}{valueSuffix}
                 </text>
               </svg>
             </div>
@@ -1099,7 +1119,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                 width={isFullscreen ? 60 : 50}
                 tick={{ fontSize: fontSize }}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend 
                 verticalAlign="top"
                 height={36}
@@ -1148,7 +1171,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
                   fontSize: fontSize
                 }} 
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend 
                 verticalAlign="top"
                 height={36}

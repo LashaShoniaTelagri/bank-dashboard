@@ -78,6 +78,7 @@ export const ChartBuilderPage = () => {
   const [minScore, setMinScore] = useState<number>(0); // CROSS-45: Default min score
   const [maxScore, setMaxScore] = useState<number>(10); // CROSS-45: Default max score
   const [xAxisLabelAngle, setXAxisLabelAngle] = useState<number>(0); // X-axis label rotation angle - default horizontal
+  const [valueType, setValueType] = useState<'numeric' | 'percentage'>('numeric'); // Chart value type: numeric (0-10) or percentage (0-100%)
   const [dataPoints, setDataPoints] = useState<ChartDataPoint[]>([
     { name: '', value: null } // CROSS-51: Allow null values
   ]);
@@ -89,6 +90,19 @@ export const ChartBuilderPage = () => {
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}); // Track field-level errors: "pointIndex-key" => error message
   
+  // Adjust min/max when value type changes
+  useEffect(() => {
+    if (valueType === 'percentage') {
+      // Switch to percentage mode
+      if (maxScore === 10) setMaxScore(100);
+      if (minScore === 0) setMinScore(0);
+    } else {
+      // Switch to numeric mode
+      if (maxScore === 100) setMaxScore(10);
+      if (minScore === 0) setMinScore(0);
+    }
+  }, [valueType]);
+
   // Clear field errors when min/max scores change
   useEffect(() => {
     // Re-validate all data points when min/max changes
@@ -101,9 +115,9 @@ export const ChartBuilderPage = () => {
             const numValue = typeof value === 'number' ? value : parseFloat(value as string);
             if (!isNaN(numValue)) {
               if (numValue > maxScore) {
-                newFieldErrors[`${index}-${key}`] = `Value cannot exceed maximum score of ${maxScore}`;
+                newFieldErrors[`${index}-${key}`] = `Value cannot exceed maximum score of ${maxScore}${valueType === 'percentage' ? '%' : ''}`;
               } else if (numValue < minScore) {
-                newFieldErrors[`${index}-${key}`] = `Value cannot be less than minimum score of ${minScore}`;
+                newFieldErrors[`${index}-${key}`] = `Value cannot be less than minimum score of ${minScore}${valueType === 'percentage' ? '%' : ''}`;
               }
             }
           }
@@ -111,7 +125,7 @@ export const ChartBuilderPage = () => {
       });
     });
     setFieldErrors(newFieldErrors);
-  }, [minScore, maxScore, dataPoints, dataKeys]);
+  }, [minScore, maxScore, dataPoints, dataKeys, valueType]);
 
   // Fetch chart if editing
   const { data: existingChart, isLoading: loadingChart } = useQuery({
@@ -139,9 +153,14 @@ export const ChartBuilderPage = () => {
       setBottomDescription(existingChart.bottom_description || '');
       setFarmerId((existingChart as any).farmer_id || null);
       setPhaseNumber((existingChart as any).phase_number || null);
-      // CROSS-45: Load min/max scores from chart data, default to 0-10
+      // Load value type, default to numeric
+      const loadedValueType = existingChart.chart_data.valueType ?? 'numeric';
+      setValueType(loadedValueType);
+      
+      // CROSS-45: Load min/max scores from chart data, with defaults based on value type
+      const defaultMax = loadedValueType === 'percentage' ? 100 : 10;
       setMinScore(existingChart.chart_data.minScore ?? 0);
-      setMaxScore(existingChart.chart_data.maxScore ?? 10);
+      setMaxScore(existingChart.chart_data.maxScore ?? defaultMax);
       // Load X-axis label angle, default to 0 degrees (horizontal)
       setXAxisLabelAngle(existingChart.chart_data.xAxisLabelAngle ?? 0);
       setDataPoints(existingChart.chart_data.data || [{ name: '', value: null }]);
@@ -490,6 +509,7 @@ export const ChartBuilderPage = () => {
         minScore: minScore, // CROSS-45: Save min/max scores
         maxScore: maxScore,
         xAxisLabelAngle: xAxisLabelAngle, // X-axis label rotation angle
+        valueType: valueType, // Chart value type: numeric or percentage
       },
       annotation: annotation.trim() || undefined,
       bottom_description: bottomDescription.trim() || undefined,
@@ -591,6 +611,9 @@ export const ChartBuilderPage = () => {
     };
     
     const yAxisTicks = generateTicks(minScore, maxScore);
+    
+    // Percentage symbol suffix
+    const valueSuffix = valueType === 'percentage' ? '%' : '';
 
     // Base margins for preview - legend now at top
     const baseMargin = { top: 40, right: 30, left: 20, bottom: 80 };
@@ -635,8 +658,12 @@ export const ChartBuilderPage = () => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
@@ -644,7 +671,8 @@ export const ChartBuilderPage = () => {
                   <Bar key={key} dataKey={key} fill={color}>
                     <LabelList 
                       dataKey={key} 
-                      position="top" 
+                      position="top"
+                      formatter={(value: number) => `${value}${valueSuffix}`}
                       style={{ 
                         fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
                         fontSize: '12px',
@@ -677,9 +705,13 @@ export const ChartBuilderPage = () => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores for horizontal bar charts
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
               />
               <YAxis dataKey="name" type="category" stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
@@ -687,7 +719,8 @@ export const ChartBuilderPage = () => {
                   <Bar key={key} dataKey={key} fill={color}>
                     <LabelList 
                       dataKey={key} 
-                      position="right" 
+                      position="right"
+                      formatter={(value: number) => `${value}${valueSuffix}`}
                       style={{ 
                         fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
                         fontSize: '12px',
@@ -727,8 +760,12 @@ export const ChartBuilderPage = () => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
@@ -742,7 +779,8 @@ export const ChartBuilderPage = () => {
                   >
                     <LabelList 
                       dataKey={key} 
-                      position="top" 
+                      position="top"
+                      formatter={(value: number) => `${value}${valueSuffix}`}
                       style={{ 
                         fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
                         fontSize: '12px',
@@ -782,8 +820,12 @@ export const ChartBuilderPage = () => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[0];
@@ -798,7 +840,8 @@ export const ChartBuilderPage = () => {
                   >
                     <LabelList 
                       dataKey={key} 
-                      position="top" 
+                      position="top"
+                      formatter={(value: number) => `${value}${valueSuffix}`}
                       style={{ 
                         fill: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)',
                         fontSize: '12px',
@@ -1039,8 +1082,12 @@ export const ChartBuilderPage = () => {
                 stroke={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'} 
                 domain={[minScore, maxScore]} // CROSS-45: Use configured min/max scores
                 ticks={yAxisTicks}
+                tickFormatter={(value) => `${value}${valueSuffix}`}
               />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key, index) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[index];
@@ -1064,7 +1111,10 @@ export const ChartBuilderPage = () => {
               <PolarGrid stroke={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'} />
               <PolarAngleAxis dataKey="name" tick={{ fill: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }} />
               <PolarRadiusAxis tick={{ fill: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartTooltip 
+                content={<ChartTooltipContent />}
+                formatter={(value: number) => `${value}${valueSuffix}`}
+              />
               <Legend verticalAlign="top" height={36} wrapperStyle={{ paddingBottom: '20px' }} />
               {previewDataKeys.map((key, index) => {
                 const color = chartConfig[key]?.color || seriesColors[key] || brandColors[index];
@@ -1239,86 +1289,136 @@ export const ChartBuilderPage = () => {
                     />
                   </div>
 
+                  {/* Value Type Selector */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Value Type</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Choose whether your chart displays numbers (0-10) or percentages (0%-100%).
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <Label htmlFor="value-type">Display Format</Label>
+                        <Select
+                          value={valueType}
+                          onValueChange={(value: 'numeric' | 'percentage') => setValueType(value)}
+                        >
+                          <SelectTrigger id="value-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="numeric">Numbers (0-10)</SelectItem>
+                            <SelectItem value="percentage">Percentages (0%-100%)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {valueType === 'numeric' 
+                            ? 'Chart will display numeric values from 0 to 10' 
+                            : 'Chart will display percentage values from 0% to 100%'}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {/* CROSS-45: Min/Max Score Configuration */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Score Range Configuration</CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Set the minimum and maximum values for the Y-axis scale. This helps ensure consistent scaling across charts.
+                        Set the minimum and maximum values for the Y-axis scale. {valueType === 'percentage' ? 'Range: 0% to 100%' : 'Range: typically 0 to 10'}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="min-score">Minimum Score</Label>
-                          <Input
-                            id="min-score"
-                            type="text"
-                            inputMode="decimal"
-                            value={minScore}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              // Allow empty string, numbers, decimals, and negative sign
-                              if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
-                                if (value === '') {
-                                  setMinScore(0); // Default to 0 if cleared
-                                } else {
-                                  const numValue = parseFloat(value);
-                                  if (!isNaN(numValue)) {
-                                    setMinScore(numValue);
+                          <Label htmlFor="min-score">
+                            Minimum {valueType === 'percentage' ? 'Percentage' : 'Score'}
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="min-score"
+                              type="text"
+                              inputMode="decimal"
+                              value={minScore}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                // Allow empty string, numbers, decimals, and negative sign
+                                if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                  if (value === '') {
+                                    setMinScore(0); // Default to 0 if cleared
+                                  } else {
+                                    const numValue = parseFloat(value);
+                                    if (!isNaN(numValue)) {
+                                      setMinScore(numValue);
+                                    }
                                   }
                                 }
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const value = e.target.value.trim();
-                              if (value === '') {
-                                setMinScore(0);
-                              } else {
-                                const numValue = parseFloat(value);
-                                setMinScore(isNaN(numValue) ? 0 : numValue);
-                              }
-                            }}
-                            placeholder="0"
-                          />
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value.trim();
+                                if (value === '') {
+                                  setMinScore(0);
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  setMinScore(isNaN(numValue) ? 0 : numValue);
+                                }
+                              }}
+                              placeholder={valueType === 'percentage' ? '0%' : '0'}
+                              className={valueType === 'percentage' ? 'pr-8' : ''}
+                            />
+                            {valueType === 'percentage' && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            Default: 0
+                            Default: 0{valueType === 'percentage' ? '%' : ''}
                           </p>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="max-score">Maximum Score</Label>
-                          <Input
-                            id="max-score"
-                            type="text"
-                            inputMode="decimal"
-                            value={maxScore}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              // Allow empty string, numbers, decimals, and negative sign
-                              if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
-                                if (value === '') {
-                                  setMaxScore(10); // Default to 10 if cleared
-                                } else {
-                                  const numValue = parseFloat(value);
-                                  if (!isNaN(numValue)) {
-                                    setMaxScore(numValue);
+                          <Label htmlFor="max-score">
+                            Maximum {valueType === 'percentage' ? 'Percentage' : 'Score'}
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="max-score"
+                              type="text"
+                              inputMode="decimal"
+                              value={maxScore}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                // Allow empty string, numbers, decimals, and negative sign
+                                if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                  if (value === '') {
+                                    const defaultMax = valueType === 'percentage' ? 100 : 10;
+                                    setMaxScore(defaultMax);
+                                  } else {
+                                    const numValue = parseFloat(value);
+                                    if (!isNaN(numValue)) {
+                                      setMaxScore(numValue);
+                                    }
                                   }
                                 }
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const value = e.target.value.trim();
-                              if (value === '') {
-                                setMaxScore(10);
-                              } else {
-                                const numValue = parseFloat(value);
-                                setMaxScore(isNaN(numValue) ? 10 : numValue);
-                              }
-                            }}
-                            placeholder="10"
-                          />
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value.trim();
+                                const defaultMax = valueType === 'percentage' ? 100 : 10;
+                                if (value === '') {
+                                  setMaxScore(defaultMax);
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  setMaxScore(isNaN(numValue) ? defaultMax : numValue);
+                                }
+                              }}
+                              placeholder={valueType === 'percentage' ? '100%' : '10'}
+                              className={valueType === 'percentage' ? 'pr-8' : ''}
+                            />
+                            {valueType === 'percentage' && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            Default: 10
+                            Default: {valueType === 'percentage' ? '100%' : '10'}
                           </p>
                         </div>
                       </div>

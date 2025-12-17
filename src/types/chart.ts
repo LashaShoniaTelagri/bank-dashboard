@@ -8,6 +8,8 @@ export interface ChartDataPoint {
   [key: string]: string | number; // Allow additional fields for multi-series charts
 }
 
+export type ChartValueType = 'numeric' | 'percentage';
+
 export interface ChartTemplate {
   id?: string;
   name: string;
@@ -22,6 +24,7 @@ export interface ChartTemplate {
     minScore?: number; // Minimum Y-axis value
     maxScore?: number; // Maximum Y-axis value
     xAxisLabelAngle?: number; // X-axis label rotation angle (0, -30, -45, -60, -90)
+    valueType?: ChartValueType; // 'numeric' (0-10) or 'percentage' (0%-100%)
   };
   annotation?: string;
   bottom_description?: string; // Rich text HTML description displayed at the bottom of the chart

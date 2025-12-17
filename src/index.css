@@ -150,6 +150,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground transition-colors duration-300;
+    zoom: 0.9;
   }
 
   /* Smooth transitions for theme switching */
