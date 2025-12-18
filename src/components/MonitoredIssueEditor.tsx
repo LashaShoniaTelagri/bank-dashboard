@@ -11,9 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye } from "lucide-react";
+import { Loader2, Eye, Map, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 import { MonitoredIssue } from "@/types/phase";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
@@ -40,8 +41,13 @@ export const MonitoredIssueEditor = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [activeTab, setActiveTab] = useState("edit");
+  
+  // Interactive Maps state (for "Used Data" issue only)
+  const [showIframes, setShowIframes] = useState(false);
+  const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
 
   const isPhaseSpecific = !!farmerId && !!phaseNumber && !!issue;
+  const isUsedDataIssue = issue?.name === 'Used Data';
 
   // Fetch phase-specific description if editing for a specific phase
   const { data: phaseData } = useQuery({
@@ -51,7 +57,7 @@ export const MonitoredIssueEditor = ({
 
       const { data, error } = await (supabase
         .from('phase_monitored_data' as any)
-        .select('description')
+        .select('description, show_iframes')
         .eq('farmer_id', farmerId)
         .eq('phase_number', phaseNumber)
         .eq('issue_id', issue.id)
@@ -69,6 +75,49 @@ export const MonitoredIssueEditor = ({
     refetchOnMount: 'always', // Ensure fresh data
   });
 
+  // Fetch phase iframe URLs (only for "Used Data" issue)
+  const { data: phaseIframes = [] } = useQuery<Array<{ url: string; name: string; annotation?: string }>>({
+    queryKey: ['farmer-phase-iframes-editor', farmerId, phaseNumber],
+    queryFn: async () => {
+      if (!farmerId || !phaseNumber) return [];
+      
+      console.log('🗺️ MonitoredIssueEditor - Fetching iframes for farmer:', farmerId, 'phase:', phaseNumber);
+      const { data, error } = await supabase
+        .from('farmer_phases' as any)
+        .select('iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phaseNumber)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ MonitoredIssueEditor - Error fetching iframes:', error);
+        return [];
+      }
+      
+      const iframes = ((data as any)?.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      console.log('✅ MonitoredIssueEditor - Loaded', iframes.length, 'iframe(s) for phase', phaseNumber);
+      return iframes;
+    },
+    enabled: isPhaseSpecific && isUsedDataIssue && isOpen,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+
+  const hasInteractiveMaps = phaseIframes.length > 0;
+  
+  // Toggle iframe collapse
+  const toggleIframeCollapse = (url: string) => {
+    setCollapsedIframes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(url)) {
+        newSet.delete(url);
+      } else {
+        newSet.add(url);
+      }
+      return newSet;
+    });
+  };
+
   useEffect(() => {
     if (isOpen && issue) {
       setName(issue.name);
@@ -77,6 +126,10 @@ export const MonitoredIssueEditor = ({
         // Wait for phaseData to load before setting description
         if (phaseData !== undefined) {
           setDescription(phaseData?.description || "");
+          // Load show_iframes preference for Used Data issue
+          if (isUsedDataIssue) {
+            setShowIframes(phaseData?.show_iframes || false);
+          }
         }
       } else {
         setDescription(issue.description || "");
@@ -86,8 +139,10 @@ export const MonitoredIssueEditor = ({
       setName("");
       setDescription("");
       setActiveTab("edit");
+      setShowIframes(false);
+      setCollapsedIframes(new Set());
     }
-  }, [issue, isOpen, phaseData, isPhaseSpecific]);
+  }, [issue, isOpen, phaseData, isPhaseSpecific, isUsedDataIssue]);
 
   const updateIssueMutation = useMutation({
     mutationFn: async () => {
@@ -110,12 +165,19 @@ export const MonitoredIssueEditor = ({
 
         if (existingData) {
           // Update existing entry
+          const updateData: any = {
+            description: description.trim() || null,
+            updated_at: new Date().toISOString(),
+          };
+          
+          // Include show_iframes for Used Data issue
+          if (issue.name === 'Used Data') {
+            updateData.show_iframes = showIframes;
+          }
+          
           const { data, error } = await (supabase
             .from('phase_monitored_data' as any)
-            .update({
-              description: description.trim() || null,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updateData)
             .eq('id', existingData.id)
             .select()
             .single() as any);
@@ -124,14 +186,21 @@ export const MonitoredIssueEditor = ({
           return data;
         } else {
           // Create new entry
+          const insertData: any = {
+            farmer_id: farmerId,
+            phase_number: phaseNumber,
+            issue_id: issue.id,
+            description: description.trim() || null,
+          };
+          
+          // Include show_iframes for Used Data issue
+          if (issue.name === 'Used Data') {
+            insertData.show_iframes = showIframes;
+          }
+          
           const { data, error } = await (supabase
             .from('phase_monitored_data' as any)
-            .insert({
-              farmer_id: farmerId,
-              phase_number: phaseNumber,
-              issue_id: issue.id,
-              description: description.trim() || null,
-            })
+            .insert(insertData)
             .select()
             .single() as any);
 
@@ -413,6 +482,180 @@ export const MonitoredIssueEditor = ({
                   </p>
                 )}
               </div>
+
+              {/* Interactive Maps Section (only for "Used Data" issue in phase-specific mode) */}
+              {isPhaseSpecific && isUsedDataIssue && !readOnly && hasInteractiveMaps && (
+                <div className="space-y-4 border-t pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <Map className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        Interactive Maps for Phase {phaseNumber}
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Toggle to display these maps in the Used Data section of the F-100 report
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="show-iframes-toggle"
+                        checked={showIframes}
+                        onCheckedChange={setShowIframes}
+                      />
+                      <Label 
+                        htmlFor="show-iframes-toggle" 
+                        className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap"
+                      >
+                        {showIframes ? 'Showing' : 'Hidden'}
+                      </Label>
+                    </div>
+                  </div>
+
+                  {showIframes && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                          <Map className="h-4 w-4 flex-shrink-0" />
+                          <span>
+                            {phaseIframes.length} interactive map{phaseIframes.length !== 1 ? 's' : ''} will be displayed in the Used Data section
+                          </span>
+                        </p>
+                      </div>
+
+                      {phaseIframes.map((iframe, idx) => {
+                        const isCollapsed = collapsedIframes.has(iframe.url);
+                        return (
+                          <div key={idx} className="border dark:border-dark-border rounded-lg overflow-hidden bg-card dark:bg-dark-card shadow-sm">
+                            {/* Map Header */}
+                            <div 
+                              className="p-3 bg-muted/30 dark:bg-muted/10 border-b border-border/30 cursor-pointer hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
+                              onClick={() => toggleIframeCollapse(iframe.url)}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 space-y-1">
+                                  <h5 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                    {isCollapsed ? (
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    )}
+                                    <Map className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                    {iframe.name}
+                                  </h5>
+                                  {iframe.annotation && !isCollapsed && (
+                                    <p className="text-xs text-muted-foreground leading-relaxed ml-10">
+                                      {iframe.annotation}
+                                    </p>
+                                  )}
+                                </div>
+                                <a
+                                  href={iframe.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                                  Open
+                                </a>
+                              </div>
+                            </div>
+                            
+                            {/* Iframe Preview */}
+                            {!isCollapsed && (
+                              <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                                <iframe
+                                  src={iframe.url}
+                                  className="w-full h-[400px]"
+                                  title={iframe.name}
+                                  loading="lazy"
+                                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Interactive Maps Section (for bank viewer when admin enabled it) */}
+              {isPhaseSpecific && isUsedDataIssue && readOnly && hasInteractiveMaps && showIframes && (
+                <div className="space-y-4 border-t pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <Map className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        Interactive Maps for Phase {phaseNumber}
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {phaseIframes.length} interactive map{phaseIframes.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {phaseIframes.map((iframe, idx) => {
+                      const isCollapsed = collapsedIframes.has(iframe.url);
+                      return (
+                        <div key={idx} className="border dark:border-dark-border rounded-lg overflow-hidden bg-card dark:bg-dark-card shadow-sm">
+                          {/* Map Header */}
+                          <div 
+                            className="p-3 bg-muted/30 dark:bg-muted/10 border-b border-border/30 cursor-pointer hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
+                            onClick={() => toggleIframeCollapse(iframe.url)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 space-y-1">
+                                <h5 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                  {isCollapsed ? (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  )}
+                                  <Map className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                  {iframe.name}
+                                </h5>
+                                {iframe.annotation && !isCollapsed && (
+                                  <p className="text-xs text-muted-foreground leading-relaxed ml-10">
+                                    {iframe.annotation}
+                                  </p>
+                                )}
+                              </div>
+                              <a
+                                href={iframe.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                                Open
+                              </a>
+                            </div>
+                          </div>
+                          
+                          {/* Iframe Preview */}
+                          {!isCollapsed && (
+                            <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                              <iframe
+                                src={iframe.url}
+                                className="w-full h-[400px]"
+                                title={iframe.name}
+                                loading="lazy"
+                                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* No message for bank viewers when maps are disabled - they shouldn't know maps exist */}
             </div>
           </div>
 

@@ -1060,7 +1060,7 @@ export const F100Modal = ({
 
           <Separator className="pdf-section-break" />
 
-          {/* Monitored Issues Section - Phase Specific */}
+          {/* Monitored Issues Section - Phase Specific (ALL issues including Used Data) */}
           <div className="space-y-4" style={{ pageBreakBefore: 'auto' }}>
             <h3 className="text-xl font-semibold text-heading-primary pdf-section-header">
               Phase {phaseNumber} - Monitoring Details
@@ -1087,6 +1087,20 @@ export const F100Modal = ({
                               setIssueEditorOpen(true);
                             }}
                             title="Edit issue description"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {!isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 flex-shrink-0"
+                            onClick={() => {
+                              setSelectedIssue(issue);
+                              setIssueEditorOpen(true);
+                            }}
+                            title="View issue details"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -1119,21 +1133,20 @@ export const F100Modal = ({
           </div>
         </div>
 
-        {/* Monitored Issue Editor (Admin only) */}
-        {isAdmin && (
-          <MonitoredIssueEditor
-            isOpen={issueEditorOpen}
-            onClose={() => {
-              setIssueEditorOpen(false);
-              setSelectedIssue(null);
-              // Refresh monitored issues after editing
-              queryClient.invalidateQueries({ queryKey: ['phase-monitored-issues', farmerId, phaseNumber] });
-            }}
-            issue={selectedIssue}
-            farmerId={farmerId}
-            phaseNumber={phaseNumber}
-          />
-        )}
+        {/* Monitored Issue Editor (Admin can edit, Bank Viewer can view) */}
+        <MonitoredIssueEditor
+          isOpen={issueEditorOpen}
+          onClose={() => {
+            setIssueEditorOpen(false);
+            setSelectedIssue(null);
+            // Refresh monitored issues after editing
+            queryClient.invalidateQueries({ queryKey: ['phase-monitored-issues', farmerId, phaseNumber] });
+          }}
+          issue={selectedIssue}
+          farmerId={farmerId}
+          phaseNumber={phaseNumber}
+          readOnly={!isAdmin}
+        />
       </DialogContent>
       {/* Rich Text Preview Styles */}
       <style>{`
