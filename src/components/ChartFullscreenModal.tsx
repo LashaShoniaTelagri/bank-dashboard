@@ -54,7 +54,7 @@ export const ChartFullscreenModal = ({
           {/* Chart - Takes available space */}
           <div className="flex-1 w-full min-h-0 flex items-center justify-center">
             <div 
-              className="w-full h-full"
+              className="w-full h-full flex items-center justify-center"
               style={{ 
                 zoom: chart.chart_type === 'pie' || chart.chart_type === 'donut' ? 0.8 : 1
               }}

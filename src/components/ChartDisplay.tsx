@@ -1000,14 +1000,14 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
         return (
           <ChartContainer 
             config={chartConfig}
-            className={isFullscreen ? "w-full h-full !aspect-auto" : undefined}
+            className={isFullscreen ? "w-full h-full !aspect-auto flex items-center justify-center" : undefined}
           >
-            <div className={`relative w-full flex items-center justify-center overflow-visible ${isFullscreen ? 'h-full min-h-[600px]' : 'h-full min-h-[280px]'}`}>
+            <div className={`relative w-full flex items-center justify-center overflow-visible ${isFullscreen ? 'h-full' : 'h-full min-h-[280px]'}`}>
               <svg 
                 width="100%" 
                 height="100%" 
                 viewBox="0 0 200 150" 
-                className="overflow-visible max-w-[300px] [@media(min-width:1400px)]:max-w-full" 
+                className={`overflow-visible ${isFullscreen ? 'max-w-[400px]' : 'max-w-[300px] [@media(min-width:1400px)]:max-w-full'}`}
                 preserveAspectRatio="xMidYMid meet"
               >
                 {/* Gauge background arc (from left to right) */}
