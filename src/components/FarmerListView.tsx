@@ -110,6 +110,19 @@ export const FarmerListView = ({
             .eq('farmer_id', farmer.id)
             .eq('is_active', true);
 
+          // Get One-pager summaries by phase
+          const { data: phasesData } = await supabase
+            .from('farmer_phases')
+            .select('phase_number, one_pager_summary')
+            .eq('farmer_id', farmer.id);
+          
+          const onePagerSummaries: Record<number, boolean> = {};
+          if (phasesData) {
+            phasesData.forEach((phase) => {
+              onePagerSummaries[phase.phase_number] = !!(phase.one_pager_summary && phase.one_pager_summary.trim().length > 0);
+            });
+          }
+
           // Determine loan status
           let loanStatus: 'active' | 'pending' | 'defaulted' | undefined;
           if (loans && loans.length > 0) {
@@ -140,6 +153,7 @@ export const FarmerListView = ({
             map_count: mapCount || 0,
             bank_name: bankData?.name,
             bank_logo: bankData?.logo_url,
+            onePagerSummaries: onePagerSummaries,
           };
         })
       );

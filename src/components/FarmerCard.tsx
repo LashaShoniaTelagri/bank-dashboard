@@ -13,7 +13,10 @@ import {
   Edit,
   Trash2,
   Eye,
-  Building2
+  Building2,
+  Map,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -22,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { OnePagerSummaryModal } from "@/components/OnePagerSummaryModal";
 
 interface FarmerCardProps {
   farmer: {
@@ -37,6 +41,7 @@ interface FarmerCardProps {
     map_count?: number;
     bank_name?: string;
     bank_logo?: string;
+    onePagerSummaries?: Record<number, boolean>;
   };
   isAdmin: boolean;
   onEdit?: (farmerId: string) => void;
@@ -46,6 +51,20 @@ interface FarmerCardProps {
 export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProps) => {
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
+  const [onePagerExpanded, setOnePagerExpanded] = useState(false);
+  const [onePagerModal, setOnePagerModal] = useState<{
+    open: boolean;
+    phase?: number;
+  }>({ open: false });
+  
+  // Count phases with One-pagers
+  const onePagerPhases = farmer.onePagerSummaries 
+    ? Object.entries(farmer.onePagerSummaries)
+        .filter(([_, hasOnePager]) => hasOnePager)
+        .map(([phase]) => parseInt(phase))
+        .sort((a, b) => a - b) // Sort phases numerically
+    : [];
+  const onePagerCount = onePagerPhases.length;
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -60,12 +79,12 @@ export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProp
     }
   };
 
-  const handleCardClick = () => {
+  const handleViewDetails = () => {
     navigate(`/farmers/${farmer.farmer_id}`);
   };
 
   const handleQuickAction = (action: 'edit' | 'delete', e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card navigation
+    e.stopPropagation();
     if (action === 'edit' && onEdit) {
       onEdit(farmer.farmer_id);
     } else if (action === 'delete' && onDelete) {
@@ -76,14 +95,13 @@ export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProp
   return (
     <Card 
       className={`
-        cursor-pointer transition-all duration-300 ease-in-out
-        hover:shadow-xl hover:scale-[1.02]
+        transition-all duration-300 ease-in-out
+        hover:shadow-lg
         ${isHovered ? 'border-emerald-500 dark:border-emerald-400' : 'border-border'}
         bg-card/60 dark:bg-card/40 backdrop-blur-sm
       `}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={handleCardClick}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
@@ -118,7 +136,7 @@ export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProp
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Farmer
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleCardClick}>
+                  <DropdownMenuItem onClick={handleViewDetails}>
                     <Eye className="mr-2 h-4 w-4" />
                     View Profile
                   </DropdownMenuItem>
@@ -133,6 +151,7 @@ export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProp
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            
           </div>
         </div>
       </CardHeader>
@@ -191,35 +210,80 @@ export const FarmerCard = ({ farmer, isAdmin, onEdit, onDelete }: FarmerCardProp
         )}
 
         {/* Analytics Preview */}
-        <div className="pt-2 border-t border-border/50">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-4">
-              {farmer.chart_count !== undefined && (
-                <div className="flex items-center gap-1">
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  <span>{farmer.chart_count} Charts</span>
-                </div>
-              )}
-              {farmer.map_count !== undefined && (
-                <div className="flex items-center gap-1">
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>{farmer.map_count} Maps</span>
-                </div>
-              )}
-            </div>
-            
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-7 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
-              onClick={handleCardClick}
-            >
-              View Details
-              <ChevronRight className="h-3.5 w-3.5 ml-1" />
-            </Button>
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          {/* Stats Row */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+            {farmer.chart_count !== undefined && (
+              <div className="flex items-center gap-1">
+                <TrendingUp className="h-3.5 w-3.5" />
+                <span>{farmer.chart_count} Charts</span>
+              </div>
+            )}
+            {farmer.map_count !== undefined && (
+              <div className="flex items-center gap-1">
+                <Map className="h-3.5 w-3.5" />
+                <span>{farmer.map_count} Maps</span>
+              </div>
+            )}
+            {onePagerCount > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOnePagerExpanded(!onePagerExpanded);
+                }}
+                className="flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors cursor-pointer"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>{onePagerCount} One-pager{onePagerCount !== 1 ? 's' : ''}</span>
+                {onePagerExpanded ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </button>
+            )}
           </div>
+          
+          {/* One-pager Phase List (Collapsible) */}
+          {onePagerExpanded && onePagerCount > 0 && (
+            <div className="pl-4 space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+              {onePagerPhases.map((phase) => (
+                <button
+                  key={phase}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOnePagerModal({ open: true, phase });
+                  }}
+                  className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 hover:underline transition-colors w-full text-left"
+                >
+                  <span className="text-purple-400 dark:text-purple-500">•</span>
+                  <span>Phase {phase}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* View Details Button */}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="w-full justify-center text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+            onClick={handleViewDetails}
+          >
+            View Details
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
       </CardContent>
+      
+      {/* One-pager Modal */}
+      <OnePagerSummaryModal
+        isOpen={onePagerModal.open}
+        onClose={() => setOnePagerModal({ open: false })}
+        farmerId={farmer.farmer_id}
+        farmerName={farmer.farmer_name}
+        phaseNumber={onePagerModal.phase || 1}
+      />
     </Card>
   );
 };
