@@ -588,7 +588,7 @@ export const FarmerProfileModal = ({ isOpen, onClose, farmerId, farmerName }: Fa
             )}
 
             {/* Last Yield */}
-            {farmer.last_year_harvest_amount && (
+            {farmer.last_year_harvest_amount !== undefined && farmer.last_year_harvest_amount !== null && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

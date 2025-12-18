@@ -514,7 +514,7 @@ const FarmerProfilePage = () => {
                 )}
 
                 {/* Last Harvest */}
-                {farmer.last_year_harvest_amount && (
+                {farmer.last_year_harvest_amount !== undefined && farmer.last_year_harvest_amount !== null && (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
@@ -722,7 +722,7 @@ const FarmerProfilePage = () => {
                   )}
 
                   {/* 4. Last Yield */}
-                  {farmer.last_year_harvest_amount && (
+                  {farmer.last_year_harvest_amount !== undefined && farmer.last_year_harvest_amount !== null && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-base">Last Yield</CardTitle>

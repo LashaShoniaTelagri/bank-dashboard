@@ -469,8 +469,8 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
         reservoir_amount: farmer.reservoir_amount || undefined,
         reservoir_capacity: farmer.reservoir_capacity || undefined,
         water_source: farmer.water_source || '',
-        last_year_harvest_amount: farmer.last_year_harvest_amount || undefined,
-        irrigation_sectors_count: farmer.irrigation_sectors_count || undefined,
+        last_year_harvest_amount: farmer.last_year_harvest_amount !== undefined ? farmer.last_year_harvest_amount : undefined,
+        irrigation_sectors_count: farmer.irrigation_sectors_count !== undefined ? farmer.irrigation_sectors_count : undefined,
         equipment_list: farmer.equipment_list || '',
         // Include location and other new fields
         location_name: farmer.location_name || '',
@@ -1472,8 +1472,8 @@ export const FarmerModal = ({ isOpen, onClose, farmer }: FarmerModalProps) => {
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.last_year_harvest_amount || ''}
-                  onChange={(e) => updateFormData('last_year_harvest_amount', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  value={formData.last_year_harvest_amount !== undefined ? formData.last_year_harvest_amount : ''}
+                  onChange={(e) => updateFormData('last_year_harvest_amount', e.target.value !== '' ? parseFloat(e.target.value) : undefined)}
                   placeholder="Enter yield amount"
                   className="focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   required
