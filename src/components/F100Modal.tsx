@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Download, Loader2, X, Edit } from "lucide-react";
+import { Download, Loader2, X, Edit, Map as MapIcon, ExternalLink, ChevronDown, ChevronRight, FileText as FileTextIcon, Image as ImageIcon, FileImage } from "lucide-react";
 import { ChartTemplate } from "@/types/chart";
 import { MonitoredIssue } from "@/types/phase";
 import { useToast } from "@/hooks/use-toast";
@@ -69,6 +69,9 @@ export const F100Modal = ({
   // Monitored issue editor state
   const [issueEditorOpen, setIssueEditorOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<MonitoredIssue | null>(null);
+  
+  // Used Data display state
+  const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
 
   // Debug logging when modal opens
   useEffect(() => {
@@ -125,6 +128,7 @@ export const F100Modal = ({
   // Join phase_monitored_data with monitored_issues to get phase-specific descriptions
   interface PhaseSpecificIssue extends MonitoredIssue {
     phase_description?: string | null; // Description from phase_monitored_data
+    show_iframes?: boolean; // Whether to show Interactive Maps in Used Data section
   }
 
   // Fetch phase data to get the issue_date
@@ -147,6 +151,130 @@ export const F100Modal = ({
     },
     enabled: isOpen && !!farmerId && !!phaseNumber,
   });
+
+  // Fetch phase iframe URLs for Used Data section
+  const { data: phaseIframes = [] } = useQuery({
+    queryKey: ['farmer-phase-iframes-f100', farmerId, phaseNumber],
+    queryFn: async () => {
+      console.log('🗺️ F100Modal - Fetching iframes for farmer:', farmerId, 'phase:', phaseNumber);
+      const { data, error } = await (supabase
+        .from('farmer_phases' as any)
+        .select('iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phaseNumber)
+        .single() as any);
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ F100Modal - Error fetching iframes:', error);
+        return [];
+      }
+      
+      const iframes = ((data as any)?.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      console.log('✅ F100Modal - Loaded', iframes.length, 'iframe(s) for phase', phaseNumber);
+      return iframes;
+    },
+    enabled: isOpen && !!farmerId && !!phaseNumber,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  }) as { data: Array<{ url: string; name: string; annotation?: string }> };
+
+  // Fetch uploaded maps for Used Data section with signed URLs
+  const { data: uploadedMaps = [] } = useQuery({
+    queryKey: ['phase-used-data-maps-f100', farmerId, phaseNumber],
+    queryFn: async () => {
+      console.log('📁 F100Modal - Fetching uploaded maps for farmer:', farmerId, 'phase:', phaseNumber);
+      const { data, error } = await (supabase
+        .from('phase_used_data_maps' as any)
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phaseNumber)
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: true }) as any);
+      
+      if (error) {
+        console.error('❌ F100Modal - Error fetching uploaded maps:', error);
+        return [];
+      }
+      
+      // Generate signed URLs for each file
+      const mapsWithUrls = await Promise.all(
+        (data || []).map(async (map: any) => {
+          const { data: signedData, error: signError } = await supabase.storage
+            .from('farmer-documents')
+            .createSignedUrl(map.file_path, 3600); // 1 hour expiry
+          
+          return {
+            ...map,
+            signedUrl: signError ? null : signedData?.signedUrl,
+          };
+        })
+      );
+      
+      console.log('✅ F100Modal - Loaded', mapsWithUrls.length, 'uploaded map(s) with signed URLs');
+      return mapsWithUrls;
+    },
+    enabled: isOpen && !!farmerId && !!phaseNumber,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  }) as { data: Array<{
+    id: string;
+    file_name: string;
+    file_path: string;
+    file_mime: string;
+    file_size_bytes: number;
+    annotation?: string;
+    display_order: number;
+    created_at: string;
+    signedUrl?: string | null;
+  }> };
+
+  // Toggle iframe collapse
+  const toggleIframeCollapse = (url: string) => {
+    setCollapsedIframes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(url)) {
+        newSet.delete(url);
+      } else {
+        newSet.add(url);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper functions for uploaded files
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType === 'application/pdf') {
+      return <FileTextIcon className="h-5 w-5 text-red-600 dark:text-red-400" />;
+    } else if (mimeType.startsWith('image/')) {
+      return <ImageIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+    }
+    return <FileImage className="h-5 w-5 text-gray-600 dark:text-gray-400" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const openFileInViewer = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('farmer-documents')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+      
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to open file",
+        variant: "destructive",
+      });
+    }
+  };
 
   const { data: monitoredIssues = [] } = useQuery<PhaseSpecificIssue[]>({
     queryKey: ['phase-monitored-issues', farmerId, phaseNumber],
@@ -173,7 +301,7 @@ export const F100Modal = ({
       // Then, fetch phase-specific descriptions for this farmer and phase
       const { data: phaseData, error: phaseError } = await (supabase
         .from('phase_monitored_data' as any)
-        .select('issue_id, description')
+        .select('issue_id, description, show_iframes')
         .eq('farmer_id', farmerId)
         .eq('phase_number', phaseNumber) as any);
 
@@ -182,18 +310,21 @@ export const F100Modal = ({
         // Continue with issues even if phase data fetch fails
       }
 
-      // Create a map of issue_id -> phase_description
+      // Create maps for issue_id -> phase_description and show_iframes
       const phaseDescriptionMap = new Map<string, string | null>();
+      const showIframesMap = new Map<string, boolean>();
       if (phaseData) {
         phaseData.forEach((item: any) => {
           phaseDescriptionMap.set(item.issue_id, item.description || null);
+          showIframesMap.set(item.issue_id, item.show_iframes || false);
         });
       }
 
-      // Combine all issues with phase-specific descriptions
+      // Combine all issues with phase-specific descriptions and show_iframes flag
       const issues: PhaseSpecificIssue[] = allIssues.map((issue) => ({
         ...issue,
         phase_description: phaseDescriptionMap.get(issue.id) || null,
+        show_iframes: showIframesMap.get(issue.id) || false,
       }));
 
       console.log('✅ F100Modal - Found', issues.length, 'monitored issues for phase', phaseNumber);
@@ -1067,60 +1198,214 @@ export const F100Modal = ({
             </h3>
             {monitoredIssues.length > 0 ? (
               <div className="space-y-6">
-                {monitoredIssues.map((issue, index) => (
-                  <Card key={issue.id} className="overflow-hidden pdf-monitoring-card" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                    <CardHeader className="bg-muted/30 border-b">
-                      <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-lg flex items-center gap-2 flex-1">
-                          <span className="text-muted-foreground font-mono text-sm">
-                            {index + 1}.
-                          </span>
-                          {issue.name}
-                        </CardTitle>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 flex-shrink-0"
-                            onClick={() => {
-                              setSelectedIssue(issue);
-                              setIssueEditorOpen(true);
-                            }}
-                            title="Edit issue description"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                {monitoredIssues.map((issue, index) => {
+                  const isUsedData = issue.name === 'Used Data';
+                  const showIframes = (issue as PhaseSpecificIssue).show_iframes || false;
+                  
+                  return (
+                    <Card key={issue.id} className="overflow-hidden pdf-monitoring-card" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                      <CardHeader className="bg-muted/30 border-b">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-lg flex items-center gap-2 flex-1">
+                            <span className="text-muted-foreground font-mono text-sm">
+                              {index + 1}.
+                            </span>
+                            {issue.name}
+                          </CardTitle>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 flex-shrink-0"
+                              onClick={() => {
+                                setSelectedIssue(issue);
+                                setIssueEditorOpen(true);
+                              }}
+                              title="Edit issue description"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {!isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 flex-shrink-0"
+                              onClick={() => {
+                                setSelectedIssue(issue);
+                                setIssueEditorOpen(true);
+                              }}
+                              title="View issue details"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-4 space-y-4">
+                        {/* Description */}
+                        {(issue as PhaseSpecificIssue).phase_description ? (
+                          <div
+                            className="prose prose-sm dark:prose-invert max-w-none rich-text-preview"
+                            dangerouslySetInnerHTML={{ __html: (issue as PhaseSpecificIssue).phase_description || '' }}
+                          />
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">
+                            No description available for this monitoring issue in Phase {phaseNumber}
+                          </p>
                         )}
-                        {!isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 flex-shrink-0"
-                            onClick={() => {
-                              setSelectedIssue(issue);
-                              setIssueEditorOpen(true);
-                            }}
-                            title="View issue details"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+
+                        {/* Interactive Maps Display (only for Used Data when enabled) */}
+                        {isUsedData && showIframes && phaseIframes.length > 0 && (
+                          <div className="mt-6 space-y-4 border-t pt-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-base font-bold text-heading-primary flex items-center gap-2">
+                                <MapIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                Interactive Maps (Phase {phaseNumber})
+                              </h4>
+                              <span className="text-xs text-muted-foreground">
+                                {phaseIframes.length} map{phaseIframes.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            
+                            <div className="space-y-4">
+                              {phaseIframes.map((iframe, idx) => {
+                                const isCollapsed = collapsedIframes.has(iframe.url);
+                                return (
+                                  <div key={idx} className="border dark:border-dark-border rounded-lg overflow-hidden bg-card dark:bg-dark-card shadow-sm">
+                                    <div 
+                                      className="p-4 bg-muted/30 dark:bg-muted/10 border-b border-border/30 cursor-pointer hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
+                                      onClick={() => toggleIframeCollapse(iframe.url)}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 space-y-1">
+                                          <h5 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                            {isCollapsed ? (
+                                              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                            ) : (
+                                              <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                            )}
+                                            <MapIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                            {iframe.name}
+                                          </h5>
+                                          {iframe.annotation && !isCollapsed && (
+                                            <p className="text-xs text-muted-foreground leading-relaxed ml-10">
+                                              {iframe.annotation}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <a
+                                          href={iframe.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                                          Open
+                                        </a>
+                                      </div>
+                                    </div>
+                                    
+                                    {!isCollapsed && (
+                                      <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                                        <iframe
+                                          src={iframe.url}
+                                          className="w-full h-[500px]"
+                                          title={iframe.name}
+                                          loading="lazy"
+                                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                      {(issue as PhaseSpecificIssue).phase_description ? (
-                        <div
-                          className="prose prose-sm dark:prose-invert max-w-none rich-text-preview"
-                          dangerouslySetInnerHTML={{ __html: (issue as PhaseSpecificIssue).phase_description || '' }}
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">
-                          No description available for this monitoring issue in Phase {phaseNumber}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+
+                        {/* Uploaded Maps Display (only for Used Data) */}
+                        {isUsedData && uploadedMaps.length > 0 && (
+                          <div className="mt-6 space-y-4 border-t pt-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-base font-bold text-heading-primary flex items-center gap-2">
+                                <FileImage className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                Uploaded Maps & Documents
+                              </h4>
+                              <span className="text-xs text-muted-foreground">
+                                {uploadedMaps.length} file{uploadedMaps.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {uploadedMaps.map((map) => {
+                                const isImage = map.file_mime.startsWith('image/');
+                                const isPDF = map.file_mime === 'application/pdf';
+                                
+                                return (
+                                  <div 
+                                    key={map.id} 
+                                    className="group border rounded-lg overflow-hidden hover:shadow-lg transition-all cursor-pointer bg-card"
+                                    onClick={() => openFileInViewer(map.file_path, map.file_name)}
+                                  >
+                                    {/* Thumbnail or Icon */}
+                                    <div className="relative aspect-video bg-muted/30 flex items-center justify-center overflow-hidden">
+                                {isImage && map.signedUrl ? (
+                                  <img
+                                    src={map.signedUrl}
+                                    alt={map.file_name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      // Fallback to icon on image load error
+                                      e.currentTarget.style.display = 'none';
+                                      const parent = e.currentTarget.parentElement;
+                                      if (parent) {
+                                        parent.innerHTML = '<div class="flex flex-col items-center justify-center gap-2 p-4"><svg class="h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span class="text-xs text-muted-foreground">Image unavailable</span></div>';
+                                      }
+                                    }}
+                                  />
+                                ) : isPDF ? (
+                                        <div className="flex flex-col items-center justify-center gap-2 p-6">
+                                          <FileTextIcon className="h-16 w-16 text-red-600 dark:text-red-400" />
+                                          <span className="text-xs text-muted-foreground font-medium">PDF Document</span>
+                                        </div>
+                                      ) : (
+                                        <FileImage className="h-16 w-16 text-gray-600 dark:text-gray-400" />
+                                      )}
+                                      
+                                      {/* Overlay on hover */}
+                                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <div className="flex items-center gap-2 text-white">
+                                          <ExternalLink className="h-5 w-5" />
+                                          <span className="text-sm font-medium">Open</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* File Info */}
+                                    <div className="p-3 space-y-1 bg-card">
+                                      <p className="text-sm font-medium text-foreground truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                        {map.file_name}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatFileSize(map.file_size_bytes)} • {new Date(map.created_at).toLocaleDateString()}
+                                      </p>
+                                      {map.annotation && (
+                                        <p className="text-xs text-muted-foreground italic">{map.annotation}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8">

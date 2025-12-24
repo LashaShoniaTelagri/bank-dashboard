@@ -14,9 +14,19 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, Map, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Eye, Map, ExternalLink, ChevronDown, ChevronRight, Upload, Trash2, FileImage, FileText, Image as ImageIcon } from "lucide-react";
 import { MonitoredIssue } from "@/types/phase";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MonitoredIssueEditorProps {
   isOpen: boolean;
@@ -45,6 +55,12 @@ export const MonitoredIssueEditor = ({
   // Interactive Maps state (for "Used Data" issue only)
   const [showIframes, setShowIframes] = useState(false);
   const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
+  
+  // File upload state (for "Used Data" issue only)
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [fileAnnotations, setFileAnnotations] = useState<Record<string, string>>({});
+  const [isUploading, setIsUploading] = useState(false);
+  const [deleteMapDialog, setDeleteMapDialog] = useState<{ open: boolean; mapId?: string; fileName?: string }>({ open: false });
 
   const isPhaseSpecific = !!farmerId && !!phaseNumber && !!issue;
   const isUsedDataIssue = issue?.name === 'Used Data';
@@ -105,6 +121,58 @@ export const MonitoredIssueEditor = ({
 
   const hasInteractiveMaps = phaseIframes.length > 0;
   
+  // Fetch uploaded maps for Used Data section with signed URLs
+  const { data: uploadedMaps = [], refetch: refetchMaps } = useQuery<Array<{
+    id: string;
+    file_name: string;
+    file_path: string;
+    file_mime: string;
+    file_size_bytes: number;
+    annotation?: string;
+    display_order: number;
+    created_at: string;
+    signedUrl?: string | null;
+  }>>({
+    queryKey: ['phase-used-data-maps', farmerId, phaseNumber],
+    queryFn: async () => {
+      if (!farmerId || !phaseNumber) return [];
+      
+      console.log('🗺️ MonitoredIssueEditor - Fetching uploaded maps for farmer:', farmerId, 'phase:', phaseNumber);
+      const { data, error } = await supabase
+        .from('phase_used_data_maps' as any)
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phaseNumber)
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('❌ MonitoredIssueEditor - Error fetching maps:', error);
+        throw error;
+      }
+      
+      // Generate signed URLs for thumbnails
+      const mapsWithUrls = await Promise.all(
+        (data || []).map(async (map: any) => {
+          const { data: signedData, error: signError } = await supabase.storage
+            .from('farmer-documents')
+            .createSignedUrl(map.file_path, 3600); // 1 hour expiry
+          
+          return {
+            ...map,
+            signedUrl: signError ? null : signedData?.signedUrl,
+          };
+        })
+      );
+      
+      console.log('✅ MonitoredIssueEditor - Loaded', mapsWithUrls.length, 'uploaded map(s) with signed URLs');
+      return mapsWithUrls;
+    },
+    enabled: isPhaseSpecific && isUsedDataIssue && isOpen,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+  
   // Toggle iframe collapse
   const toggleIframeCollapse = (url: string) => {
     setCollapsedIframes(prev => {
@@ -116,6 +184,176 @@ export const MonitoredIssueEditor = ({
       }
       return newSet;
     });
+  };
+
+  // File upload mutation
+  const uploadMapMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      if (!farmerId || !phaseNumber) throw new Error('Missing farmer or phase info');
+      
+      setIsUploading(true);
+      const uploadedRecords = [];
+      
+      for (const file of files) {
+        // Upload to Supabase Storage
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${file.name}`;
+        const storagePath = `phase_used_data_maps/${farmerId}/${phaseNumber}/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('farmer-documents')
+          .upload(storagePath, file);
+        
+        if (uploadError) throw uploadError;
+        
+        // Save metadata to database
+        const { data, error: dbError } = await (supabase
+          .from('phase_used_data_maps' as any)
+          .insert({
+            farmer_id: farmerId,
+            phase_number: phaseNumber,
+            file_name: file.name,
+            file_path: storagePath,
+            file_mime: file.type,
+            file_size_bytes: file.size,
+            annotation: fileAnnotations[file.name] || null,
+            display_order: uploadedMaps.length + uploadedRecords.length,
+          })
+          .select()
+          .single() as any);
+        
+        if (dbError) throw dbError;
+        uploadedRecords.push(data);
+      }
+      
+      return uploadedRecords;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: `Uploaded ${uploadedFiles.length} map file(s) successfully`,
+      });
+      setUploadedFiles([]);
+      setFileAnnotations({});
+      refetchMaps();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload map files",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setIsUploading(false);
+    },
+  });
+
+  // Delete map mutation
+  const deleteMapMutation = useMutation({
+    mutationFn: async (mapId: string) => {
+      const mapToDelete = uploadedMaps.find(m => m.id === mapId);
+      if (!mapToDelete) throw new Error('Map not found');
+      
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('farmer-documents')
+        .remove([mapToDelete.file_path]);
+      
+      if (storageError) throw storageError;
+      
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('phase_used_data_maps' as any)
+        .delete()
+        .eq('id', mapId);
+      
+      if (dbError) throw dbError;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Map file deleted successfully",
+      });
+      setDeleteMapDialog({ open: false });
+      refetchMaps();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete map file",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    // Filter for PDF and image files only
+    const validFiles = files.filter(file => 
+      file.type.startsWith('image/') || file.type === 'application/pdf'
+    );
+    
+    if (validFiles.length !== files.length) {
+      toast({
+        title: "Invalid Files",
+        description: "Only PDF and image files are allowed",
+        variant: "destructive",
+      });
+    }
+    
+    setUploadedFiles(prev => [...prev, ...validFiles]);
+    // Reset input
+    e.target.value = '';
+  };
+
+  const handleUploadFiles = () => {
+    if (uploadedFiles.length === 0) return;
+    uploadMapMutation.mutate(uploadedFiles);
+  };
+
+  const handleDeleteMap = (mapId: string, fileName: string) => {
+    setDeleteMapDialog({ open: true, mapId, fileName });
+  };
+
+  const confirmDeleteMap = () => {
+    if (deleteMapDialog.mapId) {
+      deleteMapMutation.mutate(deleteMapDialog.mapId);
+    }
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType === 'application/pdf') {
+      return <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />;
+    } else if (mimeType.startsWith('image/')) {
+      return <ImageIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+    }
+    return <FileImage className="h-5 w-5 text-gray-600 dark:text-gray-400" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const openFileInViewer = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('farmer-documents')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+      
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to open file",
+        variant: "destructive",
+      });
+    }
   };
 
   useEffect(() => {
@@ -141,6 +379,8 @@ export const MonitoredIssueEditor = ({
       setActiveTab("edit");
       setShowIframes(false);
       setCollapsedIframes(new Set());
+      setUploadedFiles([]);
+      setFileAnnotations({});
     }
   }, [issue, isOpen, phaseData, isPhaseSpecific, isUsedDataIssue]);
 
@@ -656,6 +896,222 @@ export const MonitoredIssueEditor = ({
               )}
 
               {/* No message for bank viewers when maps are disabled - they shouldn't know maps exist */}
+
+              {/* Uploaded Maps Section (for "Used Data" issue) */}
+              {isPhaseSpecific && isUsedDataIssue && (
+                <div className="space-y-4 border-t pt-6">
+                  <div>
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Upload className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      Uploaded Maps & Documents
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload PDF files or images related to data sources for Phase {phaseNumber}
+                    </p>
+                  </div>
+
+                  {/* Upload Section (Admin only) */}
+                  {!readOnly && (
+                    <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-4 text-center hover:border-green-400 dark:hover:border-green-600 transition-colors">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,application/pdf"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                          id="map-upload"
+                        />
+                        <label htmlFor="map-upload" className="cursor-pointer">
+                          <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm text-body-secondary">Click to upload maps or documents</p>
+                          <p className="text-xs text-muted-foreground mt-1">PDF, PNG, JPG, JPEG accepted</p>
+                        </label>
+                      </div>
+
+                      {/* Selected files to upload */}
+                      {uploadedFiles.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-foreground">Files to upload:</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {uploadedFiles.map((file, index) => {
+                              const isImage = file.type.startsWith('image/');
+                              const isPDF = file.type === 'application/pdf';
+                              const previewUrl = isImage ? URL.createObjectURL(file) : null;
+                              
+                              return (
+                                <div key={index} className="group relative border rounded-lg overflow-hidden bg-card">
+                                  {/* Thumbnail Preview */}
+                                  <div className="relative aspect-video bg-muted/30 flex items-center justify-center overflow-hidden">
+                                    {isImage && previewUrl ? (
+                                      <img
+                                        src={previewUrl}
+                                        alt={file.name}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                      />
+                                    ) : isPDF ? (
+                                      <div className="flex flex-col items-center justify-center gap-2 p-4">
+                                        <FileText className="h-12 w-12 text-red-600 dark:text-red-400" />
+                                        <span className="text-xs text-muted-foreground font-medium">PDF Document</span>
+                                      </div>
+                                    ) : (
+                                      <FileImage className="h-12 w-12 text-gray-600 dark:text-gray-400" />
+                                    )}
+                                    
+                                    {/* Delete button overlay */}
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="icon"
+                                      onClick={() => {
+                                        setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+                                        const newAnnotations = { ...fileAnnotations };
+                                        delete newAnnotations[file.name];
+                                        setFileAnnotations(newAnnotations);
+                                        // Cleanup preview URL
+                                        if (previewUrl) URL.revokeObjectURL(previewUrl);
+                                      }}
+                                      className="absolute top-2 right-2 h-8 w-8 shadow-lg"
+                                      title="Remove file"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  
+                                  {/* File Info */}
+                                  <div className="p-3 space-y-1">
+                                    <p className="text-sm font-medium text-foreground truncate">
+                                      {file.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatFileSize(file.size)}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={handleUploadFiles}
+                            disabled={isUploading}
+                            className="w-full bg-green-600 hover:bg-green-700"
+                          >
+                            {isUploading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="mr-2 h-4 w-4" />
+                                Upload {uploadedFiles.length} File{uploadedFiles.length !== 1 ? 's' : ''}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Existing Uploaded Maps List with Thumbnails */}
+                  {uploadedMaps.length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {uploadedMaps.length} uploaded file{uploadedMaps.length !== 1 ? 's' : ''}:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {uploadedMaps.map((map) => {
+                          const isImage = map.file_mime.startsWith('image/');
+                          const isPDF = map.file_mime === 'application/pdf';
+                          
+                          return (
+                            <div 
+                              key={map.id} 
+                              className="group relative border rounded-lg overflow-hidden hover:shadow-lg transition-all bg-card"
+                            >
+                              {/* Thumbnail or Icon */}
+                              <div 
+                                className="relative aspect-video bg-muted/30 flex items-center justify-center overflow-hidden cursor-pointer"
+                                onClick={() => openFileInViewer(map.file_path, map.file_name)}
+                              >
+                                {isImage && map.signedUrl ? (
+                                  <img
+                                    src={map.signedUrl}
+                                    alt={map.file_name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      // Fallback to icon on image load error
+                                      e.currentTarget.style.display = 'none';
+                                      const parent = e.currentTarget.parentElement;
+                                      if (parent) {
+                                        parent.innerHTML = '<div class="flex flex-col items-center justify-center gap-2 p-4"><svg class="h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span class="text-xs text-muted-foreground">Image unavailable</span></div>';
+                                      }
+                                    }}
+                                  />
+                                ) : isPDF ? (
+                                  <div className="flex flex-col items-center justify-center gap-2 p-4">
+                                    <FileText className="h-12 w-12 text-red-600 dark:text-red-400" />
+                                    <span className="text-xs text-muted-foreground font-medium text-center">PDF Document</span>
+                                  </div>
+                                ) : (
+                                  <FileImage className="h-12 w-12 text-gray-600 dark:text-gray-400" />
+                                )}
+                                
+                                {/* Overlay on hover */}
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <div className="flex items-center gap-2 text-white">
+                                    <ExternalLink className="h-5 w-5" />
+                                    <span className="text-sm font-medium">Open</span>
+                                  </div>
+                                </div>
+                                
+                                {/* Delete button overlay (admin only) */}
+                                {!readOnly && (
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteMap(map.id, map.file_name);
+                                    }}
+                                    className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                    title="Delete map"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {/* File Info */}
+                              <div className="p-3 space-y-1">
+                                <p className="text-sm font-medium text-foreground truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                  {map.file_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatFileSize(map.file_size_bytes)} • {new Date(map.created_at).toLocaleDateString()}
+                                </p>
+                                {map.annotation && (
+                                  <p className="text-xs text-muted-foreground italic">{map.annotation}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {uploadedMaps.length === 0 && readOnly && (
+                    <div className="text-center py-6 text-muted-foreground text-sm">
+                      No maps uploaded for this phase yet.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -690,6 +1146,35 @@ export const MonitoredIssueEditor = ({
           </div>
         </form>
       </DialogContent>
+      
+      {/* Delete Map Confirmation Dialog */}
+      <AlertDialog open={deleteMapDialog.open} onOpenChange={(open) => setDeleteMapDialog({ open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Map File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteMapDialog.fileName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMapMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteMap}
+              disabled={deleteMapMutation.isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteMapMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
