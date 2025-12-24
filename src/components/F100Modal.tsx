@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Download, Loader2, X, Edit, Map as MapIcon, ExternalLink, ChevronDown, ChevronRight, FileText as FileTextIcon, Image as ImageIcon, FileImage } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Download, Loader2, X, Edit, Map as MapIcon, ExternalLink, ChevronDown, ChevronRight, FileText as FileTextIcon, Image as ImageIcon, FileImage, Link as LinkIcon, Save } from "lucide-react";
 import { ChartTemplate } from "@/types/chart";
 import { MonitoredIssue } from "@/types/phase";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +74,11 @@ export const F100Modal = ({
   
   // Used Data display state
   const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
+  
+  // F100 URL state (admin only)
+  const [f100Url, setF100Url] = useState('');
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [isSavingUrl, setIsSavingUrl] = useState(false);
 
   // Debug logging when modal opens
   useEffect(() => {
@@ -131,16 +138,16 @@ export const F100Modal = ({
     show_iframes?: boolean; // Whether to show Interactive Maps in Used Data section
   }
 
-  // Fetch phase data to get the issue_date
+  // Fetch phase data to get the issue_date and f100_url
   const { data: phaseData } = useQuery({
     queryKey: ['farmer-phase', farmerId, phaseNumber],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('farmer_phases')
-        .select('issue_date, score')
+      const { data, error } = await (supabase
+        .from('farmer_phases' as any)
+        .select('issue_date, score, f100_url')
         .eq('farmer_id', farmerId)
         .eq('phase_number', phaseNumber)
-        .maybeSingle();
+        .maybeSingle() as any);
 
       if (error) {
         console.error('❌ F100Modal - Error fetching phase data:', error);
@@ -151,6 +158,60 @@ export const F100Modal = ({
     },
     enabled: isOpen && !!farmerId && !!phaseNumber,
   });
+
+  // Load F100 URL when phaseData changes
+  useEffect(() => {
+    if (phaseData?.f100_url) {
+      setF100Url(phaseData.f100_url);
+    } else {
+      setF100Url('');
+    }
+    setIsEditingUrl(false);
+  }, [phaseData]);
+
+  // Save F100 URL mutation
+  const saveF100UrlMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const { error } = await (supabase
+        .from('farmer_phases' as any)
+        .update({ f100_url: url.trim() || null })
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phaseNumber) as any);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "F-100 URL saved successfully",
+      });
+      setIsEditingUrl(false);
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase', farmerId, phaseNumber] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save F-100 URL",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveUrl = async () => {
+    setIsSavingUrl(true);
+    await saveF100UrlMutation.mutateAsync(f100Url);
+    setIsSavingUrl(false);
+  };
+
+  const handleDownload = () => {
+    if (phaseData?.f100_url) {
+      // If F100 URL is specified, open it in new tab
+      window.open(phaseData.f100_url, '_blank', 'noopener,noreferrer');
+    } else {
+      // Otherwise, generate PDF
+      handleDownloadPDF();
+    }
+  };
 
   // Fetch phase iframe URLs for Used Data section
   const { data: phaseIframes = [] } = useQuery({
@@ -1064,43 +1125,117 @@ export const F100Modal = ({
         aria-describedby="f100-description"
       >
         <DialogHeader className="sticky top-0 bg-background z-20 pb-4 border-b px-6 pt-6 flex-shrink-0">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1">
-              <DialogTitle className="text-2xl font-bold">
-                Phase {phaseNumber} - F-100 Report
-              </DialogTitle>
-              <DialogDescription id="f100-description" className="mt-1">
-                {farmerName} - Comprehensive phase overview with charts and monitoring details
-              </DialogDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleDownloadPDF}
-                disabled={isExporting}
-                className="flex items-center gap-2"
-              >
-                {isExporting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating PDF...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download PDF
-                  </>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <DialogTitle className="text-2xl font-bold">
+                  Phase {phaseNumber} - F-100 Report
+                </DialogTitle>
+                <DialogDescription id="f100-description" className="mt-1">
+                  {farmerName} - Comprehensive phase overview with charts and monitoring details
+                </DialogDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* F100 URL Toggle (Admin only) */}
+                {isAdmin && (
+                  <Button
+                    onClick={() => setIsEditingUrl(!isEditingUrl)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                    title="Set F-100 URL"
+                  >
+                    <LinkIcon className="h-4 w-4" />
+                    {phaseData?.f100_url ? 'Edit URL' : 'Set URL'}
+                  </Button>
                 )}
-              </Button>
-              <Button
-                onClick={onClose}
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                aria-label="Close modal"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+                
+                <Button
+                  onClick={handleDownload}
+                  disabled={isExporting}
+                  className="flex items-center gap-2"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      {phaseData?.f100_url ? (
+                        <>
+                          <ExternalLink className="h-4 w-4" />
+                          Open F-100
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4" />
+                          Download PDF
+                        </>
+                      )}
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={onClose}
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Close modal"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
+            {/* F100 URL Editor (Admin only) */}
+            {isAdmin && isEditingUrl && (
+              <div className="space-y-2 p-4 bg-muted/30 rounded-lg border animate-in slide-in-from-top-2 duration-200">
+                <Label htmlFor="f100-url" className="text-sm font-medium">
+                  F-100 Report URL
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Enter an external URL (e.g., Google Docs link) for bank viewers to access the F-100 report. 
+                  If specified, the "Download PDF" button will use this URL instead of generating a PDF.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="f100-url"
+                    type="url"
+                    placeholder="https://docs.google.com/document/d/..."
+                    value={f100Url}
+                    onChange={(e) => setF100Url(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleSaveUrl}
+                    disabled={isSavingUrl}
+                    className="flex items-center gap-2"
+                  >
+                    {isSavingUrl ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        Save
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsEditingUrl(false);
+                      setF100Url(phaseData?.f100_url || '');
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </DialogHeader>
 
