@@ -276,14 +276,14 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
           window.getComputedStyle(svg).getPropertyValue('width');
         });
         
-        // Enhanced html2canvas configuration for cross-platform compatibility
+        // Enhanced html2canvas configuration for high-quality text rendering
         const canvas = await html2canvas(element, {
           backgroundColor: "#ffffff",
           scale: 2,
           logging: false,
           useCORS: true,
           allowTaint: true,
-          foreignObjectRendering: false, // Better SVG compatibility on Windows
+          foreignObjectRendering: false, // Better SVG compatibility
           imageTimeout: 15000,
           removeContainer: true,
           onclone: (clonedDoc) => {
@@ -324,10 +324,10 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
           continue;
         }
         
-        const imgData = canvas.toDataURL("image/png", 1.0);
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
         
-        if (!imgData || imgData === 'data:,') {
-          console.warn(`Chart ${i + 1} failed to generate image data, skipping...`);
+        if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/jpeg')) {
+          console.warn(`Chart ${i + 1} failed to generate JPEG data, skipping...`);
           continue;
         }
 
@@ -349,7 +349,7 @@ export const ChartDisplay = ({ farmerId }: ChartDisplayProps) => {
         const x = (pdfWidth - width) / 2;
         const y = (pdfHeight - height) / 2;
         
-        pdf.addImage(imgData, "PNG", x, y, width, height, undefined, 'FAST');
+        pdf.addImage(imgData, "JPEG", x, y, width, height, undefined, 'FAST');
       }
       
       pdf.save(`farmer_analytics_${new Date().toISOString().split("T")[0]}.pdf`);

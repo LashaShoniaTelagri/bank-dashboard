@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Loader2, X } from "lucide-react";
 import { ChartTemplate } from "@/types/chart";
 import { MonitoredIssue } from "@/types/phase";
+import { useToast } from "@/hooks/use-toast";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import {
@@ -53,6 +54,7 @@ export const OnePagerModal = ({
   phaseNumber,
 }: OnePagerModalProps) => {
   const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
 
   // Debug logging when modal opens
   useEffect(() => {
@@ -497,7 +499,7 @@ export const OnePagerModal = ({
         window.getComputedStyle(svg).getPropertyValue('width');
       });
 
-      // Enhanced html2canvas configuration for Windows compatibility
+      // Enhanced html2canvas configuration for high-quality text rendering
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -515,13 +517,44 @@ export const OnePagerModal = ({
             clonedDoc.documentElement.classList.remove('dark');
             clonedDoc.body.classList.remove('dark');
 
-            // Fix text colors
+            // Fix text colors and normalize spacing
             const allElements = clonedElement.querySelectorAll('*');
             allElements.forEach((el: Element) => {
               const htmlEl = el as HTMLElement;
-              if (window.getComputedStyle(htmlEl).color === 'rgb(255, 255, 255)' ||
-                  window.getComputedStyle(htmlEl).color.includes('rgba(255, 255, 255')) {
+              const computedStyle = window.getComputedStyle(htmlEl);
+              
+              // Fix text color
+              if (computedStyle.color === 'rgb(255, 255, 255)' ||
+                  computedStyle.color.includes('rgba(255, 255, 255')) {
                 htmlEl.style.color = '#000000';
+              }
+              
+              const tagName = htmlEl.tagName.toLowerCase();
+              
+              // Apply to all text-containing elements
+              htmlEl.style.letterSpacing = '0.02em';
+              htmlEl.style.wordSpacing = '0.15em';
+              htmlEl.style.whiteSpace = 'normal';
+              htmlEl.style.textRendering = 'optimizeLegibility';
+              
+              // Specific handling for text elements
+              if (['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'strong', 'em', 'a', 'label', 'button'].includes(tagName)) {
+                // Set consistent line-height
+                htmlEl.style.lineHeight = '1.6';
+                
+                // Force display to ensure proper rendering
+                if (computedStyle.display === 'inline') {
+                  htmlEl.style.display = 'inline-block';
+                }
+              }
+              
+              // Special handling for headings and titles to prevent splitting
+              if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName) || htmlEl.classList.contains('font-bold') || htmlEl.classList.contains('font-semibold')) {
+                htmlEl.style.letterSpacing = '0.03em';
+                htmlEl.style.wordSpacing = '0.2em';
+                htmlEl.style.fontWeight = computedStyle.fontWeight;
+                htmlEl.style.display = 'block';
+                htmlEl.style.width = '100%';
               }
             });
 
@@ -557,10 +590,11 @@ export const OnePagerModal = ({
         throw new Error('Generated canvas is empty');
       }
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      // Use JPEG with high quality for crisp text rendering
+      const imgData = canvas.toDataURL('image/jpeg', 0.98); // 98% quality for text documents
 
-      if (!imgData || imgData === 'data:,') {
-        throw new Error('Failed to generate image data from canvas');
+      if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/jpeg')) {
+        throw new Error('Failed to generate JPEG data from canvas');
       }
 
       const pdf = new jsPDF({
@@ -581,7 +615,7 @@ export const OnePagerModal = ({
       pdf.rect(0, 0, imgWidth, pageHeight, 'F');
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
 
       // Add additional pages if needed
@@ -591,7 +625,7 @@ export const OnePagerModal = ({
         // Set white background for each page
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, imgWidth, pageHeight, 'F');
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pageHeight;
       }
 

@@ -13,3 +13,7 @@ COMMENT ON COLUMN public.chart_templates.bottom_description IS 'Rich text HTML d
 COMMIT;
 
 
+
+
+
+

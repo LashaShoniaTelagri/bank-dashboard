@@ -62,6 +62,7 @@ export default function LocationPickerModal({
   const markerRef = useRef<any>(null);
   const autocompleteRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const keyDownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +200,81 @@ export default function LocationPickerModal({
             }, 100);
           }
         });
+
+        // Handle Enter key press for manual search or lat/lng input
+        const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Enter' && searchInputRef.current) {
+            e.preventDefault();
+            const searchText = searchInputRef.current.value.trim();
+            
+            if (!searchText) return;
+
+            // Check if input is lat/lng format (e.g., "41.7151, 44.8271" or "41.7151,44.8271")
+            const latLngPattern = /^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/;
+            const match = searchText.match(latLngPattern);
+            
+            if (match) {
+              // Parse lat/lng directly
+              const lat = parseFloat(match[1]);
+              const lng = parseFloat(match[2]);
+              
+              // Validate lat/lng ranges
+              if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                const geocoder = new window.google.maps.Geocoder();
+                geocoder.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
+                  if (status === 'OK' && results[0]) {
+                    const address = results[0].formatted_address;
+                    setSelectedLocation({ name: address, lat, lng });
+                    setSearchValue(address);
+                  } else {
+                    setSelectedLocation({ name: `${lat.toFixed(6)}, ${lng.toFixed(6)}`, lat, lng });
+                    setSearchValue(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                  }
+                  
+                  // Update map and marker
+                  const newPosition = { lat, lng };
+                  map.setCenter(newPosition);
+                  const currentZoom = map.getZoom();
+                  if (currentZoom < 13) {
+                    map.setZoom(15);
+                  }
+                  marker.setPosition(newPosition);
+                });
+                return;
+              }
+            }
+
+            // If not lat/lng, use geocoder to search for address
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ address: searchText }, (results: any[], status: string) => {
+              if (status === 'OK' && results[0]) {
+                const place = results[0];
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                const name = place.formatted_address || searchText;
+                
+                setSelectedLocation({ name, lat, lng });
+                setSearchValue(name);
+                
+                // Update map and marker position
+                const newPosition = { lat, lng };
+                map.setCenter(newPosition);
+                const currentZoom = map.getZoom();
+                if (currentZoom < 13) {
+                  map.setZoom(15);
+                }
+                marker.setPosition(newPosition);
+              } else {
+                // Show error but don't change location
+                console.warn('Geocoding failed for:', searchText);
+              }
+            });
+          }
+        };
+
+        // Store handler reference for cleanup
+        keyDownHandlerRef.current = handleKeyDown;
+        searchInputRef.current.addEventListener('keydown', handleKeyDown);
       }
 
       setIsLoading(false);
@@ -310,7 +386,21 @@ export default function LocationPickerModal({
       // Clear any pending timeouts and reset state
       setError(null);
       setIsLoading(true);
+      
+      // Clean up keydown event listener
+      if (searchInputRef.current && keyDownHandlerRef.current) {
+        searchInputRef.current.removeEventListener('keydown', keyDownHandlerRef.current);
+        keyDownHandlerRef.current = null;
+      }
     }
+    
+    // Cleanup on unmount
+    return () => {
+      if (searchInputRef.current && keyDownHandlerRef.current) {
+        searchInputRef.current.removeEventListener('keydown', keyDownHandlerRef.current);
+        keyDownHandlerRef.current = null;
+      }
+    };
   }, [isOpen]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -369,7 +459,7 @@ export default function LocationPickerModal({
               ref={searchInputRef}
               value={searchValue}
               onChange={handleSearchChange}
-              placeholder="Search for a location..."
+              placeholder="Search for a location or enter coordinates (e.g., 41.7151, 44.8271)..."
               className="pl-10 pr-4 h-12 text-base"
               autoComplete="off"
             />
@@ -415,7 +505,7 @@ export default function LocationPickerModal({
           <div className="absolute top-4 left-4 bg-card/90 backdrop-blur-sm rounded-lg p-3 shadow-lg max-w-xs">
             <p className="text-sm text-foreground">
               <strong>How to select:</strong><br />
-              • Search in the box above<br />
+              • Search address or coordinates (lat, lng)<br />
               • Click anywhere on the map<br />
               • Drag the red pin to adjust
             </p>

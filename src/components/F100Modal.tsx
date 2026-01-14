@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+  import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -777,14 +777,14 @@ export const F100Modal = ({
       
       console.log('📊 PDF Export: Starting html2canvas conversion...');
       
-      // Optimized html2canvas configuration for performance and Windows compatibility
+      // Optimized html2canvas configuration for high-quality text rendering
       const canvas = await html2canvas(element, {
-        scale: 1.5, // Balanced quality/performance (reduced from 2 for better performance)
+        scale: 2, // Higher scale for crisp text rendering
         useCORS: true, // Allow cross-origin images
         logging: false, // Disable console logs
         backgroundColor: backgroundColor, // Force white background
         allowTaint: true, // Allow cross-origin content (needed for charts)
-        foreignObjectRendering: false, // Disable foreign object rendering (better SVG compatibility on Windows)
+        foreignObjectRendering: false, // Disable foreign object rendering (better SVG compatibility)
         imageTimeout: 15000, // Wait longer for images to load
         removeContainer: true, // Clean up after rendering
         height: element.scrollHeight,
@@ -802,14 +802,54 @@ export const F100Modal = ({
             clonedDoc.documentElement.classList.remove('dark');
             clonedDoc.body.classList.remove('dark');
             
-            // Force light theme colors on all elements with theme-dependent styles
+            // Hide all buttons marked for PDF hiding
+            const buttonsToHide = clonedElement.querySelectorAll('.pdf-hide-button');
+            buttonsToHide.forEach((btn: Element) => {
+              (btn as HTMLElement).style.display = 'none';
+            });
+            
+            // Force light theme colors and improve text rendering
             const allElements = clonedElement.querySelectorAll('*');
             allElements.forEach((el: Element) => {
               const htmlEl = el as HTMLElement;
+              
               // Ensure all text is black and backgrounds are light for PDF
               if (window.getComputedStyle(htmlEl).color === 'rgb(255, 255, 255)' ||
                   window.getComputedStyle(htmlEl).color.includes('rgba(255, 255, 255')) {
                 htmlEl.style.color = '#000000';
+              }
+              
+              // Improve text rendering for better quality
+              (htmlEl.style as any).webkitFontSmoothing = 'antialiased';
+              (htmlEl.style as any).mozOsxFontSmoothing = 'grayscale';
+              
+              const computedStyle = window.getComputedStyle(htmlEl);
+              const tagName = htmlEl.tagName.toLowerCase();
+              
+              // Apply to all text-containing elements
+              htmlEl.style.letterSpacing = '0.02em';
+              htmlEl.style.wordSpacing = '0.15em';
+              htmlEl.style.whiteSpace = 'normal';
+              htmlEl.style.textRendering = 'optimizeLegibility';
+              
+              // Specific handling for text elements
+              if (['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'strong', 'em', 'a', 'label', 'button'].includes(tagName)) {
+                // Set consistent line-height
+                htmlEl.style.lineHeight = '1.6';
+                
+                // Force display to ensure proper rendering
+                if (computedStyle.display === 'inline') {
+                  htmlEl.style.display = 'inline-block';
+                }
+              }
+              
+              // Special handling for headings and titles to prevent splitting
+              if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName) || htmlEl.classList.contains('font-bold') || htmlEl.classList.contains('font-semibold')) {
+                htmlEl.style.letterSpacing = '0.03em';
+                htmlEl.style.wordSpacing = '0.2em';
+                htmlEl.style.fontWeight = computedStyle.fontWeight;
+                htmlEl.style.display = 'block';
+                htmlEl.style.width = '100%';
               }
             });
 
@@ -865,30 +905,19 @@ export const F100Modal = ({
         throw new Error('Generated canvas is empty');
       }
 
-      console.log('📊 PDF Export: Converting canvas to image data...');
+      console.log('📊 PDF Export: Converting canvas to JPEG...');
       
-      // Windows Fix: Use JPEG instead of PNG to avoid "wrong PNG signature" error
-      // JPEG is more reliable across platforms and produces smaller file sizes
-      // White background already set via backgroundColor option, so transparency not needed
-      let imgData: string;
-      try {
-        imgData = canvas.toDataURL('image/jpeg', 0.92); // JPEG with 92% quality
-        
-        // Verify image data is valid
-        if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/jpeg')) {
-          throw new Error('Invalid JPEG data generated');
-        }
-      } catch (jpegError) {
-        console.warn('⚠️ JPEG generation failed, trying PNG fallback:', jpegError);
-        // Fallback to PNG if JPEG fails
-        imgData = canvas.toDataURL('image/png', 0.95);
-        
-        if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/')) {
-          throw new Error('Failed to generate image data from canvas (both JPEG and PNG failed)');
-        }
+      // Use JPEG for reliable cross-platform PDF generation
+      // High quality (98%) to preserve text sharpness and prevent compression artifacts
+      // White background already set via backgroundColor option
+      const imgData = canvas.toDataURL('image/jpeg', 0.98); // 98% quality for crisp text rendering
+      
+      // Verify image data is valid
+      if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/jpeg')) {
+        throw new Error('Failed to generate JPEG data from canvas');
       }
       
-      console.log('📊 PDF Export: Image data ready, size:', (imgData.length / 1024 / 1024).toFixed(2), 'MB');
+      console.log('📊 PDF Export: JPEG data ready, size:', (imgData.length / 1024 / 1024).toFixed(2), 'MB');
       
       // Yield control back to browser before PDF creation
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -924,7 +953,6 @@ export const F100Modal = ({
       let pageCount = 0;
       
       // Get all major sections to determine break points
-      // For charts in grid: detect ROWS not individual cards to keep pairs together
       const chartGrid = element.querySelector('.grid.grid-cols-1.md\\:grid-cols-2');
       const monitoringSection = element.querySelector('.space-y-6');
       const sectionHeaders = element.querySelectorAll('.pdf-section-header');
@@ -944,11 +972,10 @@ export const F100Modal = ({
         }
       });
       
-      // For chart grid: Add break points for EVERY chart boundary
-      // This ensures no chart is ever split across pages
+      // For chart grid: Track chart boundaries to prevent splitting
+      const chartBoundaries: Array<{ start: number; end: number; index: number }> = [];
       if (chartGrid) {
         const chartCards = chartGrid.querySelectorAll('.pdf-chart-card');
-        let chartsProcessed = 0;
         
         chartCards.forEach((card, index) => {
           const rect = card.getBoundingClientRect();
@@ -960,23 +987,27 @@ export const F100Modal = ({
           const bottomInMm = relativeBottom * scaleFactor;
           
           if (topInMm > 10) {
-            // Add break BEFORE each chart (so we can start page here)
-            breakPoints.push(topInMm);
+            chartBoundaries.push({
+              start: topInMm,
+              end: bottomInMm,
+              index: index
+            });
             
-            // Add break AFTER each chart (so we can end page here)
-            breakPoints.push(bottomInMm + 3); // 3mm gap
+            // Only add break points BEFORE charts and after groups of 4
+            if (index % 4 === 0) {
+              // Before chart 1, 5, 9, etc (start of group)
+              breakPoints.push(topInMm - 5);
+            }
             
-            chartsProcessed++;
-            
-            // Force page break after every 6 charts (regardless of rows)
-            if (chartsProcessed % 6 === 0 && index < chartCards.length - 1) {
-              breakPoints.push(bottomInMm + 10); // Extra gap after 6 charts
-              console.log(`📊 PDF Export: Forced break after chart ${chartsProcessed} (6 charts per page limit)`);
+            if ((index + 1) % 4 === 0 || index === chartCards.length - 1) {
+              // After chart 4, 8, 12, etc (end of group) or last chart
+              breakPoints.push(bottomInMm + 5);
+              console.log(`📊 PDF Export: Break after chart #${index + 1} at ${(bottomInMm + 5).toFixed(0)}mm`);
             }
           }
         });
         
-        console.log(`📊 PDF Export: Detected ${chartsProcessed} charts, added break points before and after each`);
+        console.log(`📊 PDF Export: Detected ${chartCards.length} charts in groups of 4`);
       }
       
       // For monitoring section: add break points before AND after each card
@@ -1023,22 +1054,45 @@ export const F100Modal = ({
         // Determine how much content to include on this page
         let nextBreak = currentY + contentHeight;
         
-        // Find the best break point before the page limit
+        // Find all break points that fit on this page
         const idealBreaks = uniqueBreakPoints.filter(bp => 
           bp > currentY && bp <= currentY + contentHeight
         );
         
-        // CRITICAL: Always respect chart boundaries to prevent splitting
-        // For F-100 reports, chart integrity is more important than page fill optimization
         if (idealBreaks.length > 0) {
-          // Use the last break point that fits on the page
-          // This ensures we break at chart boundaries, not mid-chart
-          nextBreak = idealBreaks[idealBreaks.length - 1];
+          // Check each break point from last to first to find one that doesn't split a chart
+          let safeBreak = null;
           
-          console.log(`📊 PDF Export: Page ${pageCount + 1} break point: ${nextBreak.toFixed(0)}mm (respecting chart boundary)`);
+          for (let i = idealBreaks.length - 1; i >= 0; i--) {
+            const breakPoint = idealBreaks[i];
+            let wouldSplitChart = false;
+            
+            // Check if this break point would split any chart
+            for (const chart of chartBoundaries) {
+              // A break is unsafe if it's in the middle of a chart
+              if (breakPoint > chart.start && breakPoint < chart.end) {
+                wouldSplitChart = true;
+                console.log(`📊 PDF Export: Break at ${breakPoint.toFixed(0)}mm would split chart #${chart.index + 1}, trying earlier...`);
+                break;
+              }
+            }
+            
+            if (!wouldSplitChart) {
+              safeBreak = breakPoint;
+              break;
+            }
+          }
+          
+          if (safeBreak !== null) {
+            nextBreak = safeBreak;
+            console.log(`📊 PDF Export: Page ${pageCount + 1} safe break at ${nextBreak.toFixed(0)}mm`);
+          } else {
+            // No safe break found, use first break point (will be before any charts)
+            nextBreak = idealBreaks[0];
+            console.log(`📊 PDF Export: Page ${pageCount + 1} using first available break`);
+          }
         } else {
-          // No ideal break found within page, use full page height
-          console.log(`📊 PDF Export: Page ${pageCount + 1} using full page height (no break points)`);
+          console.log(`📊 PDF Export: Page ${pageCount + 1} using full page height`);
         }
         
         // Calculate how much of the canvas to show
@@ -1068,17 +1122,13 @@ export const F100Modal = ({
             0, 0, canvas.width, sourceHeight         // Destination rectangle
           );
           
-          // Convert to image and add to PDF
-          // Windows Fix: Use JPEG for reliability
-          const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
+          // Convert to JPEG and add to PDF with high quality for text preservation
+          const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.98);
           const pageImgHeight = sourceHeight * scaleFactor;
-          
-          // Detect image format from data URL
-          const imageFormat = pageImgData.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
           
           pdf.addImage(
             pageImgData,
-            imageFormat,
+            'JPEG',
             margin,
             margin,
             imgWidth,
@@ -1136,6 +1186,21 @@ export const F100Modal = ({
                 </DialogDescription>
               </div>
               <div className="flex items-center gap-2">
+                {/* View Full Page Button */}
+                <Button
+                  onClick={() => {
+                    navigate(`/farmers/${farmerId}/f100/${phaseNumber}`);
+                    onClose();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  title="Open in full page view"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Full Page
+                </Button>
+                
                 {/* F100 URL Toggle (Admin only) */}
                 {isAdmin && (
                   <Button
@@ -1268,6 +1333,7 @@ export const F100Modal = ({
                   <Button
                     variant="outline"
                     size="sm"
+                    className="pdf-hide-button"
                     onClick={() => {
                       navigate(`/admin/charts/new?farmerId=${farmerId}&phaseNumber=${phaseNumber}`);
                       onClose();
@@ -1279,7 +1345,7 @@ export const F100Modal = ({
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {charts.map((chart) => (
+                {charts.map((chart, chartIndex) => (
                   <Card key={chart.id} className="overflow-hidden pdf-chart-card" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
@@ -1295,7 +1361,7 @@ export const F100Modal = ({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 flex-shrink-0"
+                            className="h-8 w-8 flex-shrink-0 pdf-hide-button"
                             onClick={() => {
                               navigate(`/admin/charts/${chart.id}?farmerId=${farmerId}&phaseNumber=${phaseNumber}`);
                               onClose();
@@ -1351,7 +1417,7 @@ export const F100Modal = ({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 flex-shrink-0"
+                              className="h-8 w-8 flex-shrink-0 pdf-hide-button"
                               onClick={() => {
                                 setSelectedIssue(issue);
                                 setIssueEditorOpen(true);
@@ -1365,7 +1431,7 @@ export const F100Modal = ({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 flex-shrink-0"
+                              className="h-8 w-8 flex-shrink-0 pdf-hide-button"
                               onClick={() => {
                                 setSelectedIssue(issue);
                                 setIssueEditorOpen(true);

@@ -213,10 +213,11 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
         throw new Error('Generated canvas is empty');
       }
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
+      // Use JPEG with high quality for crisp text and chart labels
+      const imgData = canvas.toDataURL("image/jpeg", 0.98);
 
-      if (!imgData || imgData === 'data:,') {
-        throw new Error('Failed to generate image data');
+      if (!imgData || imgData === 'data:,' || !imgData.startsWith('data:image/jpeg')) {
+        throw new Error('Failed to generate JPEG data');
       }
 
       const pdf = new jsPDF({
@@ -226,7 +227,7 @@ export const ChartCard = ({ chart, children, defaultSize = "medium", renderChart
         compress: true,
       });
 
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height, undefined, 'FAST');
+      pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height, undefined, 'FAST');
       pdf.save(`${chart.name.replace(/\s+/g, "_")}.pdf`);
 
       toast({

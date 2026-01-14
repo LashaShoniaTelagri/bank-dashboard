@@ -757,8 +757,12 @@ const FarmerProfilePage = () => {
                             </div>
                           )}
                           <div>
-                            <p className="text-sm text-muted-foreground">Has Reservoir</p>
-                            <p className="text-sm font-medium">{farmer.has_reservoir ? 'Yes' : 'No'}</p>
+                            <p className="text-sm text-muted-foreground">Number of Reservoirs</p>
+                            <p className="text-sm font-medium">
+                              {farmer.service_cost_selections?.reservoirs 
+                                ? farmer.service_cost_selections.reservoirs 
+                                : (farmer.has_reservoir ? 'Yes' : 'No')}
+                            </p>
                           </div>
                           {farmer.has_reservoir && farmer.reservoir_amount && (
                             <div>
