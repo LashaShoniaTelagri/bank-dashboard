@@ -1215,7 +1215,8 @@ export const F100Modal = ({
                   </Button>
                 )}
                 
-                <Button
+                {/* TODO: Temporarily hidden until PDF generation is fixed and rendering issues are resolved */}
+                {/* <Button
                   onClick={handleDownload}
                   disabled={isExporting}
                   className="flex items-center gap-2"
@@ -1240,7 +1241,7 @@ export const F100Modal = ({
                       )}
                     </>
                   )}
-                </Button>
+                </Button> */}
                 <Button
                   onClick={onClose}
                   variant="ghost"

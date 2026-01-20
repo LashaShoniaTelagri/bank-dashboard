@@ -813,7 +813,8 @@ export const F100ReportPage = () => {
                   </Button>
                 )}
                 
-                <Button
+                {/* TODO: Temporarily hidden until PDF generation is fixed and rendering issues are resolved */}
+                {/* <Button
                   onClick={handleDownload}
                   disabled={isExporting}
                   size="sm"
@@ -838,7 +839,7 @@ export const F100ReportPage = () => {
                       )}
                     </>
                   )}
-                </Button>
+                </Button> */}
               </div>
             </div>
 

@@ -664,7 +664,8 @@ export const OnePagerModal = ({
               </DialogDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button
+              {/* TODO: Temporarily hidden until PDF generation is fixed and rendering issues are resolved */}
+              {/* <Button
                 onClick={handleDownloadPDF}
                 disabled={isExporting}
                 className="flex items-center gap-2"
@@ -675,7 +676,7 @@ export const OnePagerModal = ({
                   <Download className="h-4 w-4" />
                 )}
                 Download PDF
-              </Button>
+              </Button> */}
               <Button
                 onClick={onClose}
                 variant="ghost"
