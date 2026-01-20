@@ -1,12 +1,9 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { FarmerCard } from "./FarmerCard";
 import { FarmersTable } from "./FarmersTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { LayoutGrid, List, Search, Plus, Wheat } from "lucide-react";
+import { Plus, Wheat } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface FarmerListViewProps {
@@ -29,17 +26,6 @@ export const FarmerListView = ({
   onEditFarmer,
   onDeleteFarmer 
 }: FarmerListViewProps) => {
-  // Get saved view mode from localStorage, default to 'grid'
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
-    const saved = localStorage.getItem('farmer-view-mode');
-    return (saved === 'list' || saved === 'grid') ? saved : 'grid';
-  });
-
-  // Save view mode to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('farmer-view-mode', viewMode);
-  }, [viewMode]);
-
   // Fetch farmers with analytics data
   const { data: farmers = [], isLoading, error } = useQuery({
     queryKey: ['farmers-cards', filters],
@@ -185,26 +171,6 @@ export const FarmerListView = ({
             </CardTitle>
             
             <div className="flex items-center gap-2 flex-wrap">
-              {/* View toggle */}
-              <div className="flex items-center border rounded-md">
-                <Button
-                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                  className="rounded-r-none"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                  className="rounded-l-none"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
-
               {/* Add farmer button */}
               {isAdmin && onAddFarmer && (
                 <Button 
@@ -221,28 +187,19 @@ export const FarmerListView = ({
         </CardHeader>
       </Card>
 
-      {/* Farmers grid/list */}
+      {/* Farmers list */}
       {isLoading ? (
-        <div className={`
-          grid gap-4
-          ${viewMode === 'grid' 
-            ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
-            : 'grid-cols-1'}
-        `}>
-          {[...Array(8)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-1/2 mt-2" />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-8 w-full mt-4" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </CardContent>
+        </Card>
       ) : farmers.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
@@ -263,23 +220,11 @@ export const FarmerListView = ({
             </div>
           </CardContent>
         </Card>
-      ) : viewMode === 'list' ? (
+      ) : (
         <FarmersTable
           filters={filters}
           isAdmin={isAdmin}
         />
-      ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {farmers.map((farmer) => (
-            <FarmerCard
-              key={farmer.farmer_id}
-              farmer={farmer}
-              isAdmin={isAdmin}
-              onEdit={onEditFarmer}
-              onDelete={onDeleteFarmer}
-            />
-          ))}
-        </div>
       )}
     </div>
   );
