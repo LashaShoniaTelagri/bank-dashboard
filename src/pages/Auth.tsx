@@ -568,8 +568,8 @@ const Auth = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={!!email}
-                  className={!!email ? "bg-muted" : ""}
+                  disabled={Boolean(email)}
+                  className={email ? "bg-muted" : ""}
                   required
                 />
               </div>
