@@ -42,8 +42,15 @@ const Auth = () => {
   // Check if this is a recovery/password setup flow
   const isRecovery = searchParams.get('type') === 'recovery';
   const recoveryEmail = searchParams.get('email');
-  const errorCode = searchParams.get('error_code');
-  const isExpiredLink = errorCode === 'otp_expired';
+  
+  // Parse hash parameters (error params come in hash fragment from Supabase)
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
+  const errorFromHash = hashParams.get('error');
+  const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+  
+  // Check if link is expired (can be in query params or hash)
+  const isExpiredLink = errorCode === 'otp_expired' || errorFromHash === 'access_denied';
 
   useEffect(() => {
     // Extract email from URL parameters if available
@@ -64,18 +71,7 @@ const Auth = () => {
       }
     }
 
-    // Extract email from error_description if link expired
-    const errorDescription = searchParams.get('error_description');
-    if (isExpiredLink && errorDescription && !recoveryEmail) {
-      // Try to get email from any available source
-      const getCurrentUser = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.email) {
-          setEmail(session.user.email);
-        }
-      };
-      getCurrentUser();
-    }
+    // Note: If link is expired, we show error message instead of form
 
     // Handle auth session from recovery link
     const handleAuthStateChange = () => {
@@ -509,7 +505,7 @@ const Auth = () => {
 
   // If this is a recovery flow, show password setup form
   if (isRecovery) {
-    const isLinkExpired = isExpiredLink || searchParams.get('error') === 'access_denied';
+    const isLinkExpired = isExpiredLink;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center p-4">
@@ -517,28 +513,63 @@ const Auth = () => {
           <CardHeader className="text-center">
             <CardTitle className="text-3xl font-bold text-primary">TelAgri</CardTitle>
             <p className="text-muted-foreground">
-              {isLinkExpired ? "Complete Account Setup" : "Set Up Your Password"}
+              {isLinkExpired ? "Link Expired" : "Set Up Your Password"}
             </p>
           </CardHeader>
           <CardContent>
-            {isLinkExpired && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ The email link has expired. Please enter your email and password below to complete your account setup.
-                </p>
+            {isLinkExpired ? (
+              <div className="text-center space-y-4">
+                <div className="p-6 bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 rounded-lg">
+                  <div className="text-5xl mb-4">⏰</div>
+                  <h3 className="text-lg font-semibold text-destructive mb-2">
+                    Email Link Has Expired
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {errorDescription 
+                      ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
+                      : "The password reset link has expired or is invalid."}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Password reset links expire after a short period for security reasons.
+                  </p>
+                </div>
+                
+                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                  <h4 className="font-medium text-sm">What to do next:</h4>
+                  <ul className="text-sm text-muted-foreground space-y-2 text-left">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold">1.</span>
+                      <span>Contact your system administrator</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold">2.</span>
+                      <span>Request a new invitation or password reset link</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold">3.</span>
+                      <span>Complete the setup using the new link</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Button 
+                  onClick={() => window.location.href = '/auth'}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Return to Login
+                </Button>
               </div>
-            )}
-            
-            <form onSubmit={handlePasswordSetup} className="space-y-4">
+            ) : (
+              <form onSubmit={handlePasswordSetup} className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={!isLinkExpired && !!email}
-                  className={!isLinkExpired && !!email ? "bg-muted" : ""}
-                  placeholder={isLinkExpired ? "Enter your email address" : ""}
+                  disabled={!!email}
+                  className={!!email ? "bg-muted" : ""}
                   required
                 />
               </div>
@@ -572,20 +603,13 @@ const Auth = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isLinkExpired ? "Setting up account..." : "Setting up password..."}
+                    Setting up password...
                   </>
                 ) : (
-                  isLinkExpired ? "Complete Account Setup" : "Set Password & Sign In"
+                  "Set Password & Sign In"
                 )}
               </Button>
             </form>
-            
-            {isLinkExpired && (
-              <div className="mt-4 text-center">
-                <p className="text-xs text-muted-foreground">
-                  Need a new invitation link? Contact your administrator.
-                </p>
-              </div>
             )}
           </CardContent>
         </Card>
