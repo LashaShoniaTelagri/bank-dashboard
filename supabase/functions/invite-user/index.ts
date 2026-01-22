@@ -108,9 +108,9 @@ const htmlContent = `
             
             <div class="warning">
               <p><strong>⚠️ Important:</strong></p>
-              <p>• This invitation link expires in 24 hours</p>
+              <p>• This invitation link expires in 5 days and can only be used once</p>
               <p>• For security, please don't share this link with others</p>
-              <p>• If you have any issues, contact your administrator</p>
+              <p>• If the link expires or you need a new one, contact your administrator</p>
             </div>
             
             <p>If the button doesn't work, copy and paste this link into your browser:</p>
@@ -138,7 +138,8 @@ ${textPermissions}
 
 To activate your account, visit: ${resetUrl}
 
-This link expires in 24 hours.
+IMPORTANT: This link expires in 5 days and can only be used once.
+If the link expires or you need a new one, contact your administrator.
 
 If you have any questions, please contact your administrator.
 

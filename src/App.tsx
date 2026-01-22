@@ -17,6 +17,7 @@ import { SpecialistDashboard } from "./pages/SpecialistDashboard";
 import { ChartBuilderPage } from "./pages/ChartBuilderPage";
 import FarmerProfilePage from "./pages/FarmerProfilePage";
 import { F100ReportPage } from "./pages/F100ReportPage";
+import InvitationAccept from "./pages/InvitationAccept";
 import NotFound from "./pages/NotFound";
 
 // Optimized QueryClient configuration to prevent network spam
@@ -64,6 +65,7 @@ const App = () => (
             <Route path="/specialist/dashboard" element={<SpecialistDashboard />} />
             <Route path="/farmers/:farmerId" element={<FarmerProfilePage />} />
             <Route path="/farmers/:farmerId/f100/:phaseNumber" element={<F100ReportPage />} />
+            <Route path="/invitation/accept" element={<InvitationAccept />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
