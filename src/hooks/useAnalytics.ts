@@ -65,19 +65,27 @@ export const useAnalytics = () => {
           h.appendChild(c);
         })(document);
 
-        // Initialize Smartlook
+        // Initialize Smartlook with advanced configuration
         if (window.smartlook) {
-          window.smartlook('init', smartlookKey, { region: 'eu' });
+          window.smartlook('init', smartlookKey, { 
+            region: 'eu',
+            // Advanced options for better recording
+            recordConsole: true,
+            recordNetwork: true
+          });
 
-          // Configure recording settings - track user behavior but mask passwords
+          // Configure recording settings - track user behavior including styles
           window.smartlook('record', {
             forms: true,
             numbers: true,
             emails: true,
             ips: true,
+            styles: true,  // ✅ CRITICAL: Enable CSS style recording
+            media: true,   // Record media elements
+            canvas: true,  // Record canvas elements
             // Ensure passwords are always masked for security
             mask: {
-              selectors: ['input[type="password"]', '[data-password]']
+              selectors: ['input[type="password"]', '[data-password]', '[data-sensitive]']
             }
           });
         }

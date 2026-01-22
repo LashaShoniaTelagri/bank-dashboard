@@ -41,7 +41,23 @@
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     <!-- Content Security Policy (matches CloudFront configuration in cdk/lib/telagri-stack.ts) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; style-src 'self' 'unsafe-inline' https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: data: blob:; frame-src 'self' https: data: blob:; object-src 'self' https: data: blob:; media-src 'self' https: data: blob:; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self' https:" />
+    <!-- Updated to allow Smartlook proper CSS recording and style access -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self' https: data: blob:; 
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://web-sdk.smartlook.com https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https: data: blob:; 
+      style-src 'self' 'unsafe-inline' https: data: blob:; 
+      style-src-elem 'self' 'unsafe-inline' https: data:;
+      style-src-attr 'unsafe-inline';
+      font-src 'self' https: data:; 
+      img-src 'self' data: https: blob: https://*.smartlook.com; 
+      connect-src 'self' https://api.telagri.com https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://*.sentry.io wss://api.telagri.com wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com https://*.smartlook.cloud https: wss: data: blob:; 
+      frame-src 'self' https: data: blob:; 
+      object-src 'self' https: data: blob:; 
+      media-src 'self' https: data: blob:; 
+      worker-src 'self' blob:; 
+      manifest-src 'self'; 
+      base-uri 'self'; 
+      form-action 'self' https:" />
     
     <!-- Private system - no social sharing -->
     <meta property="og:title" content="TelAgri Monitoring" />

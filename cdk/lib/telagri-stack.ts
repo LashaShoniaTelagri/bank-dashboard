@@ -115,15 +115,18 @@ export class TelAgriStack extends cdk.Stack {
           contentSecurityPolicy: [
             "default-src 'self' https: data: blob:",
             // Allow all HTTPS scripts with unsafe-inline and unsafe-eval for maximum compatibility
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:",
-            // Allow all HTTPS styles with unsafe-inline
-            "style-src 'self' 'unsafe-inline' https: data:",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://web-sdk.smartlook.com https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https: data: blob:",
+            // Allow all HTTPS styles with unsafe-inline (includes Smartlook style recording)
+            "style-src 'self' 'unsafe-inline' https: data: blob:",
+            // Explicit style element and attribute sources for Smartlook CSS recording
+            "style-src-elem 'self' 'unsafe-inline' https: data:",
+            "style-src-attr 'unsafe-inline'",
             // Allow all HTTPS fonts
             "font-src 'self' https: data:",
-            // Allow all images from any HTTPS source
-            "img-src 'self' data: https: blob:",
-            // Allow connections to any HTTPS endpoint and WebSockets
-            "connect-src 'self' https: wss: data: blob:",
+            // Allow all images from any HTTPS source (includes Smartlook)
+            "img-src 'self' data: https: blob: https://*.smartlook.com",
+            // Allow connections to any HTTPS endpoint and WebSockets (includes Smartlook API)
+            "connect-src 'self' https://api.telagri.com https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://*.sentry.io wss://api.telagri.com wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com https://*.smartlook.cloud https: wss: data: blob:",
             // Allow iframes from any HTTPS source (for maps, PDFs, embeds)
             "frame-src 'self' https: data: blob:",
             // Allow objects and embeds from any HTTPS source (for PDFs and media)
