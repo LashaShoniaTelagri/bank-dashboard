@@ -181,49 +181,36 @@ const InvitationAccept = () => {
     setSubmitting(true);
 
     try {
-      console.log('🔐 Setting up password for user:', invitation.user_id);
+      console.log('🔐 Completing invitation setup...');
 
-      // Update user password using admin API
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        invitation.user_id,
-        { password: password }
-      );
+      // Call Edge Function to complete invitation and set password
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      if (updateError) {
-        console.error('❌ Password update failed:', updateError);
-        throw updateError;
-      }
-
-      console.log('✅ Password updated successfully');
-
-      // Mark invitation as completed
-      const { error: invitationUpdateError } = await supabase
-        .from('invitations')
-        .update({ 
-          status: 'completed',
-          completed_at: new Date().toISOString()
+      const response = await fetch(`${supabaseUrl}/functions/v1/complete-invitation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          token: token,
+          password: password
         })
-        .eq('token', token);
+      });
 
-      if (invitationUpdateError) {
-        console.warn('⚠️ Failed to update invitation status:', invitationUpdateError);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        console.error('❌ Invitation completion failed:', result.error);
+        throw new Error(result.error || 'Failed to complete invitation');
       }
 
-      // Update profile status to active
-      const { error: profileUpdateError } = await supabase
-        .from('profiles')
-        .update({ 
-          invitation_status: 'active'
-        })
-        .eq('user_id', invitation.user_id);
+      console.log('✅ Invitation completed successfully');
 
-      if (profileUpdateError) {
-        console.warn('⚠️ Failed to update profile status:', profileUpdateError);
-      }
-
+      // Sign in the user with new password
       console.log('🔑 Signing in user...');
-
-      // Sign in the user
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: invitation.email,
         password: password
