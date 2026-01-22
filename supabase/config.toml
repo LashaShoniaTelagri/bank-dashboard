@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.complete-invitation]
 verify_jwt = false
 
+[functions.send-password-reset]
+verify_jwt = false
+
 [functions.generate-image-description]
 enabled = true
 verify_jwt = true

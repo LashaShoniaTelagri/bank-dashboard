@@ -58,20 +58,12 @@ const createPasswordResetEmail = (
           <div class="warning">
             <p><strong>⚠️ Important Security Information:</strong></p>
             <ul>
-              <li>This reset link expires in <strong>1 hour</strong> for your security</li>
-              <li>The link can only be used once</li>
+              <li>This reset link expires in <strong>24 hours</strong> for your security</li>
+              <li>You can revisit this link multiple times within 24 hours if needed</li>
               <li>For security, don't share this link with anyone</li>
-              <li>Make sure to choose a strong password with at least 8 characters</li>
+              <li>Make sure to choose a strong password with at least 6 characters</li>
             </ul>
           </div>
-          
-          <p><strong>Password Requirements:</strong></p>
-          <ul style="color: #6b7280; font-size: 14px;">
-            <li>Minimum 8 characters</li>
-            <li>At least one uppercase letter</li>
-            <li>At least one lowercase letter</li>
-            <li>At least one number</li>
-          </ul>
           
           <p>If the button doesn't work, copy and paste this link into your browser:</p>
           <p style="word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">${resetUrl}</p>
@@ -101,15 +93,9 @@ If you didn't request this password reset, please ignore this email and your pas
 To reset your password, visit: ${resetUrl}
 
 IMPORTANT:
-• This reset link expires in 1 hour for your security
-• The link can only be used once
-• Make sure to choose a strong password with at least 8 characters
-
-Password Requirements:
-• Minimum 8 characters
-• At least one uppercase letter
-• At least one lowercase letter
-• At least one number
+• This reset link expires in 24 hours for your security
+• You can revisit this link multiple times within 24 hours if needed
+• Make sure to choose a strong password with at least 6 characters
 
 ---
 TelAgri
@@ -195,48 +181,62 @@ serve(async (req) => {
       )
     }
 
-    // Generate password reset link with proper URL handling
+    // Generate custom password reset token (24-hour expiration, multi-click support)
     const origin = req.headers.get('origin');
     const siteUrl = Deno.env.get('SITE_URL');
-    
-    // For production, prioritize SITE_URL over origin header to avoid localhost issues
+    // Prioritize SITE_URL (https://dashboard.telagri.com) for production consistency
     const baseUrl = siteUrl || origin || 'http://localhost:3000';
     
-    console.log('🔗 URL Debug Info:');
+    console.log('🔗 URL Configuration:');
     console.log('  - Request origin:', origin);
     console.log('  - SITE_URL env var:', siteUrl);
     console.log('  - Using base URL:', baseUrl);
-    console.log('  - Redirect URL will be:', `${baseUrl}/reset-password`);
 
-    // Generate a proper recovery link with auth tokens
-    const { data: resetData, error: resetError } = await supabaseClient.auth.admin.generateLink({
-      type: 'recovery',
-      email: email,
-      options: {
-        redirectTo: `${baseUrl}/reset-password`
-      }
-    })
+    // Generate secure random token (64 characters hex)
+    const generateResetToken = () => {
+      const randomBytes = new Uint8Array(32);
+      crypto.getRandomValues(randomBytes);
+      return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    };
+
+    const resetToken = generateResetToken();
+    const expiresAt = new Date(Date.now() + (24 * 60 * 60 * 1000)); // 24 hours
+
+    console.log('🎫 Creating custom password reset token');
+    console.log('  - Token length:', resetToken.length);
+    console.log('  - Expires at:', expiresAt.toISOString());
+    console.log('  - Hours valid:', 24);
+
+    // Store password reset token in database (reusing invitations table)
+    const { data: resetRecord, error: resetError } = await supabaseClient
+      .from('invitations')
+      .insert({
+        email: email,
+        token: resetToken,
+        user_id: existingUser.id,
+        type: 'password_reset',
+        role: null, // Password resets don't need role
+        bank_id: null,
+        invited_by: null,
+        expires_at: expiresAt.toISOString(),
+        status: 'pending'
+      })
+      .select()
+      .single();
 
     if (resetError) {
-      console.error('❌ Reset link generation failed:', resetError);
-      throw new Error(`Failed to generate secure reset link: ${resetError.message}`);
+      console.error('❌ Failed to create password reset token:', resetError);
+      throw new Error(`Failed to create password reset token: ${resetError.message}`);
     }
 
-    if (!resetData?.properties?.action_link) {
-      console.error('❌ No action link returned from Supabase');
-      throw new Error('Failed to generate secure reset link: No action link returned from Supabase auth service.');
-    }
+    console.log('✅ Password reset record created:', resetRecord.id);
 
-    const resetUrl = resetData.properties.action_link;
-    console.log('✅ Successfully generated secure reset URL');
-    console.log('📋 Reset URL length:', resetUrl.length);
-    console.log('🔑 Contains access_token:', resetUrl.includes('access_token='));
-
-    // Validate that the URL contains security tokens
-    if (!resetUrl.includes('access_token=') && !resetUrl.includes('token=')) {
-      console.error('❌ Generated URL does not contain security tokens');
-      throw new Error('Security validation failed: Generated reset link does not contain proper authentication tokens.');
-    }
+    // Create custom reset URL
+    const resetUrl = `${baseUrl}/password/reset?token=${resetToken}`;
+    console.log('🔗 Custom password reset URL generated');
+    console.log('  - URL:', resetUrl.substring(0, 80) + '...');
+    console.log('  - Multi-click: Enabled');
+    console.log('  - Expiration: 24 hours');
 
     // Prepare email data
     const emailData = createPasswordResetEmail(email, resetUrl)

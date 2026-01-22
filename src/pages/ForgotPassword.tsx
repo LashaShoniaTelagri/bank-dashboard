@@ -170,7 +170,8 @@ const ForgotPassword = () => {
                     </p>
                     <ul className="text-sm text-foreground/70 mt-2 space-y-1 list-disc list-inside">
                       <li>Check your email inbox</li>
-                      <li>Click the reset link (valid for 1 hour)</li>
+                      <li>Click the reset link (valid for 24 hours)</li>
+                      <li>You can revisit the link multiple times if needed</li>
                       <li>Set your new password</li>
                       <li>Sign in with your new password</li>
                     </ul>
@@ -252,7 +253,7 @@ const ForgotPassword = () => {
           <div className="mt-6 text-center">
             <div className="bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-lg px-4 py-3 border border-white/20 dark:border-white/10">
               <p className="text-xs text-foreground/60">
-                🔒 Password reset links expire after 1 hour for security
+                🔒 Password reset links expire after 24 hours for security
               </p>
             </div>
           </div>

@@ -27,10 +27,10 @@ serve(async (req) => {
       throw new Error('Password must be at least 6 characters')
     }
 
-    console.log('🔐 Processing invitation completion request');
+    console.log('🔐 Processing token completion request');
     console.log('  - Token:', token.substring(0, 10) + '...');
 
-    // Validate invitation token
+    // Validate token (can be invitation or password_reset)
     const { data: invitation, error: invitationError } = await supabaseClient
       .from('invitations')
       .select('*')
@@ -38,15 +38,17 @@ serve(async (req) => {
       .single();
 
     if (invitationError || !invitation) {
-      console.error('❌ Invitation not found:', invitationError);
-      throw new Error('Invalid or expired invitation token');
+      console.error('❌ Token not found:', invitationError);
+      throw new Error('Invalid or expired token');
     }
 
-    console.log('✅ Invitation found:', {
+    const tokenType = invitation.type || 'invitation';
+    console.log(`✅ Token found (${tokenType}):`, {
       email: invitation.email,
       role: invitation.role,
       status: invitation.status,
-      user_id: invitation.user_id
+      user_id: invitation.user_id,
+      type: tokenType
     });
 
     // Check if expired
@@ -120,14 +122,15 @@ serve(async (req) => {
       console.warn('⚠️ Failed to update profile status:', profileUpdateError);
     }
 
-    console.log('✅ Invitation completed successfully');
+    console.log(`✅ ${tokenType === 'password_reset' ? 'Password reset' : 'Invitation'} completed successfully`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Account setup completed successfully',
+        message: tokenType === 'password_reset' ? 'Password reset completed successfully' : 'Account setup completed successfully',
         email: invitation.email,
-        role: invitation.role
+        role: invitation.role,
+        type: tokenType
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
