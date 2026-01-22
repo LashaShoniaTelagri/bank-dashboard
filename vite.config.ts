@@ -21,15 +21,35 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB - increased from default 2 MB to accommodate large bundles
+        cleanupOutdatedCaches: true, // Automatically cleanup old caches on update
+        skipWaiting: true, // Force new service worker to activate immediately
+        clientsClaim: true, // Take control of all pages immediately
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.telagri\.com\/.*/i,
+            // HTML pages should always use network first to get latest routes
+            urlPattern: /^https:\/\/dashboard\.telagri\.com\/.*$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'telagri-pages',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 // 1 hour for HTML pages
+              },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Static assets can use cache first
+            urlPattern: /^https:\/\/.*\.telagri\.com\/assets\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'telagri-assets',
               expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days for assets
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -37,7 +57,8 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
+            // API calls should always try network first
+            urlPattern: /^https:\/\/(api\.telagri\.com|.*\.supabase\.co)\/rest\/v1\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-api',
@@ -65,7 +86,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
-        start_url: '/',
+        start_url: '/?v=1.2.0',
         categories: ['business', 'finance', 'productivity'],
         lang: 'en',
         dir: 'ltr',
