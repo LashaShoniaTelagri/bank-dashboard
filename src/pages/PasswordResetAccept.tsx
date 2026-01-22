@@ -44,11 +44,11 @@ const PasswordResetAccept = () => {
         console.log('🔍 Validating password reset token:', token.substring(0, 10) + '...');
 
         // Validate token and get reset details
+        // Note: Check type if column exists, otherwise check role is NULL
         const { data, error: fetchError } = await supabase
           .from('invitations')
           .select('*')
           .eq('token', token)
-          .eq('type', 'password_reset')
           .maybeSingle();
 
         if (fetchError) {
@@ -59,14 +59,26 @@ const PasswordResetAccept = () => {
         }
 
         if (!data) {
-          console.error('❌ Password reset token not found');
+          console.error('❌ Token not found');
           setError('Password reset token not found or invalid');
+          setLoading(false);
+          return;
+        }
+
+        // Validate it's a password reset token (not an invitation)
+        // Check: either type='password_reset' OR (type is NULL/missing AND role is NULL)
+        const isPasswordReset = data.type === 'password_reset' || (!data.type && !data.role);
+        
+        if (!isPasswordReset) {
+          console.error('❌ Token is not a password reset (it\'s an invitation)');
+          setError('This is an invitation link, not a password reset link. Please use the correct link.');
           setLoading(false);
           return;
         }
 
         console.log('✅ Password reset token found:', {
           email: data.email,
+          type: data.type || 'password_reset (inferred)',
           status: data.status,
           expires_at: data.expires_at,
           clicks: data.clicks_count
