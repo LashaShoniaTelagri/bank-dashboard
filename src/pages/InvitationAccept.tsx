@@ -225,18 +225,12 @@ const InvitationAccept = () => {
 
       toast({
         title: "Success!",
-        description: "Your account has been set up. Redirecting to dashboard...",
+        description: "Your account has been set up. Redirecting...",
       });
 
-      // Redirect based on role
+      // Redirect to root - Auth page will handle role-based routing
       setTimeout(() => {
-        if (invitation.role === 'admin') {
-          navigate('/admin');
-        } else if (invitation.role === 'specialist') {
-          navigate('/specialist');
-        } else {
-          navigate('/dashboard');
-        }
+        navigate('/');
       }, 1500);
 
     } catch (err: any) {
