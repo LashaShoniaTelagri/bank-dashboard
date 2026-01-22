@@ -21,8 +21,15 @@ interface Invitation {
   invited_by?: string;
   invited_at: string;
   invitation_accepted_at?: string;
-  invitation_status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  invitation_status: 'pending' | 'accepted' | 'expired' | 'cancelled' | 'deleted';
   created_at: string;
+  invitation_id?: string;
+  invitation_type?: string;
+  expires_at?: string;
+  clicks_count?: number;
+  last_clicked_at?: string;
+  is_active?: boolean;
+  last_sign_in_at?: string;
 }
 
 interface Bank {
@@ -356,13 +363,20 @@ const RecentInvitations = ({
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isActive?: boolean) => {
     const badges = {
       pending: <Badge variant="outline" className="text-yellow-600 border-yellow-300"><Clock className="w-3 h-3 mr-1" />Pending</Badge>,
-      accepted: <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">✅ Active</Badge>,
-      expired: <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300"><AlertTriangle className="w-3 h-3 mr-1" />Expired</Badge>,
-      cancelled: <Badge variant="outline" className="text-muted-foreground border-border">❌ Cancelled</Badge>
+      accepted: <Badge variant="default" className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700">✅ Active</Badge>,
+      expired: <Badge variant="destructive" className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700"><AlertTriangle className="w-3 h-3 mr-1" />Expired</Badge>,
+      cancelled: <Badge variant="outline" className="text-muted-foreground border-border">❌ Cancelled</Badge>,
+      deleted: <Badge variant="destructive" className="bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-200">🗑️ Deleted</Badge>
     };
+    
+    // Override with inactive badge if user is not active
+    if (status === 'accepted' && isActive === false) {
+      return <Badge variant="outline" className="text-muted-foreground border-border">⚠️ Inactive</Badge>;
+    }
+    
     return badges[status as keyof typeof badges] || <Badge variant="outline">{status}</Badge>;
   };
 
@@ -380,12 +394,12 @@ const RecentInvitations = ({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent User Invitations</CardTitle>
+          <CardTitle>Users & Invitations</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center p-8">
             <RefreshCw className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading invitations...</span>
+            <span className="ml-2">Loading users...</span>
           </div>
         </CardContent>
       </Card>
@@ -396,12 +410,12 @@ const RecentInvitations = ({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent User Invitations</CardTitle>
+          <CardTitle>Users & Invitations</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center p-8">
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-red-600 mb-4">Failed to load invitations</p>
+            <p className="text-red-600 dark:text-red-400 mb-4">Failed to load users and invitations</p>
             <Button 
               variant="outline" 
               onClick={() => window.location.reload()}
@@ -418,9 +432,9 @@ const RecentInvitations = ({
     <Card>
       <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <CardTitle>Recent User Invitations</CardTitle>
+          <CardTitle>Users & Invitations</CardTitle>
           <CardDescription>
-            Manage pending, active, and expired user invitations
+            View all users, manage pending invitations, and monitor user activity
           </CardDescription>
         </div>
         <Button
@@ -437,7 +451,7 @@ const RecentInvitations = ({
       <CardContent>
         {invitations.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-muted-foreground">No invitations found</p>
+            <p className="text-muted-foreground">No users or invitations found</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -450,17 +464,33 @@ const RecentInvitations = ({
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="font-medium truncate">{invitation.email}</span>
                     {getRoleBadge(invitation.role)}
-                    {invitation.role === 'bank_viewer' && invitation.bank_name && (
+                    {(invitation.role === 'bank_viewer' || invitation.role === 'specialist') && invitation.bank_name && invitation.bank_name !== 'N/A' && (
                       <Badge variant="outline" className="text-xs">{invitation.bank_name}</Badge>
                     )}
+                    {invitation.invitation_type === 'profile' && (
+                      <Badge variant="secondary" className="text-xs">Existing User</Badge>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Invited by {invitation.invited_by} on {new Date(invitation.invited_at).toLocaleDateString()}
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <div>
+                      Invited by {invitation.invited_by} on {new Date(invitation.invited_at).toLocaleDateString()}
+                    </div>
+                    {invitation.invitation_status === 'accepted' && invitation.last_sign_in_at && (
+                      <div className="text-xs">
+                        Last login: {new Date(invitation.last_sign_in_at).toLocaleDateString()} at {new Date(invitation.last_sign_in_at).toLocaleTimeString()}
+                      </div>
+                    )}
+                    {invitation.invitation_status === 'pending' && invitation.expires_at && (
+                      <div className="text-xs text-amber-600 dark:text-amber-400">
+                        Expires: {new Date(invitation.expires_at).toLocaleDateString()} 
+                        {invitation.clicks_count && invitation.clicks_count > 0 && ` • Clicked ${invitation.clicks_count}×`}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex flex-col sm:items-end gap-2">
-                    {getStatusBadge(invitation.invitation_status)}
+                    {getStatusBadge(invitation.invitation_status, invitation.is_active)}
                     {invitation.invitation_status === 'accepted' && invitation.invitation_accepted_at && (
                       <p className="text-xs text-muted-foreground">
                         Accepted {new Date(invitation.invitation_accepted_at).toLocaleDateString()}
