@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, Map, ExternalLink, ChevronDown, ChevronRight, Upload, Trash2, FileImage, FileText, Image as ImageIcon } from "lucide-react";
+import { Loader2, Eye, Map, ExternalLink, ChevronDown, ChevronRight, Upload, Trash2, FileImage, FileText, Image as ImageIcon, Plus, X, Pencil } from "lucide-react";
 import { MonitoredIssue } from "@/types/phase";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
@@ -56,6 +56,14 @@ export const MonitoredIssueEditor = ({
   const [showIframes, setShowIframes] = useState(false);
   const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
   
+  // Interactive Map paste state (for "Used Data" issue only)
+  const [iframeUrlInput, setIframeUrlInput] = useState("");
+  const [iframeNameInput, setIframeNameInput] = useState("");
+  const [iframeAnnotationInput, setIframeAnnotationInput] = useState("");
+  // Edit existing map (keyed by current URL)
+  const [editingIframeUrl, setEditingIframeUrl] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ url: string; name: string; annotation: string }>({ url: "", name: "", annotation: "" });
+
   // File upload state (for "Used Data" issue only)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [fileAnnotations, setFileAnnotations] = useState<Record<string, string>>({});
@@ -286,6 +294,145 @@ export const MonitoredIssueEditor = ({
       });
     },
   });
+
+  // Add/remove interactive map URL mutation (farmer_phases.iframe_urls)
+  const saveIframeMutation = useMutation({
+    mutationFn: async (payload: { urls: Array<{ url: string; name: string; annotation?: string | null }>; removeUrl?: string }) => {
+      if (!farmerId || !phaseNumber) throw new Error("Missing farmer or phase");
+      const urls = payload.removeUrl
+        ? payload.urls.filter((u) => u.url !== payload.removeUrl)
+        : payload.urls;
+      const { data: existing } = await supabase
+        .from("farmer_phases" as any)
+        .select("id, iframe_urls")
+        .eq("farmer_id", farmerId)
+        .eq("phase_number", phaseNumber)
+        .maybeSingle();
+      const formatted = urls.map((u) => ({ url: u.url, name: u.name, annotation: u.annotation ?? null }));
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from("farmer_phases" as any)
+          .update({ iframe_urls: formatted })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
+      const { data, error } = await supabase
+        .from("farmer_phases" as any)
+        .insert({ farmer_id: farmerId, phase_number: phaseNumber, iframe_urls: formatted })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["farmer-phase-iframes-editor", farmerId, phaseNumber] });
+      if (!variables.removeUrl) {
+        setIframeUrlInput("");
+        setIframeNameInput("");
+        setIframeAnnotationInput("");
+        toast({ title: "Saved", description: "Interactive map saved" });
+      } else {
+        toast({ title: "Removed", description: "Interactive map removed" });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed",
+        description: error.message || "Could not save interactive map",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isValidIframeUrl = (url: string): boolean => {
+    try {
+      const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+      return u.protocol === "http:" || u.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddIframe = () => {
+    const url = iframeUrlInput.trim();
+    const name = iframeNameInput.trim();
+    if (!url || !name) {
+      toast({
+        title: "URL and name required",
+        description: "Please enter both URL and name for the interactive map",
+        variant: "destructive",
+      });
+      return;
+    }
+    const normalizedUrl = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+    if (!isValidIframeUrl(normalizedUrl)) {
+      toast({ title: "Invalid URL", description: "Please enter a valid URL", variant: "destructive" });
+      return;
+    }
+    if (phaseIframes.some((i) => i.url === normalizedUrl)) {
+      toast({ title: "Duplicate URL", description: "This map URL is already added", variant: "destructive" });
+      return;
+    }
+    const newUrls = [
+      ...phaseIframes,
+      { url: normalizedUrl, name, annotation: iframeAnnotationInput.trim() || undefined },
+    ];
+    saveIframeMutation.mutate({ urls: newUrls });
+  };
+
+  const handleRemoveIframe = (urlToRemove: string) => {
+    const newUrls = phaseIframes.filter((i) => i.url !== urlToRemove);
+    saveIframeMutation.mutate({ urls: newUrls, removeUrl: urlToRemove });
+  };
+
+  const handleStartEditIframe = (iframe: { url: string; name: string; annotation?: string }) => {
+    setEditingIframeUrl(iframe.url);
+    setEditForm({
+      url: iframe.url,
+      name: iframe.name,
+      annotation: iframe.annotation ?? "",
+    });
+  };
+
+  const handleCancelEditIframe = () => {
+    setEditingIframeUrl(null);
+    setEditForm({ url: "", name: "", annotation: "" });
+  };
+
+  const handleSaveEditIframe = () => {
+    if (!editingIframeUrl) return;
+    const url = editForm.url.trim();
+    const name = editForm.name.trim();
+    if (!url || !name) {
+      toast({
+        title: "URL and name required",
+        description: "Please enter both URL and name",
+        variant: "destructive",
+      });
+      return;
+    }
+    const normalizedUrl = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+    if (!isValidIframeUrl(normalizedUrl)) {
+      toast({ title: "Invalid URL", description: "Please enter a valid URL", variant: "destructive" });
+      return;
+    }
+    const duplicate = phaseIframes.some((i) => i.url !== editingIframeUrl && i.url === normalizedUrl);
+    if (duplicate) {
+      toast({ title: "Duplicate URL", description: "This URL is already used by another map", variant: "destructive" });
+      return;
+    }
+    const newUrls = phaseIframes.map((i) =>
+      i.url === editingIframeUrl
+        ? { url: normalizedUrl, name, annotation: editForm.annotation.trim() || undefined }
+        : i
+    );
+    saveIframeMutation.mutate({ urls: newUrls });
+    setEditingIframeUrl(null);
+    setEditForm({ url: "", name: "", annotation: "" });
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -723,8 +870,8 @@ export const MonitoredIssueEditor = ({
                 )}
               </div>
 
-              {/* Interactive Maps Section (only for "Used Data" issue in phase-specific mode) */}
-              {isPhaseSpecific && isUsedDataIssue && !readOnly && hasInteractiveMaps && (
+              {/* Interactive Maps for Phase X - single section: add form + toggle + list with iframes (admin, Used Data only) */}
+              {isPhaseSpecific && isUsedDataIssue && !readOnly && (
                 <div className="space-y-4 border-t pt-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -733,89 +880,195 @@ export const MonitoredIssueEditor = ({
                         Interactive Maps for Phase {phaseNumber}
                       </Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Toggle to display these maps in the Used Data section of the F-100 report
+                        {hasInteractiveMaps
+                          ? "Toggle to display these maps in the Used Data section of the F-100 report"
+                          : "Add iframe URLs (e.g. QGIS or web map links) below. They will appear in the Used Data section."}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="show-iframes-toggle"
-                        checked={showIframes}
-                        onCheckedChange={setShowIframes}
-                      />
-                      <Label 
-                        htmlFor="show-iframes-toggle" 
-                        className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap"
-                      >
-                        {showIframes ? 'Showing' : 'Hidden'}
-                      </Label>
-                    </div>
+                    {hasInteractiveMaps && (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="show-iframes-toggle"
+                          checked={showIframes}
+                          onCheckedChange={setShowIframes}
+                        />
+                        <Label
+                          htmlFor="show-iframes-toggle"
+                          className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap"
+                        >
+                          {showIframes ? "Showing" : "Hidden"}
+                        </Label>
+                      </div>
+                    )}
                   </div>
 
-                  {showIframes && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                        <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                          <Map className="h-4 w-4 flex-shrink-0" />
-                          <span>
-                            {phaseIframes.length} interactive map{phaseIframes.length !== 1 ? 's' : ''} will be displayed in the Used Data section
-                          </span>
-                        </p>
-                      </div>
+                  {/* Add map form - always visible so admin can add first or more maps */}
+                  <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <Input
+                        placeholder="URL (required)"
+                        value={iframeUrlInput}
+                        onChange={(e) => setIframeUrlInput(e.target.value)}
+                        type="url"
+                        className="md:col-span-3"
+                      />
+                      <Input
+                        placeholder="Name (required)"
+                        value={iframeNameInput}
+                        onChange={(e) => setIframeNameInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddIframe())}
+                      />
+                      <Input
+                        placeholder="Annotation (optional)"
+                        value={iframeAnnotationInput}
+                        onChange={(e) => setIframeAnnotationInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddIframe())}
+                        className="md:col-span-2"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddIframe}
+                      disabled={saveIframeMutation.isPending}
+                      className="w-full md:w-auto"
+                    >
+                      {saveIframeMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Map URL
+                        </>
+                      )}
+                    </Button>
+                  </div>
 
-                      {phaseIframes.map((iframe, idx) => {
-                        const isCollapsed = collapsedIframes.has(iframe.url);
-                        return (
-                          <div key={idx} className="border dark:border-dark-border rounded-lg overflow-hidden bg-card dark:bg-dark-card shadow-sm">
-                            {/* Map Header */}
-                            <div 
-                              className="p-3 bg-muted/30 dark:bg-muted/10 border-b border-border/30 cursor-pointer hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
-                              onClick={() => toggleIframeCollapse(iframe.url)}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1 space-y-1">
+                  {/* List of added maps with edit, remove, and iframe preview */}
+                  {phaseIframes.length > 0 && (
+                    <div className="space-y-3">
+                      {hasInteractiveMaps && (
+                        <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                            <Map className="h-4 w-4 flex-shrink-0" />
+                            <span>
+                              {phaseIframes.length} interactive map{phaseIframes.length !== 1 ? "s" : ""} will be displayed in the Used Data section
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                      {phaseIframes.map((iframe, idx) => (
+                        <div key={idx} className="flex flex-col gap-3 p-3 border rounded-lg bg-card">
+                          {editingIframeUrl === iframe.url ? (
+                            <>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <Input
+                                  placeholder="URL (required)"
+                                  value={editForm.url}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, url: e.target.value }))}
+                                  type="url"
+                                  className="md:col-span-3"
+                                />
+                                <Input
+                                  placeholder="Name (required)"
+                                  value={editForm.name}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                                />
+                                <Input
+                                  placeholder="Annotation (optional)"
+                                  value={editForm.annotation}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, annotation: e.target.value }))}
+                                  className="md:col-span-2"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleSaveEditIframe}
+                                  disabled={saveIframeMutation.isPending}
+                                >
+                                  {saveIframeMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    "Save"
+                                  )}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={handleCancelEditIframe}
+                                  disabled={saveIframeMutation.isPending}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
                                   <h5 className="text-sm font-bold text-foreground flex items-center gap-2">
-                                    {isCollapsed ? (
-                                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                    )}
                                     <Map className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                                     {iframe.name}
                                   </h5>
-                                  {iframe.annotation && !isCollapsed && (
-                                    <p className="text-xs text-muted-foreground leading-relaxed ml-10">
-                                      {iframe.annotation}
-                                    </p>
+                                  {iframe.annotation && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">{iframe.annotation}</p>
                                   )}
+                                  <a
+                                    href={iframe.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline truncate block mt-1"
+                                  >
+                                    {iframe.url.length > 60 ? iframe.url.slice(0, 57) + "..." : iframe.url}
+                                  </a>
                                 </div>
-                                <a
-                                  href={iframe.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                  Open
-                                </a>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleStartEditIframe(iframe)}
+                                    disabled={saveIframeMutation.isPending}
+                                    className="h-7 w-7 p-0"
+                                    title="Edit link"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveIframe(iframe.url)}
+                                    disabled={saveIframeMutation.isPending}
+                                    className="h-7 w-7 p-0"
+                                    title="Remove map"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                            
-                            {/* Iframe Preview */}
-                            {!isCollapsed && (
-                              <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                              <div className="w-full min-h-[400px] rounded-lg overflow-hidden border border-border bg-muted/30">
                                 <iframe
                                   src={iframe.url}
-                                  className="w-full h-[400px]"
+                                  className="w-full h-[500px] min-h-[400px] border-0"
                                   title={iframe.name}
                                   loading="lazy"
-                                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                  referrerPolicy="no-referrer"
+                                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
                                 />
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            </>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -878,13 +1131,14 @@ export const MonitoredIssueEditor = ({
                           
                           {/* Iframe Preview */}
                           {!isCollapsed && (
-                            <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                            <div className="w-full min-h-[480px] bg-muted/30 animate-in slide-in-from-top-2 duration-300">
                               <iframe
                                 src={iframe.url}
-                                className="w-full h-[400px]"
+                                className="w-full h-[500px] min-h-[480px] border-0 rounded-b-lg"
                                 title={iframe.name}
                                 loading="lazy"
-                                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                referrerPolicy="no-referrer"
+                                sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
                               />
                             </div>
                           )}
