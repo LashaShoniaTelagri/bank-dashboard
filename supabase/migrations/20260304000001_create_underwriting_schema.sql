@@ -73,10 +73,12 @@ CREATE TABLE public.application_scores (
   notes TEXT,
   scored_by UUID NOT NULL REFERENCES auth.users(id),
   scored_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  is_draft BOOLEAN NOT NULL DEFAULT false,
-
-  CONSTRAINT one_final_score_per_app UNIQUE (application_id) WHERE (NOT is_draft)
+  is_draft BOOLEAN NOT NULL DEFAULT false
 );
+
+CREATE UNIQUE INDEX idx_one_final_score_per_app
+  ON public.application_scores(application_id)
+  WHERE (NOT is_draft);
 
 COMMENT ON TABLE public.application_scores IS 'Structured scoring for underwriting applications - numeric fields enable fast aggregation queries';
 
