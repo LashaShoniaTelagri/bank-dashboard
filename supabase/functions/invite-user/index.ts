@@ -192,15 +192,17 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? ''
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
 
-    const { email, role, bankId, inviterEmail } = await req.json()
+    const { email, role, bankId, inviterEmail, productsEnabled } = await req.json()
 
     if (!email || !role) {
       throw new Error('Email and role are required')
     }
 
-    if ((role === 'bank_viewer') && !bankId) {
-      throw new Error('Bank ID is required for bank viewer invitations')
+    if ((role === 'bank_viewer' || role === 'specialist') && !bankId) {
+      throw new Error('Bank ID is required for bank viewer and specialist invitations')
     }
+
+    const finalProductsEnabled = role === 'admin' ? 3 : (productsEnabled ?? 1)
 
     if (!['admin', 'bank_viewer', 'specialist'].includes(role)) {
       throw new Error('Invalid role. Must be one of "admin", "bank_viewer", "specialist"')
@@ -263,7 +265,8 @@ serve(async (req) => {
           bank_id: role === 'admin' ? null : bankId,
           invited_by: inviterEmail,
           invited_at: new Date().toISOString(),
-          invitation_status: 'pending'
+          invitation_status: 'pending',
+          products_enabled: finalProductsEnabled,
         })
 
       if (profileError) {
@@ -303,7 +306,8 @@ serve(async (req) => {
           bank_id: role === 'admin' ? null : bankId,
           invited_by: inviterEmail,
           invited_at: new Date().toISOString(),
-          invitation_status: 'pending'
+          invitation_status: 'pending',
+          products_enabled: finalProductsEnabled,
         })
 
       if (profileError) {
