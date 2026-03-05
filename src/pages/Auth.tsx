@@ -11,6 +11,7 @@ import { TwoFactorVerification } from "@/components/TwoFactorVerification";
 import { generateDeviceFingerprint, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getEnabledProducts, ProductAccess } from "@/types/productAccess";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -176,14 +177,23 @@ const Auth = () => {
 
   // Don't auto-redirect if this is a recovery flow, 2FA verification, or actively signing in
   if (user && !isRecovery && !showTwoFactor && !pendingUserData && !signingIn) {
-    // Use existing profile from useAuth hook to redirect appropriately
     if (profile) {
       if (profile.role === 'admin') {
         return <Navigate to="/admin/dashboard" replace />;
-      } else if (profile.role === 'bank_viewer') {
-        return <Navigate to="/bank" replace />;
       } else if (profile.role === 'specialist') {
         return <Navigate to="/specialist/dashboard" replace />;
+      } else if (profile.role === 'bank_viewer') {
+        const enabledProducts = getEnabledProducts(profile.products_enabled ?? 0);
+        if (enabledProducts.length === 0) {
+          return <Navigate to="/products" replace />;
+        }
+        if (enabledProducts.length > 1) {
+          return <Navigate to="/products" replace />;
+        }
+        if (enabledProducts[0] === ProductAccess.Underwriting) {
+          return <Navigate to="/underwriting/applications" replace />;
+        }
+        return <Navigate to="/bank" replace />;
       }
     }
     // If no profile found, stay on auth page to show error or loading

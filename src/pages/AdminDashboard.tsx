@@ -3,7 +3,7 @@ import { useAuth, UserProfile } from "@/hooks/useAuth";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { LogOut, Menu, X, LayoutDashboard, Building2, Users as UsersIcon, Bug, Settings, UserCog } from "lucide-react";
+import { LogOut, Menu, X, LayoutDashboard, Building2, Users as UsersIcon, Bug, Settings, UserCog, FileCheck } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
 import { FarmerListView } from "@/components/FarmerListView";
 import { BanksManagement } from "@/components/BanksManagement";
@@ -13,6 +13,7 @@ import { FarmerModal } from "@/components/FarmerModal";
 import { InvitationDebugger } from "@/components/InvitationDebugger";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuditLogTable } from "@/components/AuditLogTable";
+import { UnderwritingManagement } from "@/components/UnderwritingManagement";
 import { UserImpersonationModal } from "@/components/UserImpersonationModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "@/components/ui/use-toast";
@@ -43,6 +44,7 @@ const AdminDashboard = () => {
     const path = location.pathname;
     if (path === '/admin/banks') return 'banks';
     if (path === '/admin/users') return 'users';
+    if (path === '/admin/underwriting') return 'underwriting';
     if (path === '/admin/debug') return 'debug';
     return 'dashboard'; // default for /admin and /admin/dashboard
   };
@@ -243,6 +245,16 @@ const AdminDashboard = () => {
                 Users
               </Link>
               <Link
+                to="/admin/underwriting"
+                className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg ${
+                  activeSection === 'underwriting'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                    : 'border-transparent text-body-secondary hover:text-emerald-400'
+                }`}
+              >
+                Underwriting
+              </Link>
+              <Link
                 to="/admin/debug"
                 className={`whitespace-nowrap py-2 px-3 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg ${
                   activeSection === 'debug'
@@ -302,6 +314,8 @@ const AdminDashboard = () => {
 
             {activeSection === 'users' && <UsersManagement />}
 
+            {activeSection === 'underwriting' && <UnderwritingManagement />}
+
             {activeSection === 'debug' && (
               <div className="space-y-6">
                 <InvitationDebugger />
@@ -339,6 +353,7 @@ const AdminDashboard = () => {
                     { to: '/admin/dashboard', id: 'dashboard', label: 'Dashboard', description: 'View farmers overview', icon: LayoutDashboard },
                     { to: '/admin/banks', id: 'banks', label: 'Banks', description: 'Manage bank partnerships', icon: Building2 },
                     { to: '/admin/users', id: 'users', label: 'Users', description: 'Manage system users', icon: UsersIcon },
+                    { to: '/admin/underwriting', id: 'underwriting', label: 'Underwriting', description: 'Manage applications and specialists', icon: FileCheck },
                     { to: '/admin/debug', id: 'debug', label: 'Debug', description: 'System diagnostics', icon: Bug },
                   ].map((item) => {
                     const Icon = item.icon;

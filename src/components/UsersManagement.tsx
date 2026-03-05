@@ -6,11 +6,13 @@ import { Input } from "./ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
-import { UserX, Trash2, RefreshCw, AlertTriangle, Shield, Clock, Brain } from "lucide-react";
+import { Switch } from "./ui/switch";
+import { UserX, Trash2, RefreshCw, AlertTriangle, Shield, Clock, Brain, Leaf, FileText } from "lucide-react";
 import { toast } from "./ui/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
+import { ProductAccess, PRODUCT_LABELS, hasProductAccess } from "@/types/productAccess";
 
 interface Invitation {
   user_id: string;
@@ -30,6 +32,7 @@ interface Invitation {
   last_clicked_at?: string;
   is_active?: boolean;
   last_sign_in_at?: string;
+  products_enabled?: number;
 }
 
 interface Bank {
@@ -44,6 +47,7 @@ export const UsersManagement = () => {
     email: "",
     role: "",
     bankId: "",
+    productsEnabled: ProductAccess.FieldMonitoring as number,
   });
   
   const queryClient = useQueryClient();
@@ -62,13 +66,14 @@ export const UsersManagement = () => {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async (data: { email: string; role: string; bankId?: string }) => {
+    mutationFn: async (data: { email: string; role: string; bankId?: string; productsEnabled?: number }) => {
       const { data: result, error } = await supabase.functions.invoke('invite-user', {
         body: {
           email: data.email,
           role: data.role,
-          bankId: data.role === 'bank_viewer' ? data.bankId : undefined,
+          bankId: data.role === 'bank_viewer' || data.role === 'specialist' ? data.bankId : undefined,
           inviterEmail: user?.email,
+          productsEnabled: data.role === 'admin' ? undefined : data.productsEnabled,
         }
       });
 
@@ -89,7 +94,7 @@ export const UsersManagement = () => {
       });
       
       setIsInviting(false);
-      setInviteData({ email: "", role: "", bankId: "" });
+      setInviteData({ email: "", role: "", bankId: "", productsEnabled: ProductAccess.FieldMonitoring });
     },
     onError: (error) => {
       console.error('Invitation error:', error);
@@ -199,10 +204,10 @@ export const UsersManagement = () => {
       return;
     }
 
-    if (inviteData.role === 'bank_viewer' && !inviteData.bankId) {
+    if ((inviteData.role === 'bank_viewer' || inviteData.role === 'specialist') && !inviteData.bankId) {
       toast({
         title: "Missing bank selection",
-        description: "Please select a bank for bank viewer invitations",
+        description: `Please select a bank for ${inviteData.role === 'specialist' ? 'specialist' : 'bank viewer'} invitations`,
         variant: "destructive",
       });
       return;
@@ -280,7 +285,7 @@ export const UsersManagement = () => {
               </div>
             </div>
 
-            {(inviteData.role === 'bank_viewer') && (
+            {(inviteData.role === 'bank_viewer' || inviteData.role === 'specialist') && (
               <div className="space-y-2">
                 <Label htmlFor="bank">Bank</Label>
                 <Select
@@ -298,6 +303,50 @@ export const UsersManagement = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {(inviteData.role === 'bank_viewer' || inviteData.role === 'specialist') && (
+              <div className="space-y-3">
+                <Label>Product Access</Label>
+                <div className="flex flex-wrap gap-4 p-3 rounded-lg border border-border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="invite-fm"
+                      checked={hasProductAccess(inviteData.productsEnabled, ProductAccess.FieldMonitoring)}
+                      onCheckedChange={(checked) => {
+                        setInviteData(prev => ({
+                          ...prev,
+                          productsEnabled: checked
+                            ? prev.productsEnabled | ProductAccess.FieldMonitoring
+                            : prev.productsEnabled & ~ProductAccess.FieldMonitoring,
+                        }));
+                      }}
+                    />
+                    <Label htmlFor="invite-fm" className="text-sm cursor-pointer flex items-center gap-1">
+                      <Leaf className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                      Field Monitoring
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="invite-uw"
+                      checked={hasProductAccess(inviteData.productsEnabled, ProductAccess.Underwriting)}
+                      onCheckedChange={(checked) => {
+                        setInviteData(prev => ({
+                          ...prev,
+                          productsEnabled: checked
+                            ? prev.productsEnabled | ProductAccess.Underwriting
+                            : prev.productsEnabled & ~ProductAccess.Underwriting,
+                        }));
+                      }}
+                    />
+                    <Label htmlFor="invite-uw" className="text-sm cursor-pointer flex items-center gap-1">
+                      <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                      Underwriting
+                    </Label>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -350,6 +399,9 @@ const RecentInvitations = ({
   onCancelInvitation,
   onDeleteUser
 }: RecentInvitationsProps) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
   const { data: invitations = [], isLoading, error } = useQuery({
     queryKey: ['invitations'],
     queryFn: async () => {
@@ -360,7 +412,58 @@ const RecentInvitations = ({
       }
       return data as Invitation[];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
+  });
+
+  const toggleProductAccessMutation = useMutation({
+    mutationFn: async ({
+      targetUserId,
+      productBit,
+      grant,
+      currentProductsEnabled,
+    }: {
+      targetUserId: string;
+      productBit: number;
+      grant: boolean;
+      currentProductsEnabled: number;
+    }) => {
+      const rpcName = grant ? 'grant_product_access' : 'revoke_product_access';
+      const { error } = await supabase.rpc(rpcName, {
+        target_user_id: targetUserId,
+        product_bit: productBit,
+      });
+      if (error) throw error;
+
+      const newProducts = grant
+        ? currentProductsEnabled | productBit
+        : currentProductsEnabled & ~productBit;
+
+      if (user?.id) {
+        await supabase.from('product_access_changes').insert({
+          target_user_id: targetUserId,
+          changed_by: user.id,
+          product_bit: productBit,
+          action: grant ? 'grant' : 'revoke',
+          products_before: currentProductsEnabled,
+          products_after: newProducts,
+        });
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      const productName = PRODUCT_LABELS[variables.productBit as ProductAccess] || `Product ${variables.productBit}`;
+      toast({
+        title: variables.grant ? "Access Granted" : "Access Revoked",
+        description: `${productName} has been ${variables.grant ? 'enabled' : 'disabled'}.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update access",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const getStatusBadge = (status: string, isActive?: boolean) => {
@@ -455,80 +558,133 @@ const RecentInvitations = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {invitations.map((invitation) => (
-              <div 
-                key={invitation.user_id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="font-medium truncate">{invitation.email}</span>
-                    {getRoleBadge(invitation.role)}
-                    {(invitation.role === 'bank_viewer' || invitation.role === 'specialist') && invitation.bank_name && invitation.bank_name !== 'N/A' && (
-                      <Badge variant="outline" className="text-xs">{invitation.bank_name}</Badge>
-                    )}
-                    {invitation.invitation_type === 'profile' && (
-                      <Badge variant="secondary" className="text-xs">Existing User</Badge>
-                    )}
-                  </div>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <div>
-                      Invited by {invitation.invited_by} on {new Date(invitation.invited_at).toLocaleDateString()}
+            {invitations.map((invitation) => {
+              const productsEnabled = invitation.products_enabled ?? 1;
+              const isAccepted = invitation.invitation_status === 'accepted';
+
+              return (
+                <div 
+                  key={invitation.user_id}
+                  className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="font-medium truncate">{invitation.email}</span>
+                      {getRoleBadge(invitation.role)}
+                      {(invitation.role === 'bank_viewer' || invitation.role === 'specialist') && invitation.bank_name && invitation.bank_name !== 'N/A' && (
+                        <Badge variant="outline" className="text-xs">{invitation.bank_name}</Badge>
+                      )}
+                      {invitation.invitation_type === 'profile' && (
+                        <Badge variant="secondary" className="text-xs">Existing User</Badge>
+                      )}
                     </div>
-                    {invitation.invitation_status === 'accepted' && invitation.last_sign_in_at && (
-                      <div className="text-xs">
-                        Last login: {new Date(invitation.last_sign_in_at).toLocaleDateString()} at {new Date(invitation.last_sign_in_at).toLocaleTimeString()}
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <div>
+                        Invited by {invitation.invited_by} on {new Date(invitation.invited_at).toLocaleDateString()}
+                      </div>
+                      {invitation.invitation_status === 'accepted' && invitation.last_sign_in_at && (
+                        <div className="text-xs">
+                          Last login: {new Date(invitation.last_sign_in_at).toLocaleDateString()} at {new Date(invitation.last_sign_in_at).toLocaleTimeString()}
+                        </div>
+                      )}
+                      {invitation.invitation_status === 'pending' && invitation.expires_at && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                          Expires: {new Date(invitation.expires_at).toLocaleDateString()} 
+                          {invitation.clicks_count && invitation.clicks_count > 0 && ` • Clicked ${invitation.clicks_count}×`}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Product Access Toggles - only for accepted/active users, not admins */}
+                    {isAccepted && invitation.role !== 'admin' && (
+                      <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-border/50">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Products:</span>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`fm-${invitation.user_id}`}
+                            checked={hasProductAccess(productsEnabled, ProductAccess.FieldMonitoring)}
+                            onCheckedChange={(checked) =>
+                              toggleProductAccessMutation.mutate({
+                                targetUserId: invitation.user_id,
+                                productBit: ProductAccess.FieldMonitoring,
+                                grant: checked,
+                                currentProductsEnabled: productsEnabled,
+                              })
+                            }
+                            disabled={toggleProductAccessMutation.isPending}
+                          />
+                          <Label htmlFor={`fm-${invitation.user_id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                            <Leaf className="h-3 w-3 text-green-600 dark:text-green-400" />
+                            Field Monitoring
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`uw-${invitation.user_id}`}
+                            checked={hasProductAccess(productsEnabled, ProductAccess.Underwriting)}
+                            onCheckedChange={(checked) =>
+                              toggleProductAccessMutation.mutate({
+                                targetUserId: invitation.user_id,
+                                productBit: ProductAccess.Underwriting,
+                                grant: checked,
+                                currentProductsEnabled: productsEnabled,
+                              })
+                            }
+                            disabled={toggleProductAccessMutation.isPending}
+                          />
+                          <Label htmlFor={`uw-${invitation.user_id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                            <FileText className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                            Underwriting
+                          </Label>
+                        </div>
                       </div>
                     )}
-                    {invitation.invitation_status === 'pending' && invitation.expires_at && (
-                      <div className="text-xs text-amber-600 dark:text-amber-400">
-                        Expires: {new Date(invitation.expires_at).toLocaleDateString()} 
-                        {invitation.clicks_count && invitation.clicks_count > 0 && ` • Clicked ${invitation.clicks_count}×`}
+                    {isAccepted && invitation.role === 'admin' && (
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/50">
+                        <span className="text-xs text-muted-foreground">Full access (admin)</span>
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex flex-col sm:items-end gap-2">
-                    {getStatusBadge(invitation.invitation_status, invitation.is_active)}
-                    {invitation.invitation_status === 'accepted' && invitation.invitation_accepted_at && (
-                      <p className="text-xs text-muted-foreground">
-                        Accepted {new Date(invitation.invitation_accepted_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {/* Action buttons */}
-                  <div className="flex gap-1">
-                    {/* Cancel button for pending invitations */}
-                    {invitation.invitation_status === 'pending' && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex flex-col sm:items-end gap-2">
+                      {getStatusBadge(invitation.invitation_status, invitation.is_active)}
+                      {invitation.invitation_status === 'accepted' && invitation.invitation_accepted_at && (
+                        <p className="text-xs text-muted-foreground">
+                          Accepted {new Date(invitation.invitation_accepted_at).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Action buttons */}
+                    <div className="flex gap-1">
+                      {invitation.invitation_status === 'pending' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onCancelInvitation(invitation.user_id, invitation.email)}
+                          disabled={cancelInvitationMutation.isPending}
+                          title="Cancel invitation"
+                          className="text-amber-600 hover:text-amber-800 hover:bg-amber-100"
+                        >
+                          <UserX className="h-4 w-4" />
+                        </Button>
+                      )}
+                      
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onCancelInvitation(invitation.user_id, invitation.email)}
-                        disabled={cancelInvitationMutation.isPending}
-                        title="Cancel invitation"
-                        className="text-amber-600 hover:text-amber-800 hover:bg-amber-100"
+                        onClick={() => onDeleteUser(invitation.user_id, invitation.email)}
+                        disabled={deleteInvitationMutation.isPending}
+                        title="Delete user permanently"
+                        className="text-red-600 hover:text-red-800 hover:bg-red-100"
                       >
-                        <UserX className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
-                    )}
-                    
-                    {/* Delete button - now available for all users including accepted ones */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDeleteUser(invitation.user_id, invitation.email)}
-                      disabled={deleteInvitationMutation.isPending}
-                      title="Delete user permanently"
-                      className="text-red-600 hover:text-red-800 hover:bg-red-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

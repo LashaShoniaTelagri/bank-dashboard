@@ -19,6 +19,9 @@ import FarmerProfilePage from "./pages/FarmerProfilePage";
 import { F100ReportPage } from "./pages/F100ReportPage";
 import InvitationAccept from "./pages/InvitationAccept";
 import PasswordResetAccept from "./pages/PasswordResetAccept";
+import { UnderwritingSubmit } from "./pages/UnderwritingSubmit";
+import { UnderwritingApplications } from "./pages/UnderwritingApplications";
+import { ProductSelector } from "./pages/ProductSelector";
 import NotFound from "./pages/NotFound";
 
 // Optimized QueryClient configuration to prevent network spam
@@ -60,12 +63,17 @@ const App = () => (
             <Route path="/admin/users" element={<AdminDashboard />} />
             <Route path="/admin/charts/new" element={<ChartBuilderPage />} />
             <Route path="/admin/charts/:id" element={<ChartBuilderPage />} />
+            <Route path="/admin/underwriting" element={<AdminDashboard />} />
             <Route path="/admin/debug" element={<AdminDashboard />} />
+            <Route path="/products" element={<ProductSelector />} />
             <Route path="/bank" element={<BankDashboard />} />
             <Route path="/specialist" element={<Navigate to="/specialist/dashboard" replace />} />
             <Route path="/specialist/dashboard" element={<SpecialistDashboard />} />
             <Route path="/farmers/:farmerId" element={<FarmerProfilePage />} />
             <Route path="/farmers/:farmerId/f100/:phaseNumber" element={<F100ReportPage />} />
+            <Route path="/underwriting" element={<Navigate to="/underwriting/applications" replace />} />
+            <Route path="/underwriting/submit" element={<UnderwritingSubmit />} />
+            <Route path="/underwriting/applications" element={<UnderwritingApplications />} />
             <Route path="/invitation/accept" element={<InvitationAccept />} />
             <Route path="/password/reset" element={<PasswordResetAccept />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
