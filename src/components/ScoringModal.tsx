@@ -215,7 +215,7 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
                   onChange={setOverallScore}
                   colorFn={scoreColor}
                 />
-                <ScoreSlider
+                {/* <ScoreSlider
                   label="Land Suitability"
                   value={landSuitability}
                   onChange={setLandSuitability}
@@ -238,7 +238,7 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
                   value={historicalData}
                   onChange={setHistoricalData}
                   colorFn={scoreColor}
-                />
+                /> */}
               </div>
 
               <div>
@@ -286,10 +286,10 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
                   <h3 className="font-semibold text-foreground">Score Results</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <ScoreDisplay label="Overall Score" value={Number(existingScores[0].overall_score)} colorFn={scoreColor} />
-                    <ScoreDisplay label="Land Suitability" value={Number(existingScores[0].land_suitability)} colorFn={scoreColor} />
+                    {/* <ScoreDisplay label="Land Suitability" value={Number(existingScores[0].land_suitability)} colorFn={scoreColor} />
                     <ScoreDisplay label="Crop Viability" value={Number(existingScores[0].crop_viability)} colorFn={scoreColor} />
                     <ScoreDisplay label="Risk Assessment" value={Number(existingScores[0].risk_assessment)} colorFn={scoreColor} />
-                    <ScoreDisplay label="Historical Data" value={Number(existingScores[0].historical_data)} colorFn={scoreColor} />
+                    <ScoreDisplay label="Historical Data" value={Number(existingScores[0].historical_data)} colorFn={scoreColor} /> */}
                   </div>
                   {existingScores[0].notes && (
                     <div className="p-3 rounded-lg bg-muted">
