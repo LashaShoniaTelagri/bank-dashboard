@@ -124,6 +124,7 @@ export const UnderwritingManagement = () => {
 
   const applications = data?.applications ?? [];
   const assignments = data?.assignments ?? [];
+  const scoresMap = data?.scores ?? {};
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / 50);
   const pendingRequestCount = cropRequests?.length ?? 0;
@@ -401,7 +402,7 @@ export const UnderwritingManagement = () => {
                     <TableHead className="font-semibold">App Number</TableHead>
                     <TableHead className="font-semibold">Bank</TableHead>
                     <TableHead className="font-semibold">Crop</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Score</TableHead>
                     <TableHead className="font-semibold">Submitted</TableHead>
                     <TableHead className="font-semibold">Specialists</TableHead>
                     <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -436,6 +437,8 @@ export const UnderwritingManagement = () => {
                     applications.map((app) => {
                       const cropLabel = getCropLabel(app.crop_type);
                       const assignCount = getAssignmentCount(app.id);
+                      const score = scoresMap[app.id];
+                      const hasScore = score !== undefined;
                       return (
                         <TableRow
                           key={app.id}
@@ -452,9 +455,17 @@ export const UnderwritingManagement = () => {
                           </TableCell>
                           <TableCell className="text-foreground">{cropLabel}</TableCell>
                           <TableCell>
-                            <Badge className={STATUS_COLORS[app.status]}>
-                              {STATUS_LABELS[app.status]}
-                            </Badge>
+                            {hasScore ? (
+                              <span className={`font-bold tabular-nums ${
+                                score >= 7 ? 'text-green-600 dark:text-green-400'
+                                  : score >= 4 ? 'text-yellow-600 dark:text-yellow-400'
+                                  : 'text-red-600 dark:text-red-400'
+                              }`}>
+                                {score}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {new Date(app.submitted_at).toLocaleDateString()}

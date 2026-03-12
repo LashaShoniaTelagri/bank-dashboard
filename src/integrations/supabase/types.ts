@@ -1602,10 +1602,6 @@ export type Database = {
           id: string
           application_id: string
           overall_score: number
-          land_suitability: number | null
-          crop_viability: number | null
-          risk_assessment: number | null
-          historical_data: number | null
           notes: string | null
           scored_by: string
           scored_at: string
@@ -1615,10 +1611,6 @@ export type Database = {
           id?: string
           application_id: string
           overall_score: number
-          land_suitability?: number | null
-          crop_viability?: number | null
-          risk_assessment?: number | null
-          historical_data?: number | null
           notes?: string | null
           scored_by: string
           scored_at?: string
@@ -1628,10 +1620,6 @@ export type Database = {
           id?: string
           application_id?: string
           overall_score?: number
-          land_suitability?: number | null
-          crop_viability?: number | null
-          risk_assessment?: number | null
-          historical_data?: number | null
           notes?: string | null
           scored_by?: string
           scored_at?: string

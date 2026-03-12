@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Download, Save, Users } from "lucide-react";
@@ -35,7 +35,8 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
   const { data: specialistsList } = useListSpecialists(application?.bank_id);
   const { data: dbCrops } = useActiveCropTypes();
 
-  const [overallScore, setOverallScore] = useState(50);
+  const [overallScore, setOverallScore] = useState<string>("5");
+  const [overallScoreError, setOverallScoreError] = useState("");
   const [landSuitability, setLandSuitability] = useState(50);
   const [cropViability, setCropViability] = useState(50);
   const [riskAssessment, setRiskAssessment] = useState(50);
@@ -45,14 +46,15 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
   useEffect(() => {
     if (existingScores && existingScores.length > 0) {
       const latest = existingScores[0];
-      setOverallScore(Number(latest.overall_score));
+      setOverallScore(String(latest.overall_score));
+      setOverallScoreError("");
       setLandSuitability(Number(latest.land_suitability ?? 50));
       setCropViability(Number(latest.crop_viability ?? 50));
       setRiskAssessment(Number(latest.risk_assessment ?? 50));
       setHistoricalData(Number(latest.historical_data ?? 50));
       setNotes(latest.notes || "");
     } else {
-      setOverallScore(50);
+      setOverallScore("5");
       setLandSuitability(50);
       setCropViability(50);
       setRiskAssessment(50);
@@ -79,13 +81,18 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
   const handleSubmitScore = async (isDraft: boolean) => {
     if (!application) return;
 
+    if (overallScore === "" || overallScore === "." || isNaN(Number(overallScore)) || Number(overallScore) < 0 || Number(overallScore) > 10) {
+      setOverallScoreError("Please enter a valid score between 0 and 10.");
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     try {
       await submitScore.mutateAsync({
         application_id: application.id,
-        overall_score: overallScore,
+        overall_score: Number(overallScore),
         land_suitability: landSuitability,
         crop_viability: cropViability,
         risk_assessment: riskAssessment,
@@ -122,8 +129,8 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
   ) || application.crop_type;
 
   const scoreColor = (score: number) => {
-    if (score >= 70) return "text-green-600 dark:text-green-400";
-    if (score >= 40) return "text-yellow-600 dark:text-yellow-400";
+    if (score >= 7) return "text-green-600 dark:text-green-400";
+    if (score >= 4) return "text-yellow-600 dark:text-yellow-400";
     return "text-red-600 dark:text-red-400";
   };
 
@@ -209,12 +216,30 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
               <div className="space-y-5">
                 <h3 className="font-semibold text-foreground">Score Assessment</h3>
 
-                <ScoreSlider
-                  label="Overall Score"
-                  value={overallScore}
-                  onChange={setOverallScore}
-                  colorFn={scoreColor}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Overall Score <span className="text-muted-foreground font-normal">(0 – 10)</span></label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={overallScore}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (!/^\d*\.?\d*$/.test(raw)) return;
+                      setOverallScore(raw);
+                      if (raw === "" || raw === ".") {
+                        setOverallScoreError("Score is required.");
+                      } else {
+                        const num = parseFloat(raw);
+                        setOverallScoreError(num < 0 || num > 10 ? "Score must be between 0 and 10." : "");
+                      }
+                    }}
+                    placeholder="e.g. 7.5"
+                    className={overallScoreError ? "border-red-500" : ""}
+                  />
+                  {overallScoreError && (
+                    <p className="mt-1 text-xs text-red-500">{overallScoreError}</p>
+                  )}
+                </div>
                 {/* <ScoreSlider
                   label="Land Suitability"
                   value={landSuitability}
@@ -313,34 +338,6 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
   );
 };
 
-function ScoreSlider({
-  label,
-  value,
-  onChange,
-  colorFn,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  colorFn: (v: number) => string;
-}) {
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        <span className={`text-sm font-bold tabular-nums ${colorFn(value)}`}>{value}</span>
-      </div>
-      <Slider
-        value={[value]}
-        onValueChange={(v) => onChange(v[0])}
-        min={0}
-        max={100}
-        step={0.5}
-        className="w-full"
-      />
-    </div>
-  );
-}
 
 function ScoreDisplay({
   label,

@@ -184,8 +184,8 @@ export const UnderwritingApplications = () => {
                         <TableCell>
                           {hasScore ? (
                             <span className={`font-bold tabular-nums ${
-                              score >= 70 ? 'text-green-600 dark:text-green-400'
-                                : score >= 40 ? 'text-yellow-600 dark:text-yellow-400'
+                              score >= 7 ? 'text-green-600 dark:text-green-400'
+                                : score >= 4 ? 'text-yellow-600 dark:text-yellow-400'
                                 : 'text-red-600 dark:text-red-400'
                             }`}>
                               {score}

@@ -202,11 +202,29 @@ export function useSubmitScore() {
 
   return useMutation({
     mutationFn: async (score: ApplicationScoreInsert) => {
-      const { data, error } = await supabase
+      // Check if a score already exists for this application
+      const { data: existing } = await supabase
         .from('application_scores')
-        .insert(score)
-        .select()
-        .single();
+        .select('id')
+        .eq('application_id', score.application_id)
+        .limit(1)
+        .maybeSingle();
+
+      let data, error;
+      if (existing?.id) {
+        ({ data, error } = await supabase
+          .from('application_scores')
+          .update({ ...score, scored_at: new Date().toISOString() })
+          .eq('id', existing.id)
+          .select()
+          .single());
+      } else {
+        ({ data, error } = await supabase
+          .from('application_scores')
+          .insert(score)
+          .select()
+          .single());
+      }
       if (error) throw error;
 
       if (!score.is_draft) {
@@ -376,17 +394,29 @@ export function useAdminApplicationsWithAssignments(
 
       const appIds = (apps || []).map((a: UnderwritingApplication) => a.id);
       let assignments: SpecialistAssignment[] = [];
+      let scoresMap: Record<string, number> = {};
       if (appIds.length > 0) {
-        const { data: assignData } = await supabase
-          .from('underwriting_specialist_assignments')
-          .select('*')
-          .in('application_id', appIds);
-        assignments = (assignData || []) as SpecialistAssignment[];
+        const [assignData, scoresData] = await Promise.all([
+          supabase
+            .from('underwriting_specialist_assignments')
+            .select('*')
+            .in('application_id', appIds),
+          supabase
+            .from('application_scores')
+            .select('application_id, overall_score')
+            .in('application_id', appIds)
+            .eq('is_draft', false),
+        ]);
+        assignments = (assignData.data || []) as SpecialistAssignment[];
+        for (const s of (scoresData.data || [])) {
+          scoresMap[s.application_id] = Number(s.overall_score);
+        }
       }
 
       return {
         applications: apps as UnderwritingApplication[],
         assignments,
+        scores: scoresMap,
         total: count ?? 0,
       };
     },
