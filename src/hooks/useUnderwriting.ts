@@ -78,7 +78,7 @@ export function useUnderwritingApplications(
 
       const apps = data as UnderwritingApplication[];
       const appIds = apps.map((a) => a.id);
-      let scoresMap: Record<string, number> = {};
+      const scoresMap: Record<string, number> = {};
       if (appIds.length > 0) {
         const { data: scores } = await supabase
           .from('application_scores')
@@ -394,7 +394,7 @@ export function useAdminApplicationsWithAssignments(
 
       const appIds = (apps || []).map((a: UnderwritingApplication) => a.id);
       let assignments: SpecialistAssignment[] = [];
-      let scoresMap: Record<string, number> = {};
+      const scoresMap: Record<string, number> = {};
       if (appIds.length > 0) {
         const [assignData, scoresData] = await Promise.all([
           supabase
