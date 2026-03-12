@@ -102,7 +102,7 @@ export const ProductSelector = () => {
 
   if (!user || !profile) return null;
 
-  const productsEnabled = userProfile?.products_enabled ?? 1;
+  const productsEnabled = userProfile?.products_enabled ?? 0;
   const availableProducts = PRODUCT_CARDS.filter((card) =>
     hasProductAccess(productsEnabled, card.product)
   );

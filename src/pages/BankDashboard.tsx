@@ -150,7 +150,7 @@ const BankDashboard = () => {
             </h1>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
-            {userProfile && hasProductAccess(userProfile.products_enabled ?? 1, ProductAccess.Underwriting) && (
+            {userProfile && hasProductAccess(userProfile.products_enabled ?? 0, ProductAccess.Underwriting) && (
               <Button
                 variant="outline"
                 onClick={() => navigate('/underwriting/applications')}

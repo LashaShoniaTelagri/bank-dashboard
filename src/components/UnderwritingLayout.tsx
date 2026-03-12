@@ -106,7 +106,30 @@ export const UnderwritingLayout = ({ children, title }: UnderwritingLayoutProps)
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/bank")}
+              onClick={() => {
+                if (!userProfile) {
+                  navigate("/products");
+                  return;
+                }
+                if (userProfile.role === "admin") {
+                  navigate("/admin/dashboard");
+                  return;
+                }
+                if (userProfile.role === "specialist") {
+                  navigate("/specialist");
+                  return;
+                }
+                const products = userProfile.products_enabled ?? 0;
+                const hasFM = hasProductAccess(products, ProductAccess.FieldMonitoring);
+                const hasUW = hasProductAccess(products, ProductAccess.Underwriting);
+                if (hasFM && hasUW) {
+                  navigate("/products");
+                } else if (hasFM) {
+                  navigate("/bank");
+                } else {
+                  navigate("/products");
+                }
+              }}
               className="hover:bg-muted dark:hover:bg-muted/80"
             >
               <ArrowLeft className="h-5 w-5" />
