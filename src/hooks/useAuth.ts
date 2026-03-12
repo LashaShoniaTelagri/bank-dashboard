@@ -7,6 +7,7 @@ export interface UserProfile {
   user_id: string;
   role: 'admin' | 'bank_viewer' | 'specialist';
   bank_id?: string;
+  products_enabled: number;
   created_at: string;
   invited_by?: string;
   invited_at?: string;
