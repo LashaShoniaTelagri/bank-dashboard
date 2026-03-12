@@ -424,6 +424,23 @@ export function useAdminApplicationsWithAssignments(
   });
 }
 
+export function useDeleteApplication() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (applicationId: string) => {
+      const { error } = await supabase
+        .from('underwriting_applications')
+        .delete()
+        .eq('id', applicationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-uw-applications'] });
+    },
+  });
+}
+
 // ---------- Crop Type Hooks ----------
 
 export function useActiveCropTypes() {

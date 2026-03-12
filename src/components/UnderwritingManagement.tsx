@@ -38,6 +38,7 @@ import {
   useCropRequests,
   useApproveCropRequest,
   useRejectCropRequest,
+  useDeleteApplication,
   type ApplicationFilters,
   type SpecialistAssignment,
 } from "@/hooks/useUnderwriting";
@@ -95,6 +96,8 @@ export const UnderwritingManagement = () => {
   const [assignOpen, setAssignOpen] = useState(false);
   const [scoringApp, setScoringApp] = useState<UnderwritingApplication | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
+  const [deleteAppConfirmOpen, setDeleteAppConfirmOpen] = useState(false);
+  const [appToDelete, setAppToDelete] = useState<UnderwritingApplication | null>(null);
 
   // --- Crop management state ---
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
@@ -114,6 +117,7 @@ export const UnderwritingManagement = () => {
   const { data: cropRequests, isLoading: loadingRequests, refetch: refetchRequests } = useCropRequests('pending');
   const approveMutation = useApproveCropRequest();
   const rejectMutation = useRejectCropRequest();
+  const deleteApplicationMutation = useDeleteApplication();
 
   const cropOptions = useMemo(
     () => activeCrops && activeCrops.length > 0
@@ -153,6 +157,18 @@ export const UnderwritingManagement = () => {
     setScoringApp(app);
     setScoringOpen(true);
   }, []);
+
+  const handleDeleteApp = async () => {
+    if (!appToDelete) return;
+    try {
+      await deleteApplicationMutation.mutateAsync(appToDelete.id);
+      toast({ title: "Application Deleted", description: `${formatAppNumber(appToDelete.id)} has been deleted.` });
+    } catch (error: unknown) {
+      toast({ title: "Delete Failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
+    setDeleteAppConfirmOpen(false);
+    setAppToDelete(null);
+  };
 
   const getBankName = useCallback(
     (bankId: string) => banks.find((b) => b.id === bankId)?.name ?? bankId.slice(0, 8),
@@ -481,15 +497,30 @@ export const UnderwritingManagement = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => handleAssign(app, e)}
-                              className="hover:bg-muted dark:hover:bg-muted/80"
-                            >
-                              <UserPlus className="h-3.5 w-3.5 mr-1.5" />
-                              Assign
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => handleAssign(app, e)}
+                                className="hover:bg-muted dark:hover:bg-muted/80"
+                              >
+                                <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                                Assign
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAppToDelete(app);
+                                  setDeleteAppConfirmOpen(true);
+                                }}
+                                className="h-8 w-8 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                title="Delete application"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -856,6 +887,28 @@ export const UnderwritingManagement = () => {
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Application Confirmation */}
+      <AlertDialog open={deleteAppConfirmOpen} onOpenChange={setDeleteAppConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Application</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{appToDelete ? formatAppNumber(appToDelete.id) : ""}</strong>? This will permanently remove the application and all associated scores and assignments.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteApp}
+              disabled={deleteApplicationMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteApplicationMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

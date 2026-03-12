@@ -54,7 +54,11 @@ const BankDashboard = () => {
       } else if (profile.role === 'specialist') {
         navigate('/specialist', { replace: true });
       } else if (!hasProductAccess(profile.products_enabled ?? 0, ProductAccess.FieldMonitoring)) {
-        navigate('/products', { replace: true });
+        if (hasProductAccess(profile.products_enabled ?? 0, ProductAccess.Underwriting)) {
+          navigate('/underwriting/applications', { replace: true });
+        } else {
+          navigate('/products', { replace: true });
+        }
       }
     }
   }, [user, profile, loading, navigate]);
@@ -92,10 +96,9 @@ const BankDashboard = () => {
     );
   }
 
-  // Don't render dashboard if user is not authenticated (will be redirected by useEffect)
-  if (!user || !profile) {
-    return null;
-  }
+  // Don't render dashboard if user is not authenticated or will be redirected
+  if (!user || !profile) return null;
+  if (!hasProductAccess(profile.products_enabled ?? 0, ProductAccess.FieldMonitoring)) return null;
 
   const handleSignOut = async () => {
     await signOut();
