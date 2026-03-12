@@ -6,7 +6,7 @@ import { LogOut, FileText, Send, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/components/ui/use-toast";
-import { hasProductAccess } from "@/types/productAccess";
+import { hasProductAccess, getEnabledProducts } from "@/types/productAccess";
 import { ProductAccess } from "@/types/productAccess";
 
 interface Bank {
@@ -103,14 +103,16 @@ export const UnderwritingLayout = ({ children, title }: UnderwritingLayoutProps)
       <header className="relative z-10 border-b bg-card/60 dark:bg-card/40 backdrop-blur-md border-border/30 shadow-lg">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/bank")}
-              className="hover:bg-muted dark:hover:bg-muted/80"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            {getEnabledProducts(userProfile?.products_enabled ?? 0).length > 1 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/bank")}
+                className="hover:bg-muted dark:hover:bg-muted/80"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            )}
             {bank?.logo_url && (
               <img src={bank.logo_url} alt={`${bank.name} logo`} className="h-10 w-auto" />
             )}
