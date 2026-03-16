@@ -137,11 +137,13 @@ export function useSubmitApplication() {
     mutationFn: async ({
       bankId,
       cropType,
+      farmStatus,
       notes,
       file,
     }: {
       bankId: string;
       cropType: string;
+      farmStatus: string;
       notes?: string;
       file?: File;
     }) => {
@@ -170,6 +172,7 @@ export function useSubmitApplication() {
           bank_id: bankId,
           submitted_by: user.id,
           crop_type: cropType,
+          farm_status: farmStatus,
           notes: notes || null,
           shapefile_path: shapefilePath,
         })

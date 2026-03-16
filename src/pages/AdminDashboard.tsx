@@ -222,7 +222,7 @@ const AdminDashboard = () => {
                     : 'border-transparent text-body-secondary hover:text-emerald-400'
                 }`}
               >
-                Dashboard
+                Field Monitoring
               </Link>
               <Link
                 to="/admin/banks"
@@ -350,7 +350,7 @@ const AdminDashboard = () => {
               <nav className="flex-1 overflow-y-auto px-4 py-6">
                 <div className="space-y-2">
                   {[
-                    { to: '/admin/dashboard', id: 'dashboard', label: 'Dashboard', description: 'View farmers overview', icon: LayoutDashboard },
+                    { to: '/admin/dashboard', id: 'dashboard', label: 'Field Monitoring', description: 'View farmers overview', icon: LayoutDashboard },
                     { to: '/admin/banks', id: 'banks', label: 'Banks', description: 'Manage bank partnerships', icon: Building2 },
                     { to: '/admin/users', id: 'users', label: 'Users', description: 'Manage system users', icon: UsersIcon },
                     { to: '/admin/underwriting', id: 'underwriting', label: 'Underwriting', description: 'Manage applications and specialists', icon: FileCheck },

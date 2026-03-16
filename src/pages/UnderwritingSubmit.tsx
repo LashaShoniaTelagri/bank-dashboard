@@ -28,6 +28,7 @@ export const UnderwritingSubmit = () => {
     : [...CROP_TYPES];
 
   const [cropType, setCropType] = useState<string>("");
+  const [farmStatus, setFarmStatus] = useState<string>("Planted");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -97,6 +98,10 @@ export const UnderwritingSubmit = () => {
       toast({ title: "Missing Information", description: "Please select a crop type.", variant: "destructive" });
       return;
     }
+    if (!farmStatus) {
+      toast({ title: "Missing Information", description: "Please select a farm status.", variant: "destructive" });
+      return;
+    }
 
     setUploadProgress(10);
     const progressInterval = setInterval(() => {
@@ -107,6 +112,7 @@ export const UnderwritingSubmit = () => {
       const result = await submitMutation.mutateAsync({
         bankId: userProfile.bank_id,
         cropType,
+        farmStatus,
         notes: notes || undefined,
         file: file || undefined,
       });
@@ -169,6 +175,7 @@ export const UnderwritingSubmit = () => {
                   onClick={() => {
                     setSubmittedApp(null);
                     setCropType("");
+                    setFarmStatus("Planted");
                     setNotes("");
                     setFile(null);
                     setUploadProgress(0);
@@ -197,9 +204,7 @@ export const UnderwritingSubmit = () => {
         <Card className="bg-card/80 backdrop-blur-sm border-border/50">
           <CardHeader>
             <CardTitle className="text-foreground">New Application</CardTitle>
-            <CardDescription>
-              Submit a land parcel for credit risk assessment. Select the crop type and upload the file.
-            </CardDescription>
+           
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Crop Type */}
@@ -290,10 +295,26 @@ export const UnderwritingSubmit = () => {
               )}
             </div>
 
+            {/* Farm Status */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Farm Status <span className="text-destructive">*</span>
+              </label>
+              <Select value={farmStatus} onValueChange={setFarmStatus}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select farm status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Planted">Planted</SelectItem>
+                  <SelectItem value="Not Planted">Not Planted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* File Upload */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Land Parcel File
+                Upload the location data
               </label>
               <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
@@ -353,7 +374,7 @@ export const UnderwritingSubmit = () => {
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Notes <span className="text-muted-foreground">(optional, max 500 characters)</span>
+                Note <span className="text-muted-foreground">(optional, max 500 characters)</span>
               </label>
               <Textarea
                 value={notes}
@@ -387,7 +408,7 @@ export const UnderwritingSubmit = () => {
             {/* Submit Button */}
             <Button
               onClick={handleSubmit}
-              disabled={!cropType || submitMutation.isPending}
+              disabled={!cropType || !farmStatus || submitMutation.isPending}
               className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-medium shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-400/40 transform transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:hover:scale-100"
             >
               {submitMutation.isPending ? (
