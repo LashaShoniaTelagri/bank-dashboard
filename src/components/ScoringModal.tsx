@@ -37,10 +37,6 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
 
   const [overallScore, setOverallScore] = useState<string>("5");
   const [overallScoreError, setOverallScoreError] = useState("");
-  const [landSuitability, setLandSuitability] = useState(50);
-  const [cropViability, setCropViability] = useState(50);
-  const [riskAssessment, setRiskAssessment] = useState(50);
-  const [historicalData, setHistoricalData] = useState(50);
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -48,17 +44,9 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
       const latest = existingScores[0];
       setOverallScore(String(latest.overall_score));
       setOverallScoreError("");
-      setLandSuitability(Number(latest.land_suitability ?? 50));
-      setCropViability(Number(latest.crop_viability ?? 50));
-      setRiskAssessment(Number(latest.risk_assessment ?? 50));
-      setHistoricalData(Number(latest.historical_data ?? 50));
       setNotes(latest.notes || "");
     } else {
       setOverallScore("5");
-      setLandSuitability(50);
-      setCropViability(50);
-      setRiskAssessment(50);
-      setHistoricalData(50);
       setNotes("");
     }
   }, [existingScores, application?.id]);
@@ -93,10 +81,6 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
       await submitScore.mutateAsync({
         application_id: application.id,
         overall_score: Number(overallScore),
-        land_suitability: landSuitability,
-        crop_viability: cropViability,
-        risk_assessment: riskAssessment,
-        historical_data: historicalData,
         notes: notes || null,
         scored_by: user.id,
         is_draft: isDraft,
@@ -160,6 +144,10 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
               <p className="text-xs text-muted-foreground">Status</p>
               <p className="font-medium text-foreground">{STATUS_LABELS[application.status]}</p>
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Farm Status</p>
+              <p className="font-medium text-foreground">{application.farm_status}</p>
+            </div>
             {application.notes && (
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">Notes</p>
@@ -168,8 +156,8 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
             )}
           </div>
 
-          {/* Assigned Specialists */}
-          {assignedSpecialists && assignedSpecialists.length > 0 && (
+          {/* Assigned Specialists - Admin only */}
+          {userProfile?.role === 'admin' && assignedSpecialists && assignedSpecialists.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
