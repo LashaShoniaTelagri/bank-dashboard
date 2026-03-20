@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TwoFactorVerification } from "@/components/TwoFactorVerification";
 import { generateDeviceFingerprint, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
@@ -18,6 +18,8 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false); // Prevent premature redirects during sign-in
@@ -585,25 +587,45 @@ const Auth = () => {
               </div>
               <div>
                 <label className="text-sm font-medium">New Password</label>
-                <Input
-                  type="password"
-                  placeholder="Enter your new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your new password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/60 hover:text-slate-700 dark:hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Confirm Password</label>
-                <Input
-                  type="password"
-                  placeholder="Confirm your new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm your new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/60 hover:text-slate-700 dark:hover:text-white transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button 
                 type="submit" 
@@ -636,7 +658,7 @@ const Auth = () => {
         </div>
 
         {/* Futuristic Agri-Finance Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-primary/10 dark:via-accent/10 dark:to-primary/20"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-slate-50 to-emerald-50 dark:from-primary/10 dark:via-accent/10 dark:to-primary/20"></div>
       
         {/* Geometric Pattern Overlay - Representing Crop Fields & Financial Growth */}
         <div className="absolute inset-0 opacity-20 dark:opacity-20">
@@ -683,15 +705,13 @@ const Auth = () => {
           {/* Logo outside the card */}
           <div className="mb-8 text-center">
             <div className={`
-              bg-white/10 dark:bg-white/5 
+              bg-white/80 dark:bg-white/5 
               backdrop-blur-xl 
               rounded-2xl p-6 
-              shadow-2xl shadow-black/10 dark:shadow-black/30
-              border border-white/20 dark:border-white/10
-              ring-1 ring-white/10 dark:ring-white/5
+              shadow-lg shadow-slate-200/50 dark:shadow-black/30
+              border border-slate-200 dark:border-white/10
+              ring-1 ring-slate-100 dark:ring-white/5
               transition-all duration-1000 
-              hover:bg-white/15 dark:hover:bg-white/8
-              hover:shadow-3xl hover:shadow-primary/10
               ${pageLoading ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}
             `}>
               <img 
@@ -702,21 +722,17 @@ const Auth = () => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              <p className="text-foreground/70 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
+              <p className="text-slate-600 dark:text-foreground/70 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
             </div>
           </div>
 
           <Card className={`
-            bg-white/10 dark:bg-white/5 
+            bg-white dark:bg-white/5 
             backdrop-blur-2xl 
-            border border-white/20 dark:border-white/10
-            ring-1 ring-white/10 dark:ring-white/5
-            shadow-2xl shadow-black/10 dark:shadow-black/40
+            border border-slate-200 dark:border-white/10
+            ring-1 ring-slate-100 dark:ring-white/5
+            shadow-lg shadow-slate-200/30 dark:shadow-black/40
             transition-all duration-1000 delay-300
-            hover:bg-white/15 dark:hover:bg-white/8
-            hover:shadow-3xl hover:shadow-primary/20
-            hover:ring-white/20 dark:hover:ring-white/10
-            hover:scale-[1.02]
             ${pageLoading ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
           `}>
             <CardHeader className="text-center pb-4">
@@ -731,36 +747,27 @@ const Auth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="h-12 text-base 
-                      bg-white/20 dark:bg-white/5 
-                      backdrop-blur-sm 
-                      border border-white/30 dark:border-white/10
-                      focus:border-emerald-400/60 focus:ring-emerald-400/20 
-                      focus:bg-white/25 dark:focus:bg-white/8
-                      focus:shadow-lg focus:shadow-emerald-400/10
-                      placeholder:text-foreground/60
-                      shadow-inner shadow-black/5
-                      transition-all duration-200"
+                    className="h-12 text-base bg-background"
                   />
                 </div>
                 <div>
-                  <Input
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="h-12 text-base 
-                      bg-white/20 dark:bg-white/5 
-                      backdrop-blur-sm 
-                      border border-white/30 dark:border-white/10
-                      focus:border-emerald-400/60 focus:ring-emerald-400/20 
-                      focus:bg-white/25 dark:focus:bg-white/8
-                      focus:shadow-lg focus:shadow-emerald-400/10
-                      placeholder:text-foreground/60
-                      shadow-inner shadow-black/5
-                      transition-all duration-200"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="h-12 text-base pr-10 bg-background"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/60 hover:text-slate-700 dark:hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex justify-end">
                   <a 

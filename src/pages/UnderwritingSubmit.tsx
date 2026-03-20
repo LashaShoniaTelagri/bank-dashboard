@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Upload, FileArchive, X, CheckCircle2, Loader2, AlertCircle, FileText, Plus } from "lucide-react";
+import { Upload, FileArchive, X, CheckCircle2, Loader2, AlertCircle, FileText, Plus, Link } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { useSubmitApplication, useActiveCropTypes, useSubmitCropRequest } from "@/hooks/useUnderwriting";
 import { CROP_TYPES, MAX_FILE_SIZE, formatAppNumber, getScoringCountdown } from "@/types/underwriting";
@@ -36,6 +36,7 @@ export const UnderwritingSubmit = () => {
   const [submittedApp, setSubmittedApp] = useState<{ id: string; submittedAt: string } | null>(null);
   const [showCropRequest, setShowCropRequest] = useState(false);
   const [newCropName, setNewCropName] = useState("");
+  const [shapefileUrls, setShapefileUrls] = useState<string[]>([]);
 
   const validateFile = useCallback((f: File): string | null => {
     if (f.size > MAX_FILE_SIZE) {
@@ -103,6 +104,18 @@ export const UnderwritingSubmit = () => {
       return;
     }
 
+    const cleanUrls = shapefileUrls.filter((u) => u.trim());
+    if (!file && cleanUrls.length === 0) {
+      toast({ title: "Missing Location Data", description: "Please upload a shapefile or attach at least one link.", variant: "destructive" });
+      return;
+    }
+
+    const invalidUrl = cleanUrls.find((u) => !/^https?:\/\/.+/.test(u.trim()));
+    if (invalidUrl) {
+      toast({ title: "Invalid URL", description: "All links must start with http:// or https://", variant: "destructive" });
+      return;
+    }
+
     setUploadProgress(10);
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => Math.min(prev + 5, 90));
@@ -115,6 +128,7 @@ export const UnderwritingSubmit = () => {
         farmStatus,
         notes: notes || undefined,
         file: file || undefined,
+        shapefileUrls: cleanUrls.length > 0 ? cleanUrls : undefined,
       });
 
       clearInterval(progressInterval);
@@ -178,6 +192,7 @@ export const UnderwritingSubmit = () => {
                     setFarmStatus("Planted");
                     setNotes("");
                     setFile(null);
+                    setShapefileUrls([]);
                     setUploadProgress(0);
                   }}
                 >
@@ -371,6 +386,53 @@ export const UnderwritingSubmit = () => {
               </div>
             </div>
 
+            {/* Shapefile URLs */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground">or attach a link</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="space-y-2">
+                {shapefileUrls.map((url, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                      <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={url}
+                        onChange={(e) => {
+                          const updated = [...shapefileUrls];
+                          updated[idx] = e.target.value;
+                          setShapefileUrls(updated);
+                        }}
+                        placeholder="https://drive.google.com/..."
+                        className="bg-background pl-8 text-sm"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShapefileUrls(shapefileUrls.filter((_, i) => i !== idx))}
+                      className="shrink-0 hover:bg-muted dark:hover:bg-muted/80"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {shapefileUrls.length < 10 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShapefileUrls([...shapefileUrls, ""])}
+                    className="text-xs hover:bg-muted dark:hover:bg-muted/80"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add link
+                  </Button>
+                )}
+              </div>
+            </div>
+
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
@@ -408,7 +470,7 @@ export const UnderwritingSubmit = () => {
             {/* Submit Button */}
             <Button
               onClick={handleSubmit}
-              disabled={!cropType || !farmStatus || submitMutation.isPending}
+              disabled={!cropType || !farmStatus || (!file && shapefileUrls.filter((u) => u.trim()).length === 0) || submitMutation.isPending}
               className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-medium shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-400/40 transform transition-all duration-200 hover:scale-[1.01] disabled:opacity-50 disabled:hover:scale-100"
             >
               {submitMutation.isPending ? (

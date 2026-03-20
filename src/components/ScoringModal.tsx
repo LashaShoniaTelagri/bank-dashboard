@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, Save, Users } from "lucide-react";
+import { Loader2, Download, Save, Users, Link } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { useSubmitScore, useApplicationScores, useAssignedSpecialists, useListSpecialists, useActiveCropTypes } from "@/hooks/useUnderwriting";
 import { useAuth, UserProfile } from "@/hooks/useAuth";
@@ -196,6 +196,27 @@ export const ScoringModal = ({ application, open, onOpenChange }: ScoringModalPr
               <Download className="mr-2 h-4 w-4" />
               Download Shapefile
             </Button>
+          )}
+
+          {/* Shapefile URLs */}
+          {application.shapefile_urls && application.shapefile_urls.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Attached Links</p>
+              <div className="space-y-1.5">
+                {application.shapefile_urls.map((url, idx) => (
+                  <a
+                    key={idx}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary hover:underline truncate"
+                  >
+                    <Link className="h-3.5 w-3.5 shrink-0" />
+                    {url}
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Scoring - admin/specialist only */}

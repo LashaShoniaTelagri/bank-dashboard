@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Search, FileText, ChevronDown, Filter, RefreshCw, Clock, CheckCircle2 } from "lucide-react";
+import { Search, FileText, ChevronDown, Filter, RefreshCw, Clock, CheckCircle2, Link } from "lucide-react";
 import { useUnderwritingApplications, useActiveCropTypes } from "@/hooks/useUnderwriting";
 import type { UnderwritingApplication, UnderwritingStatus } from "@/types/underwriting";
 import {
@@ -32,11 +32,21 @@ export const UnderwritingApplications = () => {
   const [page, setPage] = useState(0);
   const [selectedApp, setSelectedApp] = useState<UnderwritingApplication | null>(null);
   const [scoringOpen, setScoringOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const bankId = userProfile?.role === "admin" ? undefined : userProfile?.bank_id;
 
   const { data, isLoading, refetch } = useUnderwritingApplications(bankId, filters, page);
   const { data: dbCrops } = useActiveCropTypes();
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const cropOptions = dbCrops && dbCrops.length > 0
     ? dbCrops.map((c) => ({ value: c.value, label: c.label }))
@@ -104,10 +114,11 @@ export const UnderwritingApplications = () => {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => refetch()}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
                 className="hover:bg-muted dark:hover:bg-muted/80"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </CardContent>
@@ -116,7 +127,7 @@ export const UnderwritingApplications = () => {
         {/* Results Summary */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {total} application{total !== 1 ? "s" : ""} found
+            {isRefreshing ? "Loading..." : ``}
           </p>
           {totalPages > 1 && (
             <p className="text-sm text-muted-foreground">
@@ -205,13 +216,22 @@ export const UnderwritingApplications = () => {
                           {new Date(app.submitted_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
-                          {app.shapefile_path ? (
-                            <Badge variant="outline" className="text-xs">
-                              .{fileExt || 'zip'}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
+                          <div className="flex flex-wrap gap-1">
+                            {app.shapefile_path && (
+                              <Badge variant="outline" className="text-xs">
+                                .{fileExt || 'zip'}
+                              </Badge>
+                            )}
+                            {app.shapefile_urls && app.shapefile_urls.length > 0 && (
+                              <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                <Link className="h-3 w-3" />
+                                {app.shapefile_urls.length}
+                              </Badge>
+                            )}
+                            {!app.shapefile_path && (!app.shapefile_urls || app.shapefile_urls.length === 0) && (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

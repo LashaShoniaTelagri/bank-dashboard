@@ -140,12 +140,14 @@ export function useSubmitApplication() {
       farmStatus,
       notes,
       file,
+      shapefileUrls,
     }: {
       bankId: string;
       cropType: string;
       farmStatus: string;
       notes?: string;
       file?: File;
+      shapefileUrls?: string[];
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -165,6 +167,8 @@ export function useSubmitApplication() {
         shapefilePath = storagePath;
       }
 
+      const cleanUrls = shapefileUrls?.filter((u) => u.trim()) ?? [];
+
       const { data, error } = await supabase
         .from('underwriting_applications')
         .insert({
@@ -175,7 +179,8 @@ export function useSubmitApplication() {
           farm_status: farmStatus,
           notes: notes || null,
           shapefile_path: shapefilePath,
-        })
+          shapefile_urls: cleanUrls.length > 0 ? cleanUrls : null,
+        } as any)
         .select()
         .single();
 
@@ -612,10 +617,18 @@ export function useApproveCropRequest() {
         .update({ status: 'approved', reviewed_by: user.id, reviewed_at: new Date().toISOString() })
         .eq('id', requestId);
       if (updateErr) throw updateErr;
+
+      return { requestId, cropName };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['uw-crop-requests'] });
       queryClient.invalidateQueries({ queryKey: ['uw-crop-types'] });
+
+      supabase.functions.invoke('notify-crop-approved', {
+        body: { requestId: data.requestId, cropName: data.cropName },
+      }).catch((err) => {
+        console.warn('Crop approval notification failed (non-blocking):', err);
+      });
     },
   });
 }

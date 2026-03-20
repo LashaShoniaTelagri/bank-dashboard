@@ -2,7 +2,9 @@ import type { Database } from "@/integrations/supabase/types";
 
 export type UnderwritingStatus = Database["public"]["Enums"]["underwriting_status"];
 
-export type UnderwritingApplication = Database["public"]["Tables"]["underwriting_applications"]["Row"];
+export type UnderwritingApplication = Database["public"]["Tables"]["underwriting_applications"]["Row"] & {
+  shapefile_urls?: string[] | null;
+};
 export type UnderwritingApplicationInsert = Database["public"]["Tables"]["underwriting_applications"]["Insert"];
 
 export type ApplicationScore = Database["public"]["Tables"]["application_scores"]["Row"];
