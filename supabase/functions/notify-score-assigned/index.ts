@@ -54,7 +54,7 @@ function createScoreEmail(appNumber: string, cropType: string, overallScore: num
             </div>
             <div class="detail-row">
               <span class="detail-label">Overall Score</span>
-              <span class="detail-value" style="color:${scoreColor};">${overallScore}/100</span>
+              <span class="detail-value" style="color:${scoreColor};">${overallScore}/10</span>
             </div>
           </div>
 
@@ -79,7 +79,7 @@ Your application ${appNumber} has been scored.
 
 Application: ${appNumber}
 Crop: ${cropType}
-Overall Score: ${overallScore}/100
+Overall Score: ${overallScore}/10
 
 View details at: ${dashboardUrl}
 
