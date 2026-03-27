@@ -3,7 +3,7 @@ import { useAuth, UserProfile } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
-import { LogOut, Menu, X, Users, Settings } from "lucide-react";
+import { LogOut, Menu, X, Users, Settings, FileText } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
 import { FarmerListView } from "@/components/FarmerListView";
 import { BankFilters } from "@/components/BankFilters";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "@/components/ui/use-toast";
+import { hasProductAccess, ProductAccess } from "@/types/productAccess";
 
 interface Bank {
   id: string;
@@ -45,15 +46,19 @@ const BankDashboard = () => {
     }
   }, [user, loading, navigate]);
 
-  // Check user role and redirect if not bank viewer or specialist
+  // Check user role and product access
   useEffect(() => {
     if (!loading && user && profile) {
       if (profile.role === 'admin') {
-        console.log('🔒 Admin user redirecting to admin dashboard');
         navigate('/admin', { replace: true });
       } else if (profile.role === 'specialist') {
-        console.log('🔒 Specialist user redirecting to specialist dashboard');
         navigate('/specialist', { replace: true });
+      } else if (!hasProductAccess(profile.products_enabled ?? 0, ProductAccess.FieldMonitoring)) {
+        if (hasProductAccess(profile.products_enabled ?? 0, ProductAccess.Underwriting)) {
+          navigate('/underwriting/applications', { replace: true });
+        } else {
+          navigate('/products', { replace: true });
+        }
       }
     }
   }, [user, profile, loading, navigate]);
@@ -91,10 +96,9 @@ const BankDashboard = () => {
     );
   }
 
-  // Don't render dashboard if user is not authenticated (will be redirected by useEffect)
-  if (!user || !profile) {
-    return null;
-  }
+  // Don't render dashboard if user is not authenticated or will be redirected
+  if (!user || !profile) return null;
+  if (!hasProductAccess(profile.products_enabled ?? 0, ProductAccess.FieldMonitoring)) return null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -149,6 +153,16 @@ const BankDashboard = () => {
             </h1>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+            {userProfile && hasProductAccess(userProfile.products_enabled ?? 1, ProductAccess.Underwriting) && (
+              <Button
+                variant="outline"
+                onClick={() => navigate('/underwriting/applications')}
+                className="hidden md:flex hover:bg-muted dark:hover:bg-muted/80"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Underwriting
+              </Button>
+            )}
             <ThemeToggle variant="icon" size="sm" />
             <Button 
               variant="outline" 

@@ -1264,6 +1264,7 @@ export type Database = {
           invitation_status: string | null
           invited_at: string | null
           invited_by: string | null
+          products_enabled: number
           role: string
           user_id: string
         }
@@ -1274,6 +1275,7 @@ export type Database = {
           invitation_status?: string | null
           invited_at?: string | null
           invited_by?: string | null
+          products_enabled?: number
           role: string
           user_id: string
         }
@@ -1284,6 +1286,7 @@ export type Database = {
           invitation_status?: string | null
           invited_at?: string | null
           invited_by?: string | null
+          products_enabled?: number
           role?: string
           user_id?: string
         }
@@ -1416,6 +1419,221 @@ export type Database = {
           user_role?: string | null
         }
         Relationships: []
+      }
+      underwriting_applications: {
+        Row: {
+          id: string
+          bank_id: string
+          submitted_by: string
+          shapefile_path: string | null
+          crop_type: string
+          notes: string | null
+          status: Database["public"]["Enums"]["underwriting_status"]
+          submitted_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          bank_id: string
+          submitted_by: string
+          shapefile_path?: string | null
+          crop_type: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["underwriting_status"]
+          submitted_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          bank_id?: string
+          submitted_by?: string
+          shapefile_path?: string | null
+          crop_type?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["underwriting_status"]
+          submitted_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "underwriting_applications_bank_id_fkey"
+            columns: ["bank_id"]
+            isOneToOne: false
+            referencedRelation: "banks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_access_changes: {
+        Row: {
+          id: string
+          target_user_id: string
+          changed_by: string
+          product_bit: number
+          action: string
+          products_before: number
+          products_after: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          target_user_id: string
+          changed_by: string
+          product_bit: number
+          action: string
+          products_before: number
+          products_after: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          target_user_id?: string
+          changed_by?: string
+          product_bit?: number
+          action?: string
+          products_before?: number
+          products_after?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      underwriting_crop_types: {
+        Row: {
+          id: string
+          value: string
+          label: string
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          value: string
+          label: string
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          value?: string
+          label?: string
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      underwriting_crop_requests: {
+        Row: {
+          id: string
+          crop_name: string
+          requested_by: string
+          bank_id: string | null
+          status: string
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          crop_name: string
+          requested_by: string
+          bank_id?: string | null
+          status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          crop_name?: string
+          requested_by?: string
+          bank_id?: string | null
+          status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "underwriting_crop_requests_bank_id_fkey"
+            columns: ["bank_id"]
+            isOneToOne: false
+            referencedRelation: "banks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      underwriting_specialist_assignments: {
+        Row: {
+          id: string
+          application_id: string
+          specialist_id: string
+          assigned_by: string
+          assigned_at: string
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          specialist_id: string
+          assigned_by: string
+          assigned_at?: string
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          specialist_id?: string
+          assigned_by?: string
+          assigned_at?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "underwriting_specialist_assignments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "underwriting_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_scores: {
+        Row: {
+          id: string
+          application_id: string
+          overall_score: number
+          notes: string | null
+          scored_by: string
+          scored_at: string
+          is_draft: boolean
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          overall_score: number
+          notes?: string | null
+          scored_by: string
+          scored_at?: string
+          is_draft?: boolean
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          overall_score?: number
+          notes?: string | null
+          scored_by?: string
+          scored_at?: string
+          is_draft?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_scores_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "underwriting_applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1603,6 +1821,7 @@ export type Database = {
           invited_by: string
           role: string
           user_id: string
+          products_enabled: number
         }[]
       }
       get_specialist_assignments: {
@@ -1699,6 +1918,26 @@ export type Database = {
         Returns: string
       }
       sync_invitation_statuses: { Args: never; Returns: undefined }
+      check_product_access: {
+        Args: { target_user_id: string; product_bit: number }
+        Returns: boolean
+      }
+      grant_product_access: {
+        Args: { target_user_id: string; product_bit: number }
+        Returns: undefined
+      }
+      revoke_product_access: {
+        Args: { target_user_id: string; product_bit: number }
+        Returns: undefined
+      }
+      format_app_number: {
+        Args: { app_id: string }
+        Returns: string
+      }
+      generate_underwriting_storage_path: {
+        Args: { app_id: string }
+        Returns: string
+      }
     }
     Enums: {
       data_type:
@@ -1711,6 +1950,7 @@ export type Database = {
         | "audio"
         | "climate"
       farmer_type: "person" | "company"
+      underwriting_status: "pending" | "in_review" | "scored" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1852,6 +2092,7 @@ export const Constants = {
         "climate",
       ],
       farmer_type: ["person", "company"],
+      underwriting_status: ["pending", "in_review", "scored", "rejected"],
     },
   },
 } as const
