@@ -57,3 +57,7 @@ Thumbs.db
 # Cursor/AI generated files with potential secrets
 .specstory/
 .cursorindexingignore env.backend.prod
+.gitnexus
+
+# GitNexus knowledge graph (local, machine-specific)
+.gitnexus/
