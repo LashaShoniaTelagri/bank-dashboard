@@ -47,6 +47,44 @@ When you modify these areas, check if the listed spec needs an update:
 | New integration (3rd-party API, AWS service) | `specs/architecture.md` § Integrations |
 | New module under `src/` worth its own spec | `specs/modules/<name>.md` + entry in `specs/README.md` |
 | Settled architectural decision | new entry in `specs/decisions.md` |
+| **New env var (frontend or backend)** | **add to `env.frontend.example` or `env.backend.example` in the SAME PR** |
+
+## Env vars & secrets (STRICT)
+
+Real env files are never committed. Only two reference templates are tracked:
+
+- `env.frontend.example` — every `VITE_*` var the frontend reads. Public-key placeholders only.
+- `env.backend.example` — every secret an Edge Function or backend script reads. Placeholder values only (e.g. `SENDGRID_API_KEY=__SENDGRID_API_KEY__`).
+
+Rules:
+1. **Never commit real values.** `.gitignore` enforces this for `env.{frontend,backend}.{dev,staging,prod}` patterns. If a real value lands in a committed file, treat it as a credential leak: rotate immediately, then remove via history rewrite if appropriate.
+2. **Adding a new env var = updating the matching `*.example` file in the same PR.** No exceptions. If it's worth reading at runtime, it's worth being discoverable in the template.
+3. **Never `cat` or `Read` real env files** in tool calls. Their contents flow into Anthropic's API context. If you need to verify a var name, read the `*.example` template.
+4. **Never run commands that print secrets to stdout** (`env`, `printenv`, `aws configure list`, `supabase secrets list` with values).
+5. When the user shares secrets in a message (paste, IDE selection), flag the leak immediately and recommend rotation per `specs/security.md`. Don't quietly continue.
+
+## End-of-task checklist (REMIND THE USER EXPLICITLY)
+
+When a feature, bugfix, or otherwise scoped work item is completed — *before* the user moves on to the next thing — surface this checklist out loud, even if the user has already committed or merged:
+
+```
+✅ End-of-task checklist
+1. Run `npx gitnexus analyze` to refresh the code intelligence index.
+   (The PostToolUse hook covers commits made via Bash here, but NOT
+    commits the user makes themselves in their own terminal.
+    If unsure whether the hook fired, just run it — it's incremental.)
+2. Update memory:
+   - File memory at ~/.claude/projects/.../memory/ — capture decisions,
+     role mappings, in-progress plans, lessons that should persist.
+   - RAG memory (mcp__claude-memory-rag__*) if used — store any
+     fuzzy-search-worthy artifacts.
+3. Update specs/ entries per the maintenance triggers table above
+   (especially specs/decisions.md if a non-obvious decision was settled).
+4. If a new env var was added: confirm env.{frontend,backend}.example
+   was updated in the same PR.
+```
+
+This reminder is mandatory — the user explicitly asked to be reminded. Don't omit it because "the work is small" or "it's just a fix." If genuinely nothing applies (e.g. you only answered a question and changed no files), say so explicitly: "no end-of-task actions — no files changed."
 
 ---
 

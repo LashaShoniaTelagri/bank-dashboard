@@ -13,6 +13,8 @@ dist-ssr
 *.local
 
 # Environment variables
+# Real env files are NEVER committed. Only *.example files are tracked,
+# and they MUST be kept in sync whenever a new env var is added.
 .env
 .env.*
 env.dev
@@ -24,6 +26,10 @@ env.backend.*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Allow committed reference templates only
+!env.backend.example
+!env.frontend.example
 
 # Editor directories and files
 .vscode/*
@@ -61,3 +67,5 @@ Thumbs.db
 
 # GitNexus knowledge graph (local, machine-specific)
 .gitnexus/
+
+gis-scripts/**

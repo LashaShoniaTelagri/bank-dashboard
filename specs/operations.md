@@ -78,10 +78,12 @@ Both gated per environment via GitHub environments.
 
 ## Secrets & env vars
 
-- **Per-env files** (`env.frontend.dev`, `env.frontend.prod`, `env.backend.dev`, `env.backend.prod`) are gitignored; templates in `env.template`.
+- **Per-env files** (`env.frontend.dev`, `env.frontend.prod`, `env.backend.dev`, `env.backend.prod`) are gitignored.
+- **Reference templates** are committed: `env.frontend.example` and `env.backend.example`. They are the ONLY env files in git. Every var the runtime reads must appear here, with a placeholder value.
+- **Adding a new env var requires updating the matching `*.example` in the same PR.** Enforced by convention; see `CLAUDE.md` § Env vars & secrets and `specs/security.md` § Secrets.
 - **AWS Parameter Store** holds CI-injected secrets; managed via `scripts/update-parameter-store.sh` and pulled by `scripts/fetch-env-from-aws.sh`.
 - **Supabase function secrets** set via Supabase dashboard or CLI; not in this repo.
-- **Never commit real values.** If accidentally committed, rotate and force-push only after coordinating with the team.
+- **Never commit real values.** If accidentally committed, rotate per `specs/security.md` § Rotation playbook before any history rewrite.
 
 ## Pre-action checklists (from global CLAUDE.md)
 

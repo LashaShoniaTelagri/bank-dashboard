@@ -47,10 +47,41 @@ Read access: admin only. Insert: any (server-side `SECURITY DEFINER` functions a
 
 ## Secrets
 
-- **Frontend env** (`env.frontend.*`): only `VITE_*` public values (Supabase anon key, app metadata, Google Maps key with HTTP referrer restrictions).
-- **Backend env** (`env.backend.*`): SendGrid keys, Supabase service role, anything else. Never committed.
-- **AWS Parameter Store / Secrets Manager** for CI/CD-injected secrets — see `scripts/manage-env.sh`, `scripts/update-parameter-store.sh`, `scripts/fetch-env-from-aws.sh`.
-- Edge Function secrets configured via Supabase CLI / dashboard, not in code.
+### What lives where
+
+- **Frontend env** (`env.frontend.dev` / `env.frontend.prod`): only `VITE_*` public values (Supabase anon key, app metadata, Google Maps key with HTTP referrer restrictions). Never committed.
+- **Backend env** (`env.backend.dev` / `env.backend.prod`): SendGrid keys, Supabase service role, OpenWeatherMap, anything else server-side. Never committed.
+- **Reference templates**: `env.frontend.example` and `env.backend.example` are the ONLY env files in git. Placeholder values only. Every env var the runtime reads must appear here.
+- **AWS Parameter Store / Secrets Manager**: source of truth for CI/CD-injected secrets — see `scripts/manage-env.sh`, `scripts/update-parameter-store.sh`, `scripts/fetch-env-from-aws.sh`.
+- **Edge Function secrets**: configured via Supabase CLI / dashboard, not in code.
+
+### Rules
+
+1. **Never commit real values.** `.gitignore` enforces it for `env.{frontend,backend}.{dev,staging,prod}` and `.env*`. Only `*.example` files pass through.
+2. **New env var = update the matching `*.example` template in the same PR.** Otherwise the next dev can't bootstrap.
+3. **Developer machines should not hold the prod env file.** Use dev creds locally; reach for prod values only when explicitly debugging prod.
+4. **Never `cat` real env files in AI tool calls** — content goes to the model API. To check what a var is named, read the `.example` template.
+5. **Never run commands that print secrets to stdout** (`env`, `printenv`, `aws configure list`, `supabase secrets list` with values).
+
+### If a secret leaks (rotation playbook)
+
+Treat any of these as a leak: secret pasted in a message/IDE selection, secret shown in tool output, secret committed to git history, secret in a screenshot.
+
+| Provider | Rotation step |
+|----------|---------------|
+| `SENDGRID_API_KEY` | SendGrid → Settings → API Keys → revoke + create new |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project → Settings → API → reset service role key |
+| `SUPABASE_DB_PASSWORD` | Supabase project → Settings → Database → reset password |
+| `OPENWEATHER_MAP_API_KEY` | OpenWeatherMap → My API Keys → regenerate |
+| `VITE_SUPABASE_ANON_KEY` (low impact, but rotate anyway) | Same as service role page → reset anon key |
+| Google Maps API key | Google Cloud Console → APIs & Services → Credentials → regenerate, re-apply HTTP referrer restriction |
+| AWS access keys | IAM → Users → Security credentials → deactivate + create new |
+
+After rotation:
+1. Update Parameter Store (`scripts/update-parameter-store.sh`) and any local `env.*` files.
+2. Redeploy Edge Functions if their secrets changed.
+3. Confirm via `git log --all -- <path>` that the secret was never committed; if it was, rewrite history (coordinate with the team).
+4. Add an entry to `audit_log` if the secret guarded customer data.
 
 ## Tool-output hygiene (for AI assistants)
 

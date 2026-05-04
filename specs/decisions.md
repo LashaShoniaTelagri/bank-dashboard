@@ -108,3 +108,15 @@ Status: accepted (2026-05-04)
 Context: Legacy `docs/` accumulated session-context dumps and design notes that weren't authoritative; AI sessions wasted tokens reading them.
 Decision: Delete `docs/` entirely. Create `specs/` as the single source of authoritative living docs, structured (8 files, flat). `CLAUDE.md` points at `specs/`.
 Consequences: Anything previously in `docs/` is gone — if a fact mattered, recreate it in `specs/` or it's not authoritative. Future docs must land in `specs/`, not invent new top-level dirs.
+
+## 0016 — Env vars: only `*.example` files committed; new vars must update them
+Status: accepted (2026-05-04)
+Context: After a credential leak via an `env.backend.dev` paste, we tightened the env-file policy. `env.template` (single file) was replaced by per-stack reference templates; real env files must never be committed.
+Decision: Two committed templates only — `env.frontend.example` and `env.backend.example` — both with placeholder values. Real `env.{frontend,backend}.{dev,staging,prod}` files are gitignored with explicit `!*.example` exceptions in `.gitignore`. Any new env var the runtime reads must be added to the matching template in the same PR. AI tool calls must never `cat` or `Read` real env files (their content flows to the model API).
+Consequences: Templates double as runtime-var documentation. New devs bootstrap by copying the templates. Rotation playbook lives in `specs/security.md` § "If a secret leaks".
+
+## 0017 — End-of-task reminder: GitNexus + memory updates
+Status: accepted (2026-05-04)
+Context: GitNexus PostToolUse hook reindexes after `git commit` issued via the Bash tool, but misses commits the user makes themselves in their own terminal. Memory (file + RAG) is also easy to forget when wrapping up.
+Decision: `CLAUDE.md` carries an explicit end-of-task checklist that the AI must surface when a feature/fix/scoped task completes — even if the user has already committed. Checklist items: run `npx gitnexus analyze`, update file memory, update RAG memory if used, update specs per maintenance triggers, confirm `*.example` env templates updated.
+Consequences: Stale GitNexus index stops being a silent failure mode. User-committed work still gets the same wrap-up hygiene as AI-committed work. If genuinely no actions apply, the AI must say so explicitly rather than skipping the checklist.
