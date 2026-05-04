@@ -1,3 +1,55 @@
+# TelAgri Bank Dashboard
+
+Banking-grade PWA for agricultural loan underwriting and farmer monitoring. Frontend: Vite + React + TypeScript on AWS (CloudFront + S3 + WAF). Backend: Supabase (Postgres + Auth + Edge Functions in Deno).
+
+## Documentation hierarchy
+
+`specs/` is authoritative. Read it before coding.
+
+| Source | What's in it | Authority |
+|--------|--------------|-----------|
+| `specs/` | Living docs: overview, architecture, domain, security, operations, decisions, modules/* | **Authoritative — read first** |
+| `CLAUDE.md` (this file) | AI rules, pointers to specs, code-intelligence usage | Authoritative for AI workflow |
+| `~/.claude/projects/.../memory/` | Cross-session AI hints (role mappings, in-progress plans) | Auto-loaded; supplements specs |
+| `docs/` | **Removed.** Was session-context, not authoritative. Don't recreate. | — |
+
+Quick links:
+- [`specs/README.md`](specs/README.md) — index
+- [`specs/overview.md`](specs/overview.md) — what this project is, tech stack, dir map
+- [`specs/architecture.md`](specs/architecture.md) — DB / RLS / Edge Functions / frontend conventions
+- [`specs/domain.md`](specs/domain.md) — roles, entities, F-100 phases, workflows
+- [`specs/security.md`](specs/security.md) — auth, 2FA, RBAC, audit log, secrets
+- [`specs/operations.md`](specs/operations.md) — deployment, migrations, runbooks
+- [`specs/decisions.md`](specs/decisions.md) — settled architectural decisions (do not re-litigate)
+- [`specs/modules/ale.md`](specs/modules/ale.md) — Agronomical Logic Editor (in build)
+
+## Working rules
+
+1. **Before any non-trivial change**, read the relevant spec in `specs/`. If a fact is missing, propose adding it to the spec rather than inventing project knowledge.
+2. **Settled decisions live in `specs/decisions.md`.** Don't re-propose alternatives that already have an ADR entry. If new evidence changes the calculus, write a superseding ADR.
+3. **Agronomist = `specialist` role.** Domain conversations call them "agronomists"; the codebase calls them "specialists". Same person, same enum value. Never introduce a new `agronomist` role. (See `specs/decisions.md` § 0005.)
+4. **Migrations are append-only.** Never modify a migration that has been applied. Never use MCP `apply_migration` / `execute_sql` — always create the file in `supabase/migrations/` and let the pipeline apply it. (See `specs/operations.md` § Migrations.)
+5. **RLS-first.** Every public table has RLS enabled with explicit policies. Recursive policies are a known footgun. (See `specs/architecture.md` § RLS patterns.)
+6. **Tool-output hygiene.** Never `cat` credential files (`.env*`, `*.pem`, AWS creds). Never run commands that print secrets to stdout. (See `specs/security.md`.)
+7. **One issue at a time.** If asked for multiple fixes, push back and ask which first.
+8. **Investigate before fixing.** Confirm root cause before proposing a change. The reported bug may be working-as-designed or have a different cause.
+9. **Spec updates land with implementation.** When a feature changes architecture, domain, or operations, update the relevant spec in the same PR.
+
+## Maintenance triggers
+
+When you modify these areas, check if the listed spec needs an update:
+
+| Change | Update |
+|--------|--------|
+| New / modified migration | `specs/architecture.md` § core tables; `specs/operations.md` if process changes |
+| New Edge Function | `specs/architecture.md` § Edge Functions; `supabase/config.toml` block |
+| New role / permission model | `specs/domain.md`, `specs/security.md` |
+| New integration (3rd-party API, AWS service) | `specs/architecture.md` § Integrations |
+| New module under `src/` worth its own spec | `specs/modules/<name>.md` + entry in `specs/README.md` |
+| Settled architectural decision | new entry in `specs/decisions.md` |
+
+---
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
