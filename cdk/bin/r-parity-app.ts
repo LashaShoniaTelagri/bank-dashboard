@@ -36,7 +36,8 @@ new RParityStack(app, 'TelAgri-ALE-R-Parity', {
     account: awsAccount,
     region: awsRegion,
   },
-  description: 'ALE R parity service — temporary infra; tear down after TS-port sign-off',
+  // CloudFormation stack description must be ASCII-only.
+  description: 'ALE R parity service - temporary infra; tear down after TS-port sign-off',
 });
 
 app.synth();

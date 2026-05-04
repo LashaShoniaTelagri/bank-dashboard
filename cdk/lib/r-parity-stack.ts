@@ -29,7 +29,8 @@ export class RParityStack extends cdk.Stack {
     // 22 closed by default — pass sshAllowCidr to open it.
     const sg = new ec2.SecurityGroup(this, 'RParitySg', {
       vpc,
-      description: 'ALE R parity service — HTTP/HTTPS public; SSH locked unless explicitly opened.',
+      // EC2 SG descriptions are ASCII-only (no em-dash, no unicode).
+      description: 'ALE R parity service - HTTP/HTTPS public; SSH locked unless explicitly opened.',
       allowAllOutbound: true,
     });
     sg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80),  'HTTP (ACME challenge + redirect)');
