@@ -194,7 +194,12 @@ jobs:
             exit 1
           fi
           supabase link --project-ref "$SUPABASE_PROJECT_ID" --debug
-          supabase db push --linked --debug
+          # --include-all: apply migrations even if their timestamp is older than
+          # the latest already-applied one on remote. Required for retro backfill
+          # migrations like the 20250927114000-114003 set that fill in schema drift
+          # the original timestamped migrations missed. Backfills are IF NOT EXISTS
+          # / IF EXISTS guarded, so they're no-ops on cloud and safe to re-apply.
+          supabase db push --linked --include-all --debug
 
       - name: ✅ Show migration status (post)
         run: |
