@@ -1,4 +1,4 @@
-# ALE — Agronomical Logic Editor
+# ALE — Agronomical Logic Engine
 
 In-build module that replaces the hardcoded R workflow in `gis-scripts/scripts/frost-risk/`. Lets specialists (= agronomists) self-serve crop parameters and compose evaluation logic visually, without GIS or engineering handoff.
 
@@ -53,29 +53,31 @@ Each primitive: `{ inputs, outputs, params, evaluate(ctx, inputs, params) }`.
 
 ### Database
 
-All tables RLS-enabled, gated via `has_ale_access(auth.uid())`.
+All ALE-owned tables use the `ale_` prefix (ADR 0019). RLS-enabled on every table, gated via `has_ale_access(auth.uid())`.
 
 | Table | Purpose |
 |-------|---------|
-| `crops` | Crop core metadata, biofix, insufficient-chill penalty |
-| `crop_varieties` | Per-crop varieties: chill portions/hours/units, GDH-to-bloom, source |
-| `frost_thresholds` | Per-crop frost stage rows: stage, kill_10, kill_90, slope_frac |
-| `bloom_windows` | Per-crop windows: window_id, name, stage (FK to frost_thresholds.stage), offsets |
-| `crop_monthly_stages` | Per-crop, per-month expected stage hints |
-| `global_physics` | Utah/Dynamic/Weinberger/Richardson constants + frost cutoff. Versioned. |
+| `ale_regions` | Region catalogue (V1 plain table; V2 may add PostGIS polygons) |
+| `ale_crops` | Crop core metadata, biofix, insufficient-chill penalty |
+| `ale_crop_varieties` | Per-crop varieties: chill portions/hours/units, GDH-to-bloom, source |
+| `ale_frost_thresholds` | Per-crop frost stage rows: stage, kill_10, kill_90, slope_frac |
+| `ale_bloom_windows` | Per-crop windows: window_id, name, stage (composite FK to ale_frost_thresholds), offsets |
+| `ale_crop_monthly_stages` | Per-crop, per-month expected stage hints |
+| `ale_global_physics` | Utah/Dynamic/Weinberger/Richardson constants + frost cutoff. Versioned (one active row max) |
 | `ale_logic_graphs` | Versioned graph specs; UNIQUE active per (crop_id, variety_id, region_id) |
 | `ale_runs` | Run history; immutable snapshots of graph + global_physics + inputs + result |
-| `ale_module_grants` | Per-user access grants |
 | `ale_parity_fixtures` | Curated cases with frozen R results for regression dashboard |
-| `weather_cache` | Read-through cache for Open-Meteo |
-| `ale_regions` | Region catalogue (V1 plain table; V2 may add PostGIS polygons) |
+| `ale_weather_cache` | Read-through cache for Open-Meteo |
 
 ### Permissions
 
-Single gate: `has_ale_access(uid) RETURNS BOOLEAN` — true if `admin` OR (`specialist` with active row in `ale_module_grants`). Used in:
+Single gate: `has_ale_access(uid) RETURNS BOOLEAN` (ADR 0018) — true if user is `admin` OR `specialist` with `products_enabled & 4 != 0`. Reuses the existing bitmask pattern from migration `20260304000000_add_products_enabled_bitmask.sql`. Used in:
+
 - All ALE table RLS policies.
 - Frontend `useAleAccess()` hook → gates nav item and page routes.
 - Edge Function entry — verified server-side (don't trust client claim).
+
+UI: ALE switch shows in `UsersManagement.tsx` only when role is `specialist`. Bank viewers cannot have the ALE bit. Admins always have access regardless of bit.
 
 ### Result schema (locked from R script output, 2026-05-04)
 
@@ -124,9 +126,15 @@ Edge Function (ale-evaluate)
    └─ POST https://r-parity.<domain>/evaluate    (HMAC-signed)
             │
             ▼
-       EC2 t4g.small (eu-central-1, ARM64)
-       ├─ Caddy (HTTPS via Let's Encrypt, no ALB)
-       └─ Docker: rocker/r-ver:arm64 + Plumber + frost_damage_algorithm.R
+       EC2 t4g.small (us-east-1, ARM64) at algo.telagri.com
+       ├─ nginx (HTTPS via Let's Encrypt + certbot, no ALB)
+       └─ Docker: rocker/r-ver + Plumber generic dispatcher
+          └─ scans /app/algo/algorithms/*/run.R at boot
+              ├─ frost-risk/run.R   (V1)
+              ├─ heat-stress/run.R  (V2 — drop a folder + restart, no rebuild)
+              └─ ...
+
+   Routes: GET /healthz · GET /algorithms · POST /evaluate/<algorithm-id>
 ```
 
 - CDK stack: `cdk/lib/r-parity-stack.ts` (new). Tagged `parity-temporary`.

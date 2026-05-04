@@ -1,7 +1,46 @@
-# project_id will be set dynamically by deployment scripts
-# Dev: jhelkawgkjohvzsusrnw
-# Prod: imncjxfppzikerifyukk
-project_id = ""
+# Local project identifier (used for Docker container names + supabase start).
+# CI/CD workflows overwrite this per-run via `supabase link --project-ref <id>`:
+#   Dev: jhelkawgkjohvzsusrnw
+#   Prod: imncjxfppzikerifyukk
+# So changing the literal below only affects local-dev container naming; deploys
+# still link to the correct cloud project before migrations run.
+project_id = "telagri-bank-dashboard"
+
+# -----------------------------------------------------------------------------
+# Local-development ports.
+# Offset to 64321-64329 so this stack can coexist with other local Supabase
+# projects (defaults are 54321-54329). See specs/operations.md § Local dev,
+# specs/decisions.md § ADR 0020.
+# -----------------------------------------------------------------------------
+
+[api]
+port = 64321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 64322
+shadow_port = 64320
+major_version = 15
+
+[studio]
+port = 64323
+
+[inbucket]
+port = 64324
+
+[auth]
+site_url = "http://localhost:8080"
+additional_redirect_urls = ["http://localhost:8080", "http://localhost:8080/**"]
+jwt_expiry = 3600
+enable_signup = false  # banking-grade — invitation-only, mirrors prod
+
+[storage]
+file_size_limit = "50MiB"
+
+[realtime]
+enabled = true
+
 
 [functions.invite-bank-viewer]
 verify_jwt = false

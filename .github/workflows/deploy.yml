@@ -351,8 +351,16 @@ jobs:
             for function_dir in supabase/functions/*/; do
               if [ -d "$function_dir" ]; then
                 function_name=$(basename "$function_dir")
+
+                # Skip Supabase _shared/ convention (non-deployable helper modules
+                # imported by other functions via ../_shared/foo.ts).
+                if [[ "$function_name" == _* ]]; then
+                  echo "⏭️  Skipping helper dir: $function_name"
+                  continue
+                fi
+
                 echo "📦 Deploying function: $function_name"
-                
+
                 if supabase functions deploy "$function_name" --no-verify-jwt; then
                   echo "✅ Successfully deployed: $function_name"
                 else

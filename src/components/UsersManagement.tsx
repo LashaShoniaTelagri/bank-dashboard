@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { Switch } from "./ui/switch";
-import { UserX, Trash2, RefreshCw, AlertTriangle, Shield, Clock, Brain, Leaf, FileText } from "lucide-react";
+import { UserX, Trash2, RefreshCw, AlertTriangle, Shield, Clock, Brain, Leaf, FileText, FlaskConical } from "lucide-react";
 import { toast } from "./ui/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -346,6 +346,26 @@ export const UsersManagement = () => {
                       Underwriting
                     </Label>
                   </div>
+                  {inviteData.role === 'specialist' && (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="invite-ale"
+                        checked={hasProductAccess(inviteData.productsEnabled, ProductAccess.ALE)}
+                        onCheckedChange={(checked) => {
+                          setInviteData(prev => ({
+                            ...prev,
+                            productsEnabled: checked
+                              ? prev.productsEnabled | ProductAccess.ALE
+                              : prev.productsEnabled & ~ProductAccess.ALE,
+                          }));
+                        }}
+                      />
+                      <Label htmlFor="invite-ale" className="text-sm cursor-pointer flex items-center gap-1">
+                        <FlaskConical className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        Agronomical Logic Engine
+                      </Label>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -637,6 +657,27 @@ const RecentInvitations = ({
                             Underwriting
                           </Label>
                         </div>
+                        {invitation.role === 'specialist' && (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id={`ale-${invitation.user_id}`}
+                              checked={hasProductAccess(productsEnabled, ProductAccess.ALE)}
+                              onCheckedChange={(checked) =>
+                                toggleProductAccessMutation.mutate({
+                                  targetUserId: invitation.user_id,
+                                  productBit: ProductAccess.ALE,
+                                  grant: checked,
+                                  currentProductsEnabled: productsEnabled,
+                                })
+                              }
+                              disabled={toggleProductAccessMutation.isPending}
+                            />
+                            <Label htmlFor={`ale-${invitation.user_id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                              <FlaskConical className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                              Agronomical Logic Engine
+                            </Label>
+                          </div>
+                        )}
                       </div>
                     )}
                     {isAccepted && invitation.role === 'admin' && (

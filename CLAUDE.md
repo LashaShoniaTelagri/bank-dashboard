@@ -21,7 +21,7 @@ Quick links:
 - [`specs/security.md`](specs/security.md) — auth, 2FA, RBAC, audit log, secrets
 - [`specs/operations.md`](specs/operations.md) — deployment, migrations, runbooks
 - [`specs/decisions.md`](specs/decisions.md) — settled architectural decisions (do not re-litigate)
-- [`specs/modules/ale.md`](specs/modules/ale.md) — Agronomical Logic Editor (in build)
+- [`specs/modules/ale.md`](specs/modules/ale.md) — Agronomical Logic Engine (in build)
 
 ## Working rules
 

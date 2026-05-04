@@ -7,36 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_impersonation_actions: {
@@ -163,7 +133,6 @@ export type Database = {
           prompt_tokens: number | null
           response_time_ms: number | null
           role: string
-          sender_role: string | null
           session_id: string
           total_tokens: number | null
         }
@@ -182,8 +151,7 @@ export type Database = {
           model_version?: string | null
           prompt_tokens?: number | null
           response_time_ms?: number | null
-          role?: string
-          sender_role?: string | null
+          role: string
           session_id: string
           total_tokens?: number | null
         }
@@ -203,7 +171,6 @@ export type Database = {
           prompt_tokens?: number | null
           response_time_ms?: number | null
           role?: string
-          sender_role?: string | null
           session_id?: string
           total_tokens?: number | null
         }
@@ -402,6 +369,528 @@ export type Database = {
           },
         ]
       }
+      ale_bloom_windows: {
+        Row: {
+          created_at: string
+          crop_id: string
+          id: string
+          offset_end_days: number
+          offset_start_days: number
+          stage: string
+          updated_at: string
+          window_id: number
+          window_name: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          id?: string
+          offset_end_days: number
+          offset_start_days: number
+          stage: string
+          updated_at?: string
+          window_id: number
+          window_name: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          id?: string
+          offset_end_days?: number
+          offset_start_days?: number
+          stage?: string
+          updated_at?: string
+          window_id?: number
+          window_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ale_bloom_windows_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "ale_crops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ale_bloom_windows_crop_id_stage_fkey"
+            columns: ["crop_id", "stage"]
+            isOneToOne: false
+            referencedRelation: "ale_frost_thresholds"
+            referencedColumns: ["crop_id", "stage"]
+          },
+        ]
+      }
+      ale_crop_monthly_stages: {
+        Row: {
+          created_at: string
+          crop_id: string
+          id: string
+          month: number
+          stages: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          id?: string
+          month: number
+          stages?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          id?: string
+          month?: number
+          stages?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ale_crop_monthly_stages_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "ale_crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ale_crop_varieties: {
+        Row: {
+          chill_hours_ch: number | null
+          chill_portions_cp: number | null
+          chill_units_cu: number | null
+          created_at: string
+          crop_id: string
+          dafb_harvest_max: number | null
+          dafb_harvest_min: number | null
+          display_name: string
+          gdh_to_bloom: number | null
+          id: string
+          is_active: boolean
+          sort_order: number
+          source: string | null
+          updated_at: string
+        }
+        Insert: {
+          chill_hours_ch?: number | null
+          chill_portions_cp?: number | null
+          chill_units_cu?: number | null
+          created_at?: string
+          crop_id: string
+          dafb_harvest_max?: number | null
+          dafb_harvest_min?: number | null
+          display_name: string
+          gdh_to_bloom?: number | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          source?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chill_hours_ch?: number | null
+          chill_portions_cp?: number | null
+          chill_units_cu?: number | null
+          created_at?: string
+          crop_id?: string
+          dafb_harvest_max?: number | null
+          dafb_harvest_min?: number | null
+          display_name?: string
+          gdh_to_bloom?: number | null
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          source?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ale_crop_varieties_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "ale_crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ale_crops: {
+        Row: {
+          chill_biofix_day: number
+          chill_biofix_month: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          display_name: string
+          hemisphere: string
+          id: string
+          insufficient_chill_cutoff_day: number | null
+          insufficient_chill_cutoff_month: number | null
+          insufficient_chill_penalty: number
+          is_active: boolean
+          slug: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          chill_biofix_day: number
+          chill_biofix_month: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_name: string
+          hemisphere?: string
+          id?: string
+          insufficient_chill_cutoff_day?: number | null
+          insufficient_chill_cutoff_month?: number | null
+          insufficient_chill_penalty: number
+          is_active?: boolean
+          slug: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chill_biofix_day?: number
+          chill_biofix_month?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_name?: string
+          hemisphere?: string
+          id?: string
+          insufficient_chill_cutoff_day?: number | null
+          insufficient_chill_cutoff_month?: number | null
+          insufficient_chill_penalty?: number
+          is_active?: boolean
+          slug?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      ale_frost_thresholds: {
+        Row: {
+          created_at: string
+          crop_id: string
+          id: string
+          kill_10_pct_c: number
+          kill_90_pct_c: number
+          slope_frac: number
+          sort_order: number
+          stage: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crop_id: string
+          id?: string
+          kill_10_pct_c: number
+          kill_90_pct_c: number
+          slope_frac: number
+          sort_order?: number
+          stage: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crop_id?: string
+          id?: string
+          kill_10_pct_c?: number
+          kill_90_pct_c?: number
+          slope_frac?: number
+          sort_order?: number
+          stage?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ale_frost_thresholds_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "ale_crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ale_global_physics: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          created_at: string
+          created_by: string | null
+          dynamic_params: Json
+          frost_threshold_c: number
+          id: string
+          is_active: boolean
+          notes: string | null
+          richardson_gdh_params: Json
+          utah_breakpoints: Json
+          version: number
+          weinberger_params: Json
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          dynamic_params: Json
+          frost_threshold_c?: number
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          richardson_gdh_params: Json
+          utah_breakpoints: Json
+          version: number
+          weinberger_params: Json
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          dynamic_params?: Json
+          frost_threshold_c?: number
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          richardson_gdh_params?: Json
+          utah_breakpoints?: Json
+          version?: number
+          weinberger_params?: Json
+        }
+        Relationships: []
+      }
+      ale_logic_graphs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          crop_id: string
+          graph_jsonb: Json
+          id: string
+          notes: string | null
+          published_at: string | null
+          region_id: string
+          schema_version: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          variety_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          crop_id: string
+          graph_jsonb?: Json
+          id?: string
+          notes?: string | null
+          published_at?: string | null
+          region_id: string
+          schema_version?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          variety_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          crop_id?: string
+          graph_jsonb?: Json
+          id?: string
+          notes?: string | null
+          published_at?: string | null
+          region_id?: string
+          schema_version?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          variety_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ale_logic_graphs_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "ale_crops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ale_logic_graphs_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "ale_regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ale_logic_graphs_variety_id_fkey"
+            columns: ["variety_id"]
+            isOneToOne: false
+            referencedRelation: "ale_crop_varieties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ale_parity_fixtures: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          inputs_jsonb: Json
+          is_active: boolean
+          label: string
+          notes: string | null
+          r_result_jsonb: Json
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inputs_jsonb: Json
+          is_active?: boolean
+          label: string
+          notes?: string | null
+          r_result_jsonb: Json
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inputs_jsonb?: Json
+          is_active?: boolean
+          label?: string
+          notes?: string | null
+          r_result_jsonb?: Json
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ale_regions: {
+        Row: {
+          country_code: string | null
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          country_code?: string | null
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          country_code?: string | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ale_runs: {
+        Row: {
+          created_by: string | null
+          diff_jsonb: Json | null
+          error_text: string | null
+          finished_at: string | null
+          global_physics_snapshot_jsonb: Json
+          graph_id: string
+          graph_snapshot_jsonb: Json
+          id: string
+          inputs_jsonb: Json
+          r_result_jsonb: Json | null
+          result_jsonb: Json | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          created_by?: string | null
+          diff_jsonb?: Json | null
+          error_text?: string | null
+          finished_at?: string | null
+          global_physics_snapshot_jsonb: Json
+          graph_id: string
+          graph_snapshot_jsonb: Json
+          id?: string
+          inputs_jsonb: Json
+          r_result_jsonb?: Json | null
+          result_jsonb?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          created_by?: string | null
+          diff_jsonb?: Json | null
+          error_text?: string | null
+          finished_at?: string | null
+          global_physics_snapshot_jsonb?: Json
+          graph_id?: string
+          graph_snapshot_jsonb?: Json
+          id?: string
+          inputs_jsonb?: Json
+          r_result_jsonb?: Json | null
+          result_jsonb?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ale_runs_graph_id_fkey"
+            columns: ["graph_id"]
+            isOneToOne: false
+            referencedRelation: "ale_logic_graphs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ale_weather_cache: {
+        Row: {
+          date: string
+          fetched_at: string
+          hourly_jsonb: Json
+          id: string
+          lat_round: number
+          lon_round: number
+          source: string
+        }
+        Insert: {
+          date: string
+          fetched_at?: string
+          hourly_jsonb: Json
+          id?: string
+          lat_round: number
+          lon_round: number
+          source: string
+        }
+        Update: {
+          date?: string
+          fetched_at?: string
+          hourly_jsonb?: Json
+          id?: string
+          lat_round?: number
+          lon_round?: number
+          source?: string
+        }
+        Relationships: []
+      }
       analysis_sessions: {
         Row: {
           created_at: string | null
@@ -445,6 +934,44 @@ export type Database = {
             columns: ["farmer_id"]
             isOneToOne: false
             referencedRelation: "farmers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_scores: {
+        Row: {
+          application_id: string
+          id: string
+          is_draft: boolean
+          notes: string | null
+          overall_score: number
+          scored_at: string
+          scored_by: string
+        }
+        Insert: {
+          application_id: string
+          id?: string
+          is_draft?: boolean
+          notes?: string | null
+          overall_score: number
+          scored_at?: string
+          scored_by: string
+        }
+        Update: {
+          application_id?: string
+          id?: string
+          is_draft?: boolean
+          notes?: string | null
+          overall_score?: number
+          scored_at?: string
+          scored_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_scores_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "underwriting_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -653,61 +1180,61 @@ export type Database = {
           ai_description: string | null
           ai_description_generated_at: string | null
           bank_id: string
-          created_at: string | null
+          created_at: string
           data_type: Database["public"]["Enums"]["data_type"]
           description: string | null
           farmer_id: string
-          file_mime: string
+          file_mime: string | null
           file_name: string
           file_path: string
-          file_size_bytes: number
+          file_size_bytes: number | null
           id: string
           iframe_urls: Json | null
-          metadata: Json | null
+          metadata: Json
           phase: number
-          tags: string[] | null
-          updated_at: string | null
-          uploaded_by: string
+          tags: string[]
+          updated_at: string
+          uploaded_by: string | null
         }
         Insert: {
           ai_description?: string | null
           ai_description_generated_at?: string | null
           bank_id: string
-          created_at?: string | null
+          created_at?: string
           data_type: Database["public"]["Enums"]["data_type"]
           description?: string | null
           farmer_id: string
-          file_mime: string
+          file_mime?: string | null
           file_name: string
           file_path: string
-          file_size_bytes: number
+          file_size_bytes?: number | null
           id?: string
           iframe_urls?: Json | null
-          metadata?: Json | null
+          metadata?: Json
           phase: number
-          tags?: string[] | null
-          updated_at?: string | null
-          uploaded_by: string
+          tags?: string[]
+          updated_at?: string
+          uploaded_by?: string | null
         }
         Update: {
           ai_description?: string | null
           ai_description_generated_at?: string | null
           bank_id?: string
-          created_at?: string | null
+          created_at?: string
           data_type?: Database["public"]["Enums"]["data_type"]
           description?: string | null
           farmer_id?: string
-          file_mime?: string
+          file_mime?: string | null
           file_name?: string
           file_path?: string
-          file_size_bytes?: number
+          file_size_bytes?: number | null
           id?: string
           iframe_urls?: Json | null
-          metadata?: Json | null
+          metadata?: Json
           phase?: number
-          tags?: string[] | null
-          updated_at?: string | null
-          uploaded_by?: string
+          tags?: string[]
+          updated_at?: string
+          uploaded_by?: string | null
         }
         Relationships: [
           {
@@ -903,6 +1430,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          f100_url: string | null
           farmer_id: string
           id: string
           iframe_urls: Json | null
@@ -916,6 +1444,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          f100_url?: string | null
           farmer_id: string
           id?: string
           iframe_urls?: Json | null
@@ -929,6 +1458,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          f100_url?: string | null
           farmer_id?: string
           id?: string
           iframe_urls?: Json | null
@@ -1077,44 +1607,70 @@ export type Database = {
           },
         ]
       }
-      llm_api_keys: {
+      invitations: {
         Row: {
+          bank_id: string | null
+          clicks_count: number | null
+          completed_at: string | null
           created_at: string | null
-          encrypted_key: string
+          email: string
+          expires_at: string
           id: string
-          is_active: boolean | null
-          key_name: string
-          last_used_at: string | null
-          provider: string
+          invited_at: string | null
+          invited_by: string | null
+          last_clicked_at: string | null
+          role: string | null
+          status: string | null
+          token: string
+          type: string | null
           updated_at: string | null
-          usage_count: number | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
+          bank_id?: string | null
+          clicks_count?: number | null
+          completed_at?: string | null
           created_at?: string | null
-          encrypted_key: string
+          email: string
+          expires_at: string
           id?: string
-          is_active?: boolean | null
-          key_name: string
-          last_used_at?: string | null
-          provider: string
+          invited_at?: string | null
+          invited_by?: string | null
+          last_clicked_at?: string | null
+          role?: string | null
+          status?: string | null
+          token: string
+          type?: string | null
           updated_at?: string | null
-          usage_count?: number | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
+          bank_id?: string | null
+          clicks_count?: number | null
+          completed_at?: string | null
           created_at?: string | null
-          encrypted_key?: string
+          email?: string
+          expires_at?: string
           id?: string
-          is_active?: boolean | null
-          key_name?: string
-          last_used_at?: string | null
-          provider?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          last_clicked_at?: string | null
+          role?: string | null
+          status?: string | null
+          token?: string
+          type?: string | null
           updated_at?: string | null
-          usage_count?: number | null
-          user_id?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invitations_bank_id_fkey"
+            columns: ["bank_id"]
+            isOneToOne: false
+            referencedRelation: "banks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       monitored_issues: {
         Row: {
@@ -1255,6 +1811,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_access_changes: {
+        Row: {
+          action: string
+          changed_by: string
+          created_at: string
+          id: string
+          product_bit: number
+          products_after: number
+          products_before: number
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          product_bit: number
+          products_after: number
+          products_before: number
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          product_bit?: number
+          products_after?: number
+          products_before?: number
+          target_user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -1422,36 +2011,42 @@ export type Database = {
       }
       underwriting_applications: {
         Row: {
-          id: string
           bank_id: string
-          submitted_by: string
-          shapefile_path: string | null
           crop_type: string
+          farm_status: Database["public"]["Enums"]["farm_status"]
+          id: string
           notes: string | null
+          shapefile_path: string | null
+          shapefile_urls: string[] | null
           status: Database["public"]["Enums"]["underwriting_status"]
           submitted_at: string
+          submitted_by: string
           updated_at: string
         }
         Insert: {
-          id?: string
           bank_id: string
-          submitted_by: string
-          shapefile_path?: string | null
           crop_type: string
+          farm_status?: Database["public"]["Enums"]["farm_status"]
+          id?: string
           notes?: string | null
+          shapefile_path?: string | null
+          shapefile_urls?: string[] | null
           status?: Database["public"]["Enums"]["underwriting_status"]
           submitted_at?: string
+          submitted_by: string
           updated_at?: string
         }
         Update: {
-          id?: string
           bank_id?: string
-          submitted_by?: string
-          shapefile_path?: string | null
           crop_type?: string
+          farm_status?: Database["public"]["Enums"]["farm_status"]
+          id?: string
           notes?: string | null
+          shapefile_path?: string | null
+          shapefile_urls?: string[] | null
           status?: Database["public"]["Enums"]["underwriting_status"]
           submitted_at?: string
+          submitted_by?: string
           updated_at?: string
         }
         Relationships: [
@@ -1464,93 +2059,36 @@ export type Database = {
           },
         ]
       }
-      product_access_changes: {
-        Row: {
-          id: string
-          target_user_id: string
-          changed_by: string
-          product_bit: number
-          action: string
-          products_before: number
-          products_after: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          target_user_id: string
-          changed_by: string
-          product_bit: number
-          action: string
-          products_before: number
-          products_after: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          target_user_id?: string
-          changed_by?: string
-          product_bit?: number
-          action?: string
-          products_before?: number
-          products_after?: number
-          created_at?: string
-        }
-        Relationships: []
-      }
-      underwriting_crop_types: {
-        Row: {
-          id: string
-          value: string
-          label: string
-          is_active: boolean
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          value: string
-          label: string
-          is_active?: boolean
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          value?: string
-          label?: string
-          is_active?: boolean
-          created_at?: string
-        }
-        Relationships: []
-      }
       underwriting_crop_requests: {
         Row: {
-          id: string
-          crop_name: string
-          requested_by: string
           bank_id: string | null
-          status: string
-          reviewed_by: string | null
-          reviewed_at: string | null
           created_at: string
+          crop_name: string
+          id: string
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
         }
         Insert: {
-          id?: string
-          crop_name: string
-          requested_by: string
           bank_id?: string | null
-          status?: string
-          reviewed_by?: string | null
-          reviewed_at?: string | null
           created_at?: string
+          crop_name: string
+          id?: string
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
         }
         Update: {
-          id?: string
-          crop_name?: string
-          requested_by?: string
           bank_id?: string | null
-          status?: string
-          reviewed_by?: string | null
-          reviewed_at?: string | null
           created_at?: string
+          crop_name?: string
+          id?: string
+          requested_by?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -1562,72 +2100,58 @@ export type Database = {
           },
         ]
       }
-      underwriting_specialist_assignments: {
+      underwriting_crop_types: {
         Row: {
+          created_at: string
           id: string
-          application_id: string
-          specialist_id: string
-          assigned_by: string
-          assigned_at: string
-          notes: string | null
+          is_active: boolean
+          label: string
+          value: string
         }
         Insert: {
+          created_at?: string
           id?: string
-          application_id: string
-          specialist_id: string
-          assigned_by: string
-          assigned_at?: string
-          notes?: string | null
+          is_active?: boolean
+          label: string
+          value: string
         }
         Update: {
+          created_at?: string
           id?: string
-          application_id?: string
-          specialist_id?: string
-          assigned_by?: string
+          is_active?: boolean
+          label?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      underwriting_specialist_assignments: {
+        Row: {
+          application_id: string
+          assigned_at: string
+          assigned_by: string
+          id: string
+          notes: string | null
+          specialist_id: string
+        }
+        Insert: {
+          application_id: string
           assigned_at?: string
+          assigned_by: string
+          id?: string
           notes?: string | null
+          specialist_id: string
+        }
+        Update: {
+          application_id?: string
+          assigned_at?: string
+          assigned_by?: string
+          id?: string
+          notes?: string | null
+          specialist_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "underwriting_specialist_assignments_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "underwriting_applications"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      application_scores: {
-        Row: {
-          id: string
-          application_id: string
-          overall_score: number
-          notes: string | null
-          scored_by: string
-          scored_at: string
-          is_draft: boolean
-        }
-        Insert: {
-          id?: string
-          application_id: string
-          overall_score: number
-          notes?: string | null
-          scored_by: string
-          scored_at?: string
-          is_draft?: boolean
-        }
-        Update: {
-          id?: string
-          application_id?: string
-          overall_score?: number
-          notes?: string | null
-          scored_by?: string
-          scored_at?: string
-          is_draft?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "application_scores_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "underwriting_applications"
@@ -1718,29 +2242,6 @@ export type Database = {
           },
         ]
       }
-      v_recent_invitations: {
-        Row: {
-          bank_id: string | null
-          bank_name: string | null
-          created_at: string | null
-          email: string | null
-          invitation_accepted_at: string | null
-          invitation_status: string | null
-          invited_at: string | null
-          invited_by: string | null
-          role: string | null
-          user_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_bank_id_fkey"
-            columns: ["bank_id"]
-            isOneToOne: false
-            referencedRelation: "banks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
       add_trusted_device: {
@@ -1751,37 +2252,29 @@ export type Database = {
         }
         Returns: string
       }
-      admin_insert_farmer_data_upload: {
-        Args: {
-          p_bank_id: string
-          p_data_type: string
-          p_description?: string
-          p_farmer_id: string
-          p_file_mime: string
-          p_file_name: string
-          p_file_path: string
-          p_file_size: number
-          p_metadata?: Json
-          p_phase?: number
-          p_tags?: string[]
-        }
-        Returns: string
-      }
       admin_update_assignment_f100_url: {
         Args: { p_assignment_id: string; p_f100_doc_url: string }
         Returns: undefined
       }
+      check_product_access: {
+        Args: { product_bit: number; target_user_id: string }
+        Returns: boolean
+      }
       cleanup_expired_2fa_codes: { Args: never; Returns: undefined }
       cleanup_expired_trusted_devices: { Args: never; Returns: undefined }
-      decrypt_api_key: { Args: { encrypted_key: string }; Returns: string }
       delete_specialist_assignment: {
         Args: { p_assignment_id: string }
         Returns: Json
       }
-      encrypt_api_key: { Args: { api_key: string }; Returns: string }
       end_user_impersonation: {
         Args: { p_admin_user_id: string; p_session_id?: string }
         Returns: boolean
+      }
+      expire_old_invitations: { Args: never; Returns: number }
+      format_app_number: { Args: { app_id: string }; Returns: string }
+      generate_underwriting_storage_path: {
+        Args: { app_id: string }
+        Returns: string
       }
       get_active_impersonation: {
         Args: never
@@ -1813,15 +2306,22 @@ export type Database = {
         Returns: {
           bank_id: string
           bank_name: string
+          clicks_count: number
           created_at: string
           email: string
+          expires_at: string
           invitation_accepted_at: string
+          invitation_id: string
           invitation_status: string
+          invitation_type: string
           invited_at: string
           invited_by: string
+          is_active: boolean
+          last_clicked_at: string
+          last_sign_in_at: string
+          products_enabled: number
           role: string
           user_id: string
-          products_enabled: number
         }[]
       }
       get_specialist_assignments: {
@@ -1853,6 +2353,11 @@ export type Database = {
           user_id: string
         }[]
       }
+      grant_product_access: {
+        Args: { product_bit: number; target_user_id: string }
+        Returns: undefined
+      }
+      has_ale_access: { Args: { uid: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_device_trusted: {
         Args: { p_device_fingerprint: string; p_user_email: string }
@@ -1907,6 +2412,10 @@ export type Database = {
         Returns: string
       }
       refresh_ai_quality_metrics: { Args: never; Returns: undefined }
+      revoke_product_access: {
+        Args: { product_bit: number; target_user_id: string }
+        Returns: undefined
+      }
       start_user_impersonation: {
         Args: {
           p_admin_user_id: string
@@ -1918,26 +2427,6 @@ export type Database = {
         Returns: string
       }
       sync_invitation_statuses: { Args: never; Returns: undefined }
-      check_product_access: {
-        Args: { target_user_id: string; product_bit: number }
-        Returns: boolean
-      }
-      grant_product_access: {
-        Args: { target_user_id: string; product_bit: number }
-        Returns: undefined
-      }
-      revoke_product_access: {
-        Args: { target_user_id: string; product_bit: number }
-        Returns: undefined
-      }
-      format_app_number: {
-        Args: { app_id: string }
-        Returns: string
-      }
-      generate_underwriting_storage_path: {
-        Args: { app_id: string }
-        Returns: string
-      }
     }
     Enums: {
       data_type:
@@ -1947,8 +2436,10 @@ export type Database = {
         | "text"
         | "document"
         | "video"
+        | "geospatial"
         | "audio"
         | "climate"
+      farm_status: "Planted" | "Not Planted"
       farmer_type: "person" | "company"
       underwriting_status: "pending" | "in_review" | "scored" | "rejected"
     }
@@ -2076,9 +2567,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       data_type: [
@@ -2088,11 +2576,14 @@ export const Constants = {
         "text",
         "document",
         "video",
+        "geospatial",
         "audio",
         "climate",
       ],
+      farm_status: ["Planted", "Not Planted"],
       farmer_type: ["person", "company"],
       underwriting_status: ["pending", "in_review", "scored", "rejected"],
     },
   },
 } as const
+

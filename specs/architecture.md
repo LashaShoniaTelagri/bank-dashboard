@@ -19,6 +19,12 @@ PostgreSQL via Supabase. RLS-first — every table has RLS enabled and explicit 
 - `invitations` — invitation flow with tracking.
 - `two_factor_codes`, `trusted_devices` — 2FA.
 
+### Schema drift notes
+
+- **`llm_api_keys` (cloud-only orphan).** Exists on prod but NOT in any committed migration, NOT referenced by frontend, Edge Functions, or any other migration. Likely an unshipped experimental feature that landed on prod and got abandoned. Local DB does not have this table — harmless because nothing reads it. The `LLMApiKey` interface in `src/types/specialist.ts` exists but is also unused. Decision: leave as-is (banking-grade caution against dropping tables that may have audit-logged history). Re-evaluate if anyone wants to ship LLM-key features.
+- **Cloud-vs-migrations drift backfill.** Three migrations starting `20250927114000_*` create `specialist_assignments`, `farmer_data_uploads` (+ `data_type` enum), and the specialist infra tables that exist on cloud from history not captured in `20250916221541_remote_schema.sql`. Each is `IF NOT EXISTS`-guarded so they're no-ops on cloud. They unblock fresh-DB local starts.
+- **`data_type` enum superset.** Local has `'geospatial'` (legacy value); cloud does not. Intentional — see comment in `20250927114001_create_farmer_data_uploads_backfill.sql`.
+
 ### Conventions
 
 - **UUID PKs** with `gen_random_uuid()`.

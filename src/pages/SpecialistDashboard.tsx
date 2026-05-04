@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { useAleAccess } from "../hooks/useAleAccess";
+import { AleManagement } from "../components/AleManagement";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -46,7 +48,8 @@ import {
   MessageSquare,
   Settings,
   Clipboard,
-  ExternalLink
+  ExternalLink,
+  FlaskConical
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "../components/ui/use-toast";
@@ -149,6 +152,7 @@ export const SpecialistDashboard = () => {
   }, [isMobile]);
   
   // Navigation items configuration
+  const { hasAccess: hasAleAccess } = useAleAccess();
   const navigationItems = [
     {
       id: 'assignments',
@@ -167,7 +171,13 @@ export const SpecialistDashboard = () => {
       label: 'AI Co-Pilot',
       icon: MessageSquare,
       description: 'TelAgri AI-powered agricultural analysis'
-    }
+    },
+    ...(hasAleAccess ? [{
+      id: 'ale',
+      label: 'Agronomical Logic Engine',
+      icon: FlaskConical,
+      description: 'Agronomical Logic Engine'
+    }] : [])
   ];
   const [chatContextUploads, setChatContextUploads] = useState<Record<string, FarmerDataUpload[]>>({});
   const [aiChatContext, setAiChatContext] = useState<AIChatContext | null>(null);
@@ -1420,6 +1430,10 @@ export const SpecialistDashboard = () => {
             </Card>
           )}
               </div>
+            )}
+
+            {activeNavItem === 'ale' && hasAleAccess && (
+              <AleManagement />
             )}
 
             {/* Page Transition Loader - Fixed Overlay */}

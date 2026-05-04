@@ -100,4 +100,72 @@ Before destructive ops (force push, `git reset --hard`, dropping tables, deletin
 
 ## Local development
 
-Currently no full local-stack `dev:local` script. Frontend runs with `npm run dev` against the cloud Supabase dev project. Edge Functions can be served locally with `supabase functions serve <name>` if testing requires it.
+Two modes:
+
+- **Cloud-backed** — `npm run dev`. Frontend hits the cloud `dev` Supabase project. Quick to start, but you share state with other devs.
+- **Fully local** — `npm run dev:local`. Spins up Postgres + Auth + Studio + Inbucket + Edge Functions in Docker on ports `64321–64329` (offset from default `54321–54329` so this stack coexists with other Supabase instances). See ADR 0020.
+
+### First-time setup (fully local)
+
+Prereqs: Docker Desktop, Supabase CLI (`brew install supabase/tap/supabase`), Node 20+.
+
+1. Copy env templates:
+   ```bash
+   cp env.frontend.local.example env.frontend.local
+   cp env.backend.local.example  env.backend.local
+   ```
+2. Boot the backend once to get keys:
+   ```bash
+   npm run db:start
+   npm run db:status   # copy `anon key` and `service_role key`
+   ```
+3. Paste the keys:
+   - `VITE_SUPABASE_ANON_KEY` → `env.frontend.local`
+   - `SUPABASE_SERVICE_ROLE_KEY` → `env.backend.local`
+4. Local users are auto-seeded by `supabase/seed.sql` (runs on first start and every `db:reset`):
+
+   | Email | Password | Role | Products |
+   |-------|----------|------|----------|
+   | `lasha@telagri.com` | `admin123` | admin | FieldMonitoring + Underwriting + ALE |
+   | `lasha+spec@telagri.com` | `specialist123` | specialist | FieldMonitoring + ALE |
+
+   Passwords are seeded as defaults; override them through the real password-reset flow to exercise email delivery. Locally that lands in **Mailpit at http://localhost:64324** (Supabase Auth's built-in flow) or SendGrid (the app's custom Edge Function flow — requires `SENDGRID_API_KEY` in `env.backend.local`).
+
+   `seed.sql` is **never** applied to dev/staging/prod — CI's `supabase db push` only runs migrations. Safe to commit.
+
+### Daily workflow
+
+```bash
+npm run dev:local       # one command — starts Supabase, Edge Functions, frontend
+                        # Ctrl+C tears everything down
+```
+
+### Useful sub-commands
+
+```bash
+npm run db:start        # start Supabase only
+npm run db:stop         # stop Supabase containers
+npm run db:reset        # drop + reapply migrations + run supabase/seed.sql
+npm run db:status       # print URLs and keys
+npm run functions:serve # serve Edge Functions only (no frontend)
+```
+
+### Local URLs
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:8080 |
+| Supabase Studio | http://localhost:64323 |
+| Postgres REST API | http://localhost:64321 |
+| Postgres direct | postgresql://postgres:postgres@localhost:64322/postgres |
+| Inbucket (captured emails) | http://localhost:64324 |
+
+### Seed data
+
+`supabase/seed.sql` runs after migrations on every `db:reset` and on first `supabase start`. It seeds:
+
+- 2 auth users (`admin@local.dev`, `specialist@local.dev`) with bcrypt-hashed passwords + matching `auth.identities` rows.
+- 2 `public.profiles` rows wiring those users to roles + `products_enabled` bitmask.
+- 1 bank, 2 farmers.
+
+All UUIDs are stable across resets. **`seed.sql` does NOT run on cloud** — CI's `supabase db push` only applies migrations. So local-only credentials never reach production.

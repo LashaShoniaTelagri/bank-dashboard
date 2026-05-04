@@ -5,6 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "./scripts/dev-local.sh",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "functions:serve": "supabase functions serve --env-file env.backend.local",
     "build": "vite build",
     "prepreview": "cp env.frontend.prod .env.production.local && npm run build",
     "build:dev": "vite build --mode development",

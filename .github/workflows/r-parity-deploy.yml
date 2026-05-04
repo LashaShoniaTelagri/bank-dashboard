@@ -1,0 +1,140 @@
+name: 🧪 ALE R Parity — manual deploy / destroy
+
+# This workflow is INTENTIONALLY manual-only. The R parity service is temporary
+# infrastructure (see specs/decisions.md § ADR 0013) — running it costs money
+# and it should only exist while the TS port is being signed off.
+#
+# Trigger: GitHub UI → Actions → this workflow → "Run workflow".
+# Use action=deploy to provision; action=destroy to tear it down post sign-off.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Deploy or destroy the parity stack'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - destroy
+      ssh_key_name:
+        description: 'AWS key pair name (optional — leave empty to use SSM Session Manager only)'
+        required: false
+        type: string
+      ssh_allow_cidr:
+        description: 'CIDR allowed to SSH (optional, e.g. 1.2.3.4/32). Required if ssh_key_name is set.'
+        required: false
+        type: string
+      confirm_destroy:
+        description: 'For action=destroy, type "DESTROY" to confirm.'
+        required: false
+        type: string
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: 'us-east-1'                # locked per ADR 0013
+  STACK_NAME: 'TelAgri-ALE-R-Parity'
+  CDK_APP: "npx ts-node --prefer-ts-exts bin/r-parity-app.ts"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Validate destructive operation up front so accidental runs fail fast.
+  # ---------------------------------------------------------------------------
+  validate:
+    name: 🔍 Validate inputs
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'destroy'
+    steps:
+      - name: 🚨 Validate destroy
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "❌ action=destroy requires confirm_destroy=DESTROY"
+            exit 1
+          fi
+          echo "✅ destroy confirmed"
+
+  # ---------------------------------------------------------------------------
+  # Deploy or destroy the parity stack.
+  # ---------------------------------------------------------------------------
+  parity:
+    name: 🧪 ${{ github.event.inputs.action }} parity stack
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: |
+      github.event.inputs.action != 'destroy' ||
+      needs.validate.result == 'success'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cdk/package-lock.json
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GithubActionsRole
+          role-session-name: telagri-r-parity-${{ github.event.inputs.action }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 📦 Install CDK dependencies
+        working-directory: cdk
+        run: npm ci
+
+      - name: 🏗️ Build CDK
+        working-directory: cdk
+        run: npm run build
+
+      - name: 🔧 Ensure CDK bootstrap (us-east-1)
+        working-directory: cdk
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+        run: |
+          npx cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION --force
+
+      - name: 🚀 Deploy
+        if: github.event.inputs.action == 'deploy'
+        working-directory: cdk
+        env:
+          AWS_ACCOUNT_ID:  ${{ vars.AWS_ACCOUNT_ID }}
+          SSH_KEY_NAME:    ${{ github.event.inputs.ssh_key_name }}
+          SSH_ALLOW_CIDR:  ${{ github.event.inputs.ssh_allow_cidr }}
+        run: |
+          echo "🔍 Diff:"
+          npx cdk --app "$CDK_APP" diff $STACK_NAME || true
+          echo "🚀 Deploying $STACK_NAME..."
+          npx cdk --app "$CDK_APP" deploy $STACK_NAME --require-approval never
+
+      - name: 🗑️ Destroy
+        if: github.event.inputs.action == 'destroy'
+        working-directory: cdk
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+        run: |
+          echo "🗑️  Destroying $STACK_NAME..."
+          npx cdk --app "$CDK_APP" destroy $STACK_NAME --force
+
+      - name: 📋 Stack outputs
+        if: github.event.inputs.action == 'deploy'
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          echo "📋 Stack outputs:"
+          aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs' \
+            --output table || true
+          echo ""
+          echo "Next steps (manual):"
+          echo "  1. Point algo.telagri.com A-record at the PublicIp shown above."
+          echo "  2. SSH/SSM into the box and follow"
+          echo "     gis-scripts/parity-service/README.md from step 3."
+          echo "  3. Set PARITY_HMAC_SECRET in Supabase Edge Function env to the"
+          echo "     same value used in /opt/telagri/parity.env on the EC2."

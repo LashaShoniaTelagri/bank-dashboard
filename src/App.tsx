@@ -64,6 +64,7 @@ const App = () => (
             <Route path="/admin/charts/new" element={<ChartBuilderPage />} />
             <Route path="/admin/charts/:id" element={<ChartBuilderPage />} />
             <Route path="/admin/underwriting" element={<AdminDashboard />} />
+            <Route path="/admin/ale" element={<AdminDashboard />} />
             <Route path="/admin/debug" element={<AdminDashboard />} />
             <Route path="/products" element={<ProductSelector />} />
             <Route path="/bank" element={<BankDashboard />} />

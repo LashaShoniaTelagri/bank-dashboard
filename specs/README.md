@@ -12,7 +12,7 @@ Authoritative living docs for this project. Read before coding. If anything in `
 | [`security.md`](security.md) | Auth, 2FA, RBAC, audit log, secrets |
 | [`operations.md`](operations.md) | Deployment (CDK + GitHub Actions), migrations, runbooks, common commands |
 | [`decisions.md`](decisions.md) | ADR log — settled architectural decisions, append-only |
-| [`modules/ale.md`](modules/ale.md) | Agronomical Logic Editor module (in build) |
+| [`modules/ale.md`](modules/ale.md) | Agronomical Logic Engine module (in build) |
 
 ## How to use
 

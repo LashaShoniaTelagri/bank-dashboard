@@ -27,9 +27,12 @@ env.backend.*
 .env.test.local
 .env.production.local
 
-# Allow committed reference templates only
-!env.backend.example
+# Allow committed reference templates only.
+# Pattern matches env.frontend.example, env.backend.example, env.frontend.local.example, etc.
 !env.frontend.example
+!env.backend.example
+!env.frontend.*.example
+!env.backend.*.example
 
 # Editor directories and files
 .vscode/*
@@ -68,4 +71,15 @@ Thumbs.db
 # GitNexus knowledge graph (local, machine-specific)
 .gitnexus/
 
+# gis-scripts/ originally local-only; selectively tracked now for the parity
+# service to be reproducible. Top-level junk stays ignored; named subtrees pass.
 gis-scripts/**
+!gis-scripts/scripts/
+!gis-scripts/scripts/**
+!gis-scripts/specs/
+!gis-scripts/specs/**
+!gis-scripts/algorithms/
+!gis-scripts/algorithms/**
+!gis-scripts/parity-service/
+!gis-scripts/parity-service/**
+!gis-scripts/README.md

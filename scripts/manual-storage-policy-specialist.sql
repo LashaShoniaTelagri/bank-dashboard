@@ -1,6 +1,12 @@
 -- Storage policy update for specialist phase-based access
 -- NOTE: This file CANNOT be run as a migration due to Supabase ownership restrictions
 -- It must be run manually via Supabase Dashboard SQL Editor or with service role credentials
+--
+-- LOCATION: lives in scripts/ (not supabase/) because Supabase CLI 2.95.4 auto-applies
+-- loose .sql files in supabase/ root during `supabase start`, which broke local dev when
+-- this file referenced specialist_assignments before that table's migration ran. The
+-- equivalent runtime policies are already shipped via migrations 20250927114805 and
+-- 20250927115100. Keep this file as a reference artifact for manual prod application.
 -- 
 -- The primary security layer is the get-file-url Edge Function which validates:
 -- 1. Specialist assignment to farmer
