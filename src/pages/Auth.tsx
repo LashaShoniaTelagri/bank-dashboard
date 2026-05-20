@@ -5,18 +5,21 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TwoFactorVerification } from "@/components/TwoFactorVerification";
 import { generateDeviceFingerprint, isDeviceFingerprintingSupported } from "@/lib/deviceFingerprint";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getEnabledProducts, ProductAccess } from "@/types/productAccess";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false); // Prevent premature redirects during sign-in
@@ -42,8 +45,15 @@ const Auth = () => {
   // Check if this is a recovery/password setup flow
   const isRecovery = searchParams.get('type') === 'recovery';
   const recoveryEmail = searchParams.get('email');
-  const errorCode = searchParams.get('error_code');
-  const isExpiredLink = errorCode === 'otp_expired';
+  
+  // Parse hash parameters (error params come in hash fragment from Supabase)
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
+  const errorFromHash = hashParams.get('error');
+  const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+  
+  // Check if link is expired (can be in query params or hash)
+  const isExpiredLink = errorCode === 'otp_expired' || errorFromHash === 'access_denied';
 
   useEffect(() => {
     // Extract email from URL parameters if available
@@ -64,18 +74,7 @@ const Auth = () => {
       }
     }
 
-    // Extract email from error_description if link expired
-    const errorDescription = searchParams.get('error_description');
-    if (isExpiredLink && errorDescription && !recoveryEmail) {
-      // Try to get email from any available source
-      const getCurrentUser = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.email) {
-          setEmail(session.user.email);
-        }
-      };
-      getCurrentUser();
-    }
+    // Note: If link is expired, we show error message instead of form
 
     // Handle auth session from recovery link
     const handleAuthStateChange = () => {
@@ -180,14 +179,23 @@ const Auth = () => {
 
   // Don't auto-redirect if this is a recovery flow, 2FA verification, or actively signing in
   if (user && !isRecovery && !showTwoFactor && !pendingUserData && !signingIn) {
-    // Use existing profile from useAuth hook to redirect appropriately
     if (profile) {
       if (profile.role === 'admin') {
         return <Navigate to="/admin/dashboard" replace />;
-      } else if (profile.role === 'bank_viewer') {
-        return <Navigate to="/bank" replace />;
       } else if (profile.role === 'specialist') {
         return <Navigate to="/specialist/dashboard" replace />;
+      } else if (profile.role === 'bank_viewer') {
+        const enabledProducts = getEnabledProducts(profile.products_enabled ?? 0);
+        if (enabledProducts.length === 0) {
+          return <Navigate to="/products" replace />;
+        }
+        if (enabledProducts.length > 1) {
+          return <Navigate to="/products" replace />;
+        }
+        if (enabledProducts[0] === ProductAccess.Underwriting) {
+          return <Navigate to="/underwriting/applications" replace />;
+        }
+        return <Navigate to="/bank" replace />;
       }
     }
     // If no profile found, stay on auth page to show error or loading
@@ -509,7 +517,7 @@ const Auth = () => {
 
   // If this is a recovery flow, show password setup form
   if (isRecovery) {
-    const isLinkExpired = isExpiredLink || searchParams.get('error') === 'access_denied';
+    const isLinkExpired = isExpiredLink;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center p-4">
@@ -517,52 +525,107 @@ const Auth = () => {
           <CardHeader className="text-center">
             <CardTitle className="text-3xl font-bold text-primary">TelAgri</CardTitle>
             <p className="text-muted-foreground">
-              {isLinkExpired ? "Complete Account Setup" : "Set Up Your Password"}
+              {isLinkExpired ? "Link Expired" : "Set Up Your Password"}
             </p>
           </CardHeader>
           <CardContent>
-            {isLinkExpired && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ The email link has expired. Please enter your email and password below to complete your account setup.
-                </p>
+            {isLinkExpired ? (
+              <div className="text-center space-y-4">
+                <div className="p-6 bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 rounded-lg">
+                  <div className="text-5xl mb-4">⏰</div>
+                  <h3 className="text-lg font-semibold text-destructive mb-2">
+                    Email Link Has Expired
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {errorDescription 
+                      ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
+                      : "The password reset link has expired or is invalid."}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Password reset links expire after a short period for security reasons.
+                  </p>
+                </div>
+                
+                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                  <h4 className="font-medium text-sm">What to do next:</h4>
+                  <ul className="text-sm text-muted-foreground space-y-2 text-left">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold">1.</span>
+                      <span>Contact your system administrator</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold">2.</span>
+                      <span>Request a new invitation or password reset link</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold">3.</span>
+                      <span>Complete the setup using the new link</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Button 
+                  onClick={() => window.location.href = '/auth'}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Return to Login
+                </Button>
               </div>
-            )}
-            
-            <form onSubmit={handlePasswordSetup} className="space-y-4">
+            ) : (
+              <form onSubmit={handlePasswordSetup} className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={!isLinkExpired && !!email}
-                  className={!isLinkExpired && !!email ? "bg-muted" : ""}
-                  placeholder={isLinkExpired ? "Enter your email address" : ""}
+                  disabled={Boolean(email)}
+                  className={email ? "bg-muted" : ""}
                   required
                 />
               </div>
               <div>
                 <label className="text-sm font-medium">New Password</label>
-                <Input
-                  type="password"
-                  placeholder="Enter your new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your new password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/60 hover:text-slate-700 dark:hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Confirm Password</label>
-                <Input
-                  type="password"
-                  placeholder="Confirm your new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm your new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/60 hover:text-slate-700 dark:hover:text-white transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button 
                 type="submit" 
@@ -572,20 +635,13 @@ const Auth = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isLinkExpired ? "Setting up account..." : "Setting up password..."}
+                    Setting up password...
                   </>
                 ) : (
-                  isLinkExpired ? "Complete Account Setup" : "Set Password & Sign In"
+                  "Set Password & Sign In"
                 )}
               </Button>
             </form>
-            
-            {isLinkExpired && (
-              <div className="mt-4 text-center">
-                <p className="text-xs text-muted-foreground">
-                  Need a new invitation link? Contact your administrator.
-                </p>
-              </div>
             )}
           </CardContent>
         </Card>
@@ -602,7 +658,7 @@ const Auth = () => {
         </div>
 
         {/* Futuristic Agri-Finance Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-primary/10 dark:via-accent/10 dark:to-primary/20"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-slate-50 to-emerald-50 dark:from-primary/10 dark:via-accent/10 dark:to-primary/20"></div>
       
         {/* Geometric Pattern Overlay - Representing Crop Fields & Financial Growth */}
         <div className="absolute inset-0 opacity-20 dark:opacity-20">
@@ -649,15 +705,13 @@ const Auth = () => {
           {/* Logo outside the card */}
           <div className="mb-8 text-center">
             <div className={`
-              bg-white/10 dark:bg-white/5 
+              bg-white/80 dark:bg-white/5 
               backdrop-blur-xl 
               rounded-2xl p-6 
-              shadow-2xl shadow-black/10 dark:shadow-black/30
-              border border-white/20 dark:border-white/10
-              ring-1 ring-white/10 dark:ring-white/5
+              shadow-lg shadow-slate-200/50 dark:shadow-black/30
+              border border-slate-200 dark:border-white/10
+              ring-1 ring-slate-100 dark:ring-white/5
               transition-all duration-1000 
-              hover:bg-white/15 dark:hover:bg-white/8
-              hover:shadow-3xl hover:shadow-primary/10
               ${pageLoading ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}
             `}>
               <img 
@@ -668,21 +722,17 @@ const Auth = () => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              <p className="text-foreground/70 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
+              <p className="text-slate-600 dark:text-foreground/70 text-sm font-medium">AGTECH FINANCIAL MANAGEMENT</p>
             </div>
           </div>
 
           <Card className={`
-            bg-white/10 dark:bg-white/5 
+            bg-white dark:bg-white/5 
             backdrop-blur-2xl 
-            border border-white/20 dark:border-white/10
-            ring-1 ring-white/10 dark:ring-white/5
-            shadow-2xl shadow-black/10 dark:shadow-black/40
+            border border-slate-200 dark:border-white/10
+            ring-1 ring-slate-100 dark:ring-white/5
+            shadow-lg shadow-slate-200/30 dark:shadow-black/40
             transition-all duration-1000 delay-300
-            hover:bg-white/15 dark:hover:bg-white/8
-            hover:shadow-3xl hover:shadow-primary/20
-            hover:ring-white/20 dark:hover:ring-white/10
-            hover:scale-[1.02]
             ${pageLoading ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
           `}>
             <CardHeader className="text-center pb-4">
@@ -697,36 +747,35 @@ const Auth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="h-12 text-base 
-                      bg-white/20 dark:bg-white/5 
-                      backdrop-blur-sm 
-                      border border-white/30 dark:border-white/10
-                      focus:border-emerald-400/60 focus:ring-emerald-400/20 
-                      focus:bg-white/25 dark:focus:bg-white/8
-                      focus:shadow-lg focus:shadow-emerald-400/10
-                      placeholder:text-foreground/60
-                      shadow-inner shadow-black/5
-                      transition-all duration-200"
+                    className="h-12 text-base bg-background"
                   />
                 </div>
                 <div>
-                  <Input
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="h-12 text-base 
-                      bg-white/20 dark:bg-white/5 
-                      backdrop-blur-sm 
-                      border border-white/30 dark:border-white/10
-                      focus:border-emerald-400/60 focus:ring-emerald-400/20 
-                      focus:bg-white/25 dark:focus:bg-white/8
-                      focus:shadow-lg focus:shadow-emerald-400/10
-                      placeholder:text-foreground/60
-                      shadow-inner shadow-black/5
-                      transition-all duration-200"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="h-12 text-base pr-10 bg-background"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-white/60 hover:text-slate-700 dark:hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <a 
+                    href="/forgot-password" 
+                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline transition-colors"
+                  >
+                    Forgot password?
+                  </a>
                 </div>
                 <Button 
                   type="submit" 

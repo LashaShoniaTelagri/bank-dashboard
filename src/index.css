@@ -148,6 +148,10 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-size: 90%;
+  }
+
   body {
     @apply bg-background text-foreground transition-colors duration-300;
   }

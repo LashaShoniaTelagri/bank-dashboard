@@ -8,16 +8,17 @@ const corsHeaders = {
 
 // SendGrid email template (using correct v3 API format)
 const createInvitationEmail = (
-  userEmail: string, 
+  userEmail: string,
   role: string,
-  bankName?: string, 
-  inviterName?: string,
-  resetUrl?: string
+  bankName?: string,
+  resetUrl?: string,
+  productsEnabled?: number
 ) => {
   const isAdmin = role === 'admin';
   const isSpecialist = role === 'specialist';
+  const isUnderwriter = role === 'bank_viewer' && productsEnabled !== undefined && (productsEnabled & 2) > 0;
   const roleTitle = isAdmin ? 'Administrator' : isSpecialist ? 'Specialist' : 'Bank Viewer';
-  const bankSection = isAdmin ? '' : ` for <strong>${bankName}</strong>`;
+  const bankSection = isAdmin ? '' : (bankName && bankName !== 'N/A' ? ` for <strong>${bankName}</strong>` : '');
   
   const adminPermissions = `
     <li>Manage all farmers across all banks</li>
@@ -28,33 +29,89 @@ const createInvitationEmail = (
   `;
   
   const bankViewerPermissions = `
-    <li>View farmers associated with ${bankName}</li>
+    <li>View farmers associated with ${bankName && bankName !== 'N/A' ? bankName : 'your bank'}</li>
     <li>Access F-100 agricultural assessment reports</li>
     <li>Monitor farmer performance metrics and scores</li>
     <li>Generate reports for your bank's portfolio</li>
   `;
 
   const specialistPermissions = `
-    <li>Access assigned farmers for ${bankName}</li>
+    <li>Access assigned farmers${bankName && bankName !== 'N/A' ? ` for ${bankName}` : ''}</li>
     <li>Upload and manage analysis data per phase</li>
     <li>Run analysis sessions and record results</li>
     <li>Communicate via secure messages with farmers and admins</li>
   `;
 
-  const htmlContent = `
+  // Text versions for plain text email
+  const textIntroSuffix = isAdmin ? '' : (bankName && bankName !== 'N/A' ? ` for ${bankName}` : '');
+  const textPermissions = isAdmin 
+    ? `• Manage all farmers across all banks
+• View and manage all F-100 reports  
+• Invite and manage bank viewers and specialists
+• Access comprehensive system analytics
+• Configure bank partnerships and settings`
+    : isSpecialist 
+    ? `• Access assigned farmers${bankName && bankName !== 'N/A' ? ` for ${bankName}` : ''}
+• Upload and manage analysis data per phase
+• Run analysis sessions and record results
+• Communicate via secure messages with farmers and admins`
+    : `• View farmers associated with ${bankName && bankName !== 'N/A' ? bankName : 'your bank'}
+• Access F-100 agricultural assessment reports
+• Monitor farmer performance metrics and scores
+• Generate reports for your bank's portfolio`;
+
+const htmlContent = isUnderwriter ? `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>TelAgri Bank Dashboard Invitation</title>
+        <title>Welcome to TelAgri – Underwriting Access</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #ffffff; padding: 30px 20px; border: 1px solid #e5e7eb; }
+          .footer { background: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; color: #6b7280; }
+          .btn { display: inline-block; background: #10b981; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin:0;">Welcome to TelAgri – Underwriting Access</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p>You've been invited to join TelAgri as an Underwriter.</p>
+            <p>To get started, please set your password and activate your account.</p>
+            <div style="text-align: center;">
+              <a href="${resetUrl}" class="btn">Set Up Your Account</a>
+            </div>
+            <p>If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace;">${resetUrl}</p>
+          </div>
+          <div class="footer">
+            <p>Best regards,<br>TelAgri Team</p>
+            <p>If you didn't expect this invitation, please ignore this email or contact support.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    ` : `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>TelAgri Invitation</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0; }
           .content { background: #ffffff; padding: 30px 20px; border: 1px solid #e5e7eb; }
           .footer { background: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; }
-          .btn { display: inline-block; background: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+          .btn { display: inline-block; background: #10b981; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
           .btn:hover { background: #059669; }
           .info-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 20px 0; }
           .warning { background: #fef3c7; border: 1px solid #fcd34d; padding: 15px; border-radius: 6px; margin: 20px 0; }
@@ -63,15 +120,15 @@ const createInvitationEmail = (
       <body>
         <div class="container">
           <div class="header">
-            <h1>🌱 TelAgri Bank Dashboard</h1>
+            <h1>🌱 TelAgri</h1>
             <p>Agricultural Finance Management System</p>
           </div>
-          
+
           <div class="content">
             <h2>Welcome to TelAgri Bank Dashboard!</h2>
             <p>Hello!</p>
-            <p><strong>${inviterName || 'TelAgri Admin'}</strong> has invited you to join the TelAgri Bank Dashboard as a <strong>${roleTitle}</strong>${bankSection}.</p>
-            
+            <p>You have been invited to join <strong>TelAgri</strong> as a <strong>${roleTitle}</strong>${bankSection}.</p>
+
             <div class="info-box">
               <h3>${isAdmin ? '🔐' : '🏦'} Your Role: ${roleTitle}</h3>
               <p>As a ${roleTitle}, you will have access to:</p>
@@ -79,29 +136,29 @@ const createInvitationEmail = (
                 ${isAdmin ? adminPermissions : isSpecialist ? specialistPermissions : bankViewerPermissions}
               </ul>
             </div>
-            
+
             <h3>Next Steps:</h3>
             <p>1. Click the button below to set up your password and activate your account</p>
             <p>2. Complete your profile setup</p>
             <p>3. Start ${isAdmin ? 'managing the TelAgri platform' : isSpecialist ? 'performing farmer data analysis' : 'managing your bank\'s farmer portfolio'}</p>
-            
+
             <div style="text-align: center;">
               <a href="${resetUrl}" class="btn">Set Up Your Account →</a>
             </div>
-            
+
             <div class="warning">
               <p><strong>⚠️ Important:</strong></p>
-              <p>• This invitation link expires in 24 hours</p>
+              <p>• This invitation link expires in 5 days and can only be used once</p>
               <p>• For security, please don't share this link with others</p>
-              <p>• If you have any issues, contact your administrator</p>
+              <p>• If the link expires or you need a new one, contact your administrator</p>
             </div>
-            
+
             <p>If the button doesn't work, copy and paste this link into your browser:</p>
             <p style="word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace;">${resetUrl}</p>
           </div>
-          
+
           <div class="footer">
-            <p>This email was sent by TelAgri Bank Dashboard</p>
+            <p>This email was sent by TelAgri</p>
             <p style="font-size: 12px; color: #6b7280;">
               If you didn't expect this invitation, please ignore this email or contact support.
             </p>
@@ -111,30 +168,43 @@ const createInvitationEmail = (
       </html>
     `;
 
-  const textContent = `
+  const textContent = isUnderwriter ? `
+Welcome to TelAgri – Underwriting Access
+
+Hello,
+You've been invited to join TelAgri as an Underwriter.
+
+To get started, please set your password and activate your account:
+${resetUrl}
+
+Best regards,
+TelAgri Team
+  `.trim() : `
 Welcome to TelAgri Bank Dashboard!
 
-${inviterName || 'TelAgri Admin'} has invited you to join as a ${roleTitle}${textIntroSuffix}.
+You have been invited to join TelAgri as a ${roleTitle}${textIntroSuffix}.
 
 As a ${roleTitle}, you'll have access to:
 ${textPermissions}
 
 To activate your account, visit: ${resetUrl}
 
-This link expires in 24 hours.
+IMPORTANT: This link expires in 5 days and can only be used once.
+If the link expires or you need a new one, contact your administrator.
 
 If you have any questions, please contact your administrator.
 
 ---
-TelAgri Bank Dashboard
+TelAgri
 Agricultural Finance Management System
     `;
 
-  // Return correct SendGrid v3 API format
+  // Return correct SendGrid v3 API format with click tracking DISABLED
+  // Click tracking must be disabled to preserve Supabase auth tokens in the URL
   return {
     personalizations: [{
       to: [{ email: userEmail }],
-      subject: `Invitation to TelAgri Bank Dashboard${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : ` - ${bankName}`}`
+      subject: isUnderwriter ? 'Welcome to TelAgri – Underwriting Access' : `Invitation to TelAgri${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : (bankName && bankName !== 'N/A' ? ` - ${bankName}` : '')}`
     }],
     from: { 
       email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com',
@@ -149,7 +219,16 @@ Agricultural Finance Management System
         type: "text/html",
         value: htmlContent
       }
-    ]
+    ],
+    tracking_settings: {
+      click_tracking: {
+        enable: false,
+        enable_text: false
+      },
+      open_tracking: {
+        enable: false
+      }
+    }
   };
 }
 
@@ -164,15 +243,17 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? ''
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
 
-    const { email, role, bankId, inviterEmail } = await req.json()
+    const { email, role, bankId, inviterEmail, productsEnabled } = await req.json()
 
     if (!email || !role) {
       throw new Error('Email and role are required')
     }
 
-    if ((role === 'bank_viewer') && !bankId) {
-      throw new Error('Bank ID is required for bank viewer invitations')
+    if ((role === 'bank_viewer' || role === 'specialist') && !bankId) {
+      throw new Error('Bank ID is required for bank viewer and specialist invitations')
     }
+
+    const finalProductsEnabled = role === 'admin' ? 3 : (productsEnabled ?? 1)
 
     if (!['admin', 'bank_viewer', 'specialist'].includes(role)) {
       throw new Error('Invalid role. Must be one of "admin", "bank_viewer", "specialist"')
@@ -235,7 +316,8 @@ serve(async (req) => {
           bank_id: role === 'admin' ? null : bankId,
           invited_by: inviterEmail,
           invited_at: new Date().toISOString(),
-          invitation_status: 'pending'
+          invitation_status: 'pending',
+          products_enabled: finalProductsEnabled,
         })
 
       if (profileError) {
@@ -275,7 +357,8 @@ serve(async (req) => {
           bank_id: role === 'admin' ? null : bankId,
           invited_by: inviterEmail,
           invited_at: new Date().toISOString(),
-          invitation_status: 'pending'
+          invitation_status: 'pending',
+          products_enabled: finalProductsEnabled,
         })
 
       if (profileError) {
@@ -288,7 +371,7 @@ serve(async (req) => {
 
     // Get bank name for email (if role requires bank)
     let bankName = 'N/A'
-    if ((role === 'bank_viewer') && bankId) {
+    if ((role === 'bank_viewer' || role === 'specialist') && bankId) {
       const { data: bank } = await supabaseClient
         .from('banks')
         .select('name')
@@ -298,81 +381,70 @@ serve(async (req) => {
       bankName = bank?.name || 'Unknown Bank'
     }
 
-    // Generate password reset link with improved URL handling
+    // Generate custom invitation token (5-day expiration, multi-click support)
     const origin = req.headers.get('origin');
     const siteUrl = Deno.env.get('SITE_URL');
-    
-    // For production, prioritize SITE_URL over origin header to avoid localhost issues
-    // Only use origin if SITE_URL is not set (development mode)
+    // Prioritize SITE_URL (https://dashboard.telagri.com) for production consistency
     const baseUrl = siteUrl || origin || 'http://localhost:8081';
     
-    console.log('🔗 URL Debug Info:');
+    console.log('🔗 URL Configuration:');
     console.log('  - Request origin:', origin);
     console.log('  - SITE_URL env var:', siteUrl);
     console.log('  - Using base URL:', baseUrl);
-    console.log('  - Environment check - SITE_URL exists:', !!siteUrl);
-    console.log('  - Final redirect URL will be:', `${baseUrl}/auth?type=recovery`);
 
-    // Generate a proper recovery link with auth tokens
-    console.log('🔗 Attempting to generate recovery link for:', email);
-    console.log('  - PROJECT_URL:', Deno.env.get('PROJECT_URL') ? 'Set' : 'Missing');
-    console.log('  - SERVICE_ROLE_KEY:', Deno.env.get('SERVICE_ROLE_KEY') ? 'Set' : 'Missing');
-    console.log('  - Redirect URL:', `${baseUrl}/auth?type=recovery`);
+    // Generate secure random token (64 characters hex)
+    const generateInvitationToken = () => {
+      const randomBytes = new Uint8Array(32);
+      crypto.getRandomValues(randomBytes);
+      return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    };
 
-    const { data: resetData, error: resetError } = await supabaseClient.auth.admin.generateLink({
-      type: 'recovery',
-      email: email,
-      options: {
-        redirectTo: `${baseUrl}/auth?type=recovery`
-      }
-    })
+    const invitationToken = generateInvitationToken();
+    const expiresAt = new Date(Date.now() + (5 * 24 * 60 * 60 * 1000)); // 5 days
 
-    console.log('🔗 Supabase generateLink result:');
-    console.log('  - Error:', resetError);
-    console.log('  - Data:', resetData ? 'Present' : 'Missing');
-    console.log('  - Properties:', resetData?.properties ? 'Present' : 'Missing');
-    console.log('  - Action Link:', resetData?.properties?.action_link ? 'Present' : 'Missing');
+    console.log('🎫 Creating custom invitation token');
+    console.log('  - Token length:', invitationToken.length);
+    console.log('  - Expires at:', expiresAt.toISOString());
+    console.log('  - Days valid:', 5);
+    console.log('  - Role:', role);
 
-    if (resetError) {
-      console.error('❌ Reset link generation failed:', resetError);
-      
-      // Provide specific error messages based on the error type
-      if (resetError.message?.includes('invalid_request')) {
-        throw new Error('Invalid request: Please check if the user email is valid and the service is properly configured.');
-      } else if (resetError.message?.includes('user_not_found')) {
-        throw new Error('User not found: Unable to generate recovery link for this email address.');
-      } else {
-        throw new Error(`Failed to generate secure reset link: ${resetError.message}`);
-      }
+    // Store invitation in database
+    const { data: invitation, error: invitationError } = await supabaseClient
+      .from('invitations')
+      .insert({
+        email: email,
+        token: invitationToken,
+        user_id: userId,
+        role: role,
+        bank_id: role === 'admin' ? null : bankId,
+        invited_by: inviterEmail,
+        expires_at: expiresAt.toISOString(),
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (invitationError) {
+      console.error('❌ Failed to create invitation:', invitationError);
+      throw new Error(`Failed to create invitation: ${invitationError.message}`);
     }
 
-    if (!resetData?.properties?.action_link) {
-      console.error('❌ No action link returned from Supabase');
-      console.error('   - resetData structure:', JSON.stringify(resetData, null, 2));
-      throw new Error('Failed to generate secure reset link: No action link returned from Supabase auth service.');
-    }
+    console.log('✅ Invitation record created:', invitation.id);
 
-    const resetUrl = resetData.properties.action_link;
-    console.log('✅ Successfully generated secure reset URL');
-    console.log('📋 Reset URL length:', resetUrl.length);
-    console.log('🔑 Contains access_token:', resetUrl.includes('access_token='));
-    console.log('🔑 Contains refresh_token:', resetUrl.includes('refresh_token='));
-    console.log('🔗 Reset URL (first 100 chars):', resetUrl.substring(0, 100) + '...');
-    console.log('🎯 FINAL CHECK - URL domain:', resetUrl.split('/')[2]); // Extract domain
+    // Create custom invitation URL
+    const invitationUrl = `${baseUrl}/invitation/accept?token=${invitationToken}`;
+    console.log('🔗 Custom invitation URL generated');
+    console.log('  - URL:', invitationUrl.substring(0, 80) + '...');
+    console.log('  - Multi-click: Enabled');
+    console.log('  - Expiration: 5 days');
 
-    // Validate that the URL is actually secure
-    if (!resetUrl.includes('access_token=') && !resetUrl.includes('token=')) {
-      console.error('❌ Generated URL does not contain security tokens');
-      throw new Error('Security validation failed: Generated reset link does not contain proper authentication tokens.');
-    }
-
-    // Prepare email data
+    // Prepare email data with custom invitation URL
     const emailData = createInvitationEmail(
       email,
       role,
       bankName,
-      inviterEmail || 'TelAgri Admin',
-      resetUrl
+      invitationUrl,
+      finalProductsEnabled
     )
 
     // Log the email data being sent to SendGrid
@@ -402,14 +474,6 @@ serve(async (req) => {
 
     console.log(`✅ Invitation email sent successfully to ${email}`)
 
-    // Log invitation in database (optional - you might want to create an invitations table)
-    await supabaseClient
-      .from('profiles')
-      .update({ 
-        created_at: new Date().toISOString() 
-      })
-      .eq('user_id', userId)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -417,7 +481,10 @@ serve(async (req) => {
         userId: userId,
         role: role,
         bankName: bankName,
-        isNewUser: isNewUser
+        isNewUser: isNewUser,
+        invitationId: invitation.id,
+        expiresAt: expiresAt.toISOString(),
+        validDays: 5
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

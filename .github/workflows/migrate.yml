@@ -261,7 +261,9 @@ jobs:
           
           # Apply migrations
           echo "🚀 Applying database migrations..."
-          if supabase db push --linked; then
+          # --include-all: apply out-of-order migrations (e.g. retro backfills).
+          # See deploy.yml for the rationale.
+          if supabase db push --linked --include-all; then
             echo "✅ Migrations applied successfully"
           else
             echo "❌ Migration failed"

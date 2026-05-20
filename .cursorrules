@@ -509,9 +509,24 @@ className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emera
 // ✅ CORRECT - Theme-aware hover states  
 className="hover:bg-muted dark:hover:bg-muted/80"
 
+// ✅ CORRECT - Explicit dark mode hover with proper contrast
+className="hover:bg-muted dark:hover:bg-muted/80"
+// Always specify dark mode hover separately to ensure proper contrast
+// Never use hover states that turn black in dark mode
+
 // ❌ WRONG - Single theme only
 className="bg-white text-gray-900"
+
+// ❌ WRONG - Hover that doesn't respect dark mode
+className="hover:bg-muted/50"  // Missing dark: variant
 ```
+
+#### Hover State Requirements (CRITICAL):
+- **ALWAYS** specify both light and dark mode hover states explicitly
+- **NEVER** use hover states that result in black/dark colors in dark mode without proper contrast
+- **ALWAYS** use `dark:hover:bg-muted/80` or similar for ghost/outline buttons in dark mode
+- **ALWAYS** test hover states in both themes to ensure visibility and contrast
+- **PREFERRED** pattern: `hover:bg-muted dark:hover:bg-muted/80` for consistent theme-aware hover
 
 #### Theme Testing Checklist:
 - [ ] Component renders correctly in light theme

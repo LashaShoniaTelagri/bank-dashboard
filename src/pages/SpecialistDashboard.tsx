@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { useAleAccess } from "../hooks/useAleAccess";
+import { AleManagement } from "../components/AleManagement";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -9,6 +11,7 @@ import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { 
   Brain, 
   FileText, 
@@ -28,6 +31,8 @@ import {
   Cloud,
   Eye,
   ChevronDown,
+  ChevronUp,
+  Info,
   ChevronRight,
   Filter,
   Search,
@@ -41,7 +46,10 @@ import {
   Home,
   Database,
   MessageSquare,
-  Settings
+  Settings,
+  Clipboard,
+  ExternalLink,
+  FlaskConical
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "../components/ui/use-toast";
@@ -57,8 +65,11 @@ import {
 } from "../types/specialist";
 import AIAnalysisChat from "../components/AIAnalysisChat";
 import AgriCopilot from "../components/AgriCopilot";
+import { F100ModalSpecialist } from "../components/F100ModalSpecialist";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetClose, SheetTrigger } from "../components/ui/sheet";
+import { useIsMobile } from "../hooks/use-mobile";
 import { formatFileSize } from "../lib/formatters";
 import { FileViewer } from "../components/FileViewer";
 import { useProductTour, SPECIALIST_ONBOARDING_TOUR, DATA_LIBRARY_TOUR, AI_COPILOT_TOUR } from "../hooks/useProductTour";
@@ -74,9 +85,13 @@ interface AIChatContext {
 }
 
 export const SpecialistDashboard = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
+  
+  // Ref for the main scrollable content area
+  const contentAreaRef = React.useRef<HTMLDivElement>(null);
   
   // Get active tab from URL or default to assignments
   const getActiveTabFromUrl = () => {
@@ -94,18 +109,60 @@ export const SpecialistDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState<string>(getActiveTabFromUrl() || 'assignments');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  // Pulse hint when collapsed (each time)
+  const [showCollapsePulse, setShowCollapsePulse] = useState(false);
+  // Track if user should see AI Co-Pilot button highlight
+  const [highlightAICoPilot, setHighlightAICoPilot] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Page transition loading state
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+
+  // Check authentication and redirect if session expired
+  useEffect(() => {
+    if (!loading && !user) {
+      console.log('🔒 User session expired or not authenticated, redirecting to login');
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again to continue.",
+        variant: "destructive"
+      });
+      navigate('/auth', { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  // Check user role and redirect if not specialist
+  useEffect(() => {
+    if (!loading && user && profile && profile.role !== 'specialist') {
+      console.log('🔒 User is not a specialist, redirecting to appropriate dashboard');
+      if (profile.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (profile.role === 'bank_viewer') {
+        navigate('/bank', { replace: true });
+      } else {
+        navigate('/auth', { replace: true });
+      }
+    }
+  }, [user, profile, loading, navigate]);
+
+  // Auto-collapse sidebar on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarCollapsed(true);
+    }
+  }, [isMobile]);
   
   // Navigation items configuration
+  const { hasAccess: hasAleAccess } = useAleAccess();
   const navigationItems = [
     {
       id: 'assignments',
-      label: 'My Assignments',
+      label: 'Tasks',
       icon: Users,
       description: 'View and manage your farmer assignments'
     },
     {
       id: 'library',
-      label: 'Data Library',
+      label: 'Files',
       icon: Database,
       description: 'Browse uploaded farmer documents'
     },
@@ -114,16 +171,26 @@ export const SpecialistDashboard = () => {
       label: 'AI Co-Pilot',
       icon: MessageSquare,
       description: 'TelAgri AI-powered agricultural analysis'
-    }
+    },
+    ...(hasAleAccess ? [{
+      id: 'ale',
+      label: 'Agronomical Logic Engine',
+      icon: FlaskConical,
+      description: 'Agronomical Logic Engine'
+    }] : [])
   ];
   const [chatContextUploads, setChatContextUploads] = useState<Record<string, FarmerDataUpload[]>>({});
   const [aiChatContext, setAiChatContext] = useState<AIChatContext | null>(null);
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
+  const [aiCoPilotFullScreen, setAiCoPilotFullScreen] = useState(false);
 
   // Data Library filtering and grouping state
-  const [dataLibrarySearchTerm, setDataLibrarySearchTerm] = useState('');
-  const [dataLibrarySelectedDataType, setDataLibrarySelectedDataType] = useState<string>('all');
-  const [dataLibrarySelectedPhase, setDataLibrarySelectedPhase] = useState<string>('all');
+  // Data Library filters - hydrate from query string
+  const initialParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [dataLibrarySearchTerm, setDataLibrarySearchTerm] = useState(initialParams.get('q') || '');
+  const [dataLibrarySelectedDataType, setDataLibrarySelectedDataType] = useState<string>(initialParams.get('type') || 'all');
+  const [dataLibrarySelectedPhase, setDataLibrarySelectedPhase] = useState<string>(initialParams.get('phase') || 'all');
+  const [dataLibraryFocusedAssignment, setDataLibraryFocusedAssignment] = useState<string | null>(initialParams.get('assignmentId'));
   const [collapsedAssignments, setCollapsedAssignments] = useState<Set<string>>(new Set());
 
   // Toggle assignment collapse state
@@ -196,7 +263,7 @@ export const SpecialistDashboard = () => {
     data: assignments = [],
     isLoading,
     error
-  } = useQuery({
+  } = useQuery<SpecialistAssignmentWithData[]>({
     queryKey: ["specialist-assignments", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_specialist_assignments");
@@ -206,25 +273,35 @@ export const SpecialistDashboard = () => {
         assignment_id: item.assignment_id,
         farmer_id: item.farmer_id,
         farmer_id_number: item.farmer_id_number,
-        crop: item.crop || 'Not specified',
+        crop: item.farmer_crop || 'Not specified',
+        farmer_name: item.farmer_name,
         phase: item.phase,
         status: item.status,
         assigned_at: item.assigned_at,
         data_uploads_count: item.data_uploads_count,
         analysis_sessions_count: item.analysis_sessions_count,
-        last_activity: item.last_activity
+        last_activity: item.last_activity,
+        f100_doc_url: item.f100_doc_url
       })) as SpecialistAssignmentWithData[];
     },
-    enabled: !!user?.id
+    enabled: !!user?.id,
+    staleTime: 30 * 1000, // 30 seconds - assignments can change frequently
+    refetchOnWindowFocus: false, // Prevent excessive refetching
+    refetchOnMount: true, // Refetch on component mount
+    retry: 1, // Reduce retry attempts for failed queries
   });
 
   useEffect(() => {
     if (error) {
-      toast({
-        title: "Error loading assignments",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Only show toast for actual errors, not for "function not found" when no assignments exist
+      if (!error.message?.includes("Could not find the function") && 
+          !error.message?.includes("get_specialist_assignments")) {
+        toast({
+          title: "Error loading assignments",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
     }
   }, [error]);
 
@@ -289,21 +366,68 @@ export const SpecialistDashboard = () => {
   // Handle tab change with URL update
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    setActiveNavItem(tab);
     const searchParams = new URLSearchParams(location.search);
     searchParams.set('tab', tab);
     navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
   };
+  // Sync Data Library filters to query string
+  useEffect(() => {
+    if (activeNavItem !== 'library') return;
+    const params = new URLSearchParams(location.search);
+    // set tab
+    params.set('tab', 'library');
+    // set filters
+    if (dataLibrarySearchTerm) params.set('q', dataLibrarySearchTerm); else params.delete('q');
+    if (dataLibrarySelectedDataType && dataLibrarySelectedDataType !== 'all') params.set('type', dataLibrarySelectedDataType); else params.delete('type');
+    if (dataLibrarySelectedPhase && dataLibrarySelectedPhase !== 'all') params.set('phase', dataLibrarySelectedPhase); else params.delete('phase');
+    if (dataLibraryFocusedAssignment) params.set('assignmentId', dataLibraryFocusedAssignment); else params.delete('assignmentId');
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNavItem, dataLibrarySearchTerm, dataLibrarySelectedDataType, dataLibrarySelectedPhase, dataLibraryFocusedAssignment, location.pathname]);
+
 
   // Handle navigation item change
   const handleNavItemChange = (itemId: string) => {
+    // Show loading indicator
+    setIsPageTransitioning(true);
+    
     setActiveNavItem(itemId);
     handleTabChange(itemId);
+    
+    // Remove chatAssignmentId from URL when navigating away from chat
+    if (itemId !== 'chat') {
+      const searchParams = new URLSearchParams(location.search);
+      if (searchParams.has('chatAssignmentId')) {
+        searchParams.delete('chatAssignmentId');
+        navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+      }
+    }
+    
+    // Instantly scroll to top when changing pages
+    setTimeout(() => {
+      if (contentAreaRef.current) {
+        contentAreaRef.current.scrollTop = 0;
+      }
+      // Also try window scroll as fallback
+      window.scrollTo(0, 0);
+      
+      // Hide loading after a brief moment
+      setTimeout(() => {
+        setIsPageTransitioning(false);
+      }, 200);
+    }, 0);
   };
 
   // Toggle sidebar collapse
   const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    if (next) {
+      setShowCollapsePulse(true);
+      setTimeout(() => setShowCollapsePulse(false), 1800);
+    } else {
+      setShowCollapsePulse(false);
+    }
   };
 
   // Handle header click to refresh page with clean URL
@@ -360,6 +484,59 @@ export const SpecialistDashboard = () => {
     }
   }, [assignmentUploads, aiChatContext]);
 
+  // Restore AI Co-Pilot context from URL on mount/refresh
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const chatAssignmentId = params.get('chatAssignmentId');
+    
+    if (chatAssignmentId && activeNavItem === 'chat' && !aiChatContext && assignments.length > 0) {
+      // Find the assignment to restore the chat context
+      const assignment = assignments.find(a => a.assignment_id === chatAssignmentId);
+      
+      if (assignment) {
+        // Fetch uploads for this assignment if not already loaded
+        const restoreChatContext = async () => {
+          let currentUploads: FarmerDataUpload[] = chatContextUploads[chatAssignmentId] || [];
+          
+          if (currentUploads.length === 0) {
+            try {
+              const { data: uploads } = await supabase
+                .from('farmer_data_uploads')
+                .select('*')
+                .eq('farmer_id', assignment.farmer_id)
+                .eq('phase', assignment.phase)
+                .order('created_at', { ascending: false });
+              
+              if (uploads) {
+                currentUploads = uploads as FarmerDataUpload[];
+                handleUploadsLoaded(chatAssignmentId, uploads as FarmerDataUpload[]);
+              }
+            } catch (error) {
+              console.error('Failed to fetch uploads for chat restore:', error);
+            }
+          }
+
+          setChatContextUploads((prev) => ({
+            ...prev,
+            [chatAssignmentId]: currentUploads,
+          }));
+
+          setAiChatContext({
+            farmerId: assignment.farmer_id,
+            farmerIdNumber: assignment.farmer_id_number,
+            crop: assignment.crop,
+            phase: assignment.phase,
+            phaseLabel: getPhaseLabel(assignment.phase),
+            assignmentId: chatAssignmentId,
+            uploads: currentUploads
+          });
+        };
+
+        restoreChatContext();
+      }
+    }
+  }, [assignments, location.search, activeNavItem, aiChatContext, chatContextUploads, handleUploadsLoaded]);
+
   const totalAssignments = assignments.length;
   const totalInProgress = useMemo(
     () => assignments.filter((assignment) => assignment.status === "in_progress").length,
@@ -381,6 +558,8 @@ export const SpecialistDashboard = () => {
     if (phase <= 11) return <AlertCircle className="h-4 w-4" />;
     return <FileText className="h-4 w-4" />;
   };
+
+  // Removed per-phase chips. Specialists should only see files for their assigned phase.
 
   const uploadsEqual = (a: FarmerDataUpload[] = [], b: FarmerDataUpload[] = []) => {
     if (a === b) return true;
@@ -413,47 +592,87 @@ export const SpecialistDashboard = () => {
     }));
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex">
-      {/* Sidebar Navigation */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-sidebar dark:bg-dark-card border-r border-sidebar-border dark:border-dark-border transition-all duration-300 flex flex-col light-elevated dark:shadow-neon/20 h-screen sticky top-0`}>
-        {/* Sidebar Header */}
-        <div className="p-4 border-b dark:border-dark-border">
-      <div className="flex items-center justify-between">
-            {!sidebarCollapsed && (
-              <div 
-                className="flex items-center gap-3 cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 -m-2 transition-all duration-200"
-                onClick={handleHeaderClick}
-                title="Return to start page"
-              >
-                <Brain className="h-8 w-8 neon-brain" />
-        <div>
-                  <h2 className="text-lg font-bold text-heading-primary">TelAgri</h2>
-                  <p className="text-xs text-body-secondary">Specialist</p>
+  // Memoized callbacks for AgriCopilot to prevent infinite loops
+  const agriCopilotOnContextChange = useCallback((updatedUploads: FarmerDataUpload[]) => {
+    if (aiChatContext?.assignmentId) {
+      handleChatContextChange(aiChatContext.assignmentId, updatedUploads);
+    }
+  }, [aiChatContext?.assignmentId, handleChatContextChange]);
+
+  const agriCopilotOnMessageCountUpdate = useCallback((count: number) => {
+    if (aiChatContext?.assignmentId) {
+      handleMessageCountUpdate(aiChatContext.assignmentId, count);
+    }
+  }, [aiChatContext?.assignmentId, handleMessageCountUpdate]);
+
+  const agriCopilotOnClose = useCallback(() => {
+    setAiChatContext(null);
+    
+    // Remove chatAssignmentId from URL when closing chat
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('chatAssignmentId');
+    navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
-              </div>
-            )}
-        <div className="flex items-center gap-2">
-              {sidebarCollapsed && (
+      </div>
+    );
+  }
+
+  // Don't render dashboard if user is not authenticated (will be redirected by useEffect)
+  if (!user || !profile) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors flex overflow-x-hidden">
+      {/* Sidebar Navigation */}
+      <div className={`hidden md:flex ${sidebarCollapsed ? 'w-16' : 'w-64'} bg-sidebar dark:bg-dark-card border-r border-sidebar-border dark:border-dark-border transition-all duration-300 flex-col light-elevated dark:shadow-neon/20 h-screen sticky top-0`}>
+        {/* Sidebar Header */}
+        <div className="h-[73px] px-4 border-b dark:border-dark-border flex items-center">
+          <div className="flex items-center justify-between w-full">
+            {!sidebarCollapsed ? (
+              <>
                 <div 
-                  className="cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 transition-all duration-200"
+                  className="flex items-center gap-3 cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 -m-2 transition-all duration-200"
                   onClick={handleHeaderClick}
                   title="Return to start page"
                 >
-                  <Brain className="h-6 w-6 neon-brain" />
+                  <Brain className="h-8 w-8 neon-brain" />
+                  <div>
+                    <h2 className="text-lg font-bold text-heading-primary">TelAgri</h2>
+                    <p className="text-xs text-body-secondary">Specialist</p>
+                  </div>
                 </div>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleSidebar}
-                className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-dark-border"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleSidebar}
+                  title="Collapse navigation"
+                  aria-label="Collapse navigation"
+                  className="group h-8 w-8 p-0 transition-colors rounded-md text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:ring-emerald-400"
+                >
+                  <ChevronLeft className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400" />
+                </Button>
+              </>
+            ) : (
+              <div 
+                className="cursor-pointer hover:bg-sidebar-accent dark:hover:bg-dark-border rounded-lg p-2 transition-all duration-200 mx-auto"
+                onClick={handleHeaderClick}
+                title="Return to start page"
               >
-                {sidebarCollapsed ? <Menu className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </Button>
-            </div>
+                <Brain className="h-6 w-6 neon-brain" />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
         {/* Navigation Items */}
         <nav className="flex-1 p-2 overflow-y-auto">
@@ -532,71 +751,88 @@ export const SpecialistDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
         {/* Top Header */}
-        <header className="border-b bg-white dark:bg-dark-card shadow-sm dark:border-dark-border transition-colors" data-tour="welcome">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-2xl text-heading-primary">Welcome back, Specialist</h1>
-                <p className="text-sm text-body-secondary">{user?.email ?? "Specialist"}</p>
-              </div>
+        <header className="relative h-[73px] border-b bg-white dark:bg-dark-card shadow-sm dark:border-dark-border transition-colors flex items-center overflow-hidden" data-tour="welcome">
+          <div className={`flex items-center justify-end w-full px-4 md:px-6 gap-3 md:gap-4 ${sidebarCollapsed ? 'pl-14' : ''}`}>
+            {/* Welcome text - compact on right */}
+            <div className="flex flex-col items-end">
+              <p className="text-sm font-medium text-heading-primary">Welcome back, Specialist</p>
+              <p className="text-xs text-body-muted">{user?.email ?? "Specialist"}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <ThemeToggle variant="icon" size="sm" />
-            </div>
+            
+            <ThemeToggle variant="icon" size="sm" />
           </div>
+          {sidebarCollapsed && (
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 hidden md:block">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSidebar}
+                title="Expand navigation"
+                aria-label="Expand navigation"
+                className={`group h-8 w-8 p-0 text-emerald-600 dark:text-emerald-400 border border-emerald-400/60 bg-emerald-50 dark:bg-dark-border/60 
+                            ring-1 ring-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] rounded-md 
+                            hover:border-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/10 ${showCollapsePulse ? 'animate-pulse' : ''}`}
+              >
+                <ChevronRight className="h-4 w-4 transition-colors text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
+              </Button>
+            </div>
+          )}
         </header>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-tour="stats-overview">
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="w-full px-4 md:px-6 py-4 md:py-6 space-y-6">
+        {/* Stats Cards - Only show on My Assignments page */}
+        {activeNavItem === 'assignments' && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full" data-tour="stats-overview">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">Total Assignments</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">Tasks</p>
                 <p className="text-2xl text-heading-primary">{totalAssignments}</p>
               </div>
-              <Users className="h-8 w-8 text-accent-blue" />
+              <Users className="h-8 w-8 text-accent-blue flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">In Progress</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">In Progress</p>
                 <p className="text-2xl font-bold text-accent-blue">{totalInProgress}</p>
               </div>
-              <Clock className="h-8 w-8 text-accent-blue" />
+              <Clock className="h-8 w-8 text-accent-blue flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">Completed</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">Completed</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">{totalCompleted}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 transition-colors" />
+              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400 transition-colors flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10">
+        <Card className="dark:bg-dark-card dark:border-dark-border transition-colors hover:shadow-lg dark:hover:shadow-neon/10 min-w-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-body-secondary">Pending Review</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-body-secondary truncate">Pending Review</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{totalPendingReview}</p>
               </div>
-              <AlertCircle className="h-8 w-8 text-orange-600 dark:text-orange-400 transition-colors" />
+              <AlertCircle className="h-8 w-8 text-orange-600 dark:text-orange-400 transition-colors flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
       </div>
+        )}
 
             {/* Content based on active navigation item */}
 
@@ -617,16 +853,16 @@ export const SpecialistDashboard = () => {
             ))}
           </div>
 
-          <Card>
+          <Card className="min-w-0">
             <CardContent className="p-4" data-tour="search-filters">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
+              <div className="flex flex-col md:flex-row gap-4 w-full">
+                <div className="flex-1 min-w-0">
+                  <div className="relative w-full">
                     <Input
                       placeholder="Search farmers, banks, or ID numbers..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 w-full"
                     />
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                       <Brain className="h-4 w-4" />
@@ -672,16 +908,19 @@ export const SpecialistDashboard = () => {
           </Card>
 
           <div className="space-y-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            {isLoading || (!assignments.length && !error) ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+                  <p className="text-sm text-body-muted">Loading your assignments...</p>
+                </div>
               </div>
             ) : filteredAssignments.length === 0 ? (
-              <Card>
+              <Card className="border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/20">
                 <CardContent className="p-8 text-center">
-                  <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No assignments found</h3>
-                  <p className="text-gray-600">
+                  <Brain className="h-12 w-12 text-rose-500 dark:text-rose-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-rose-900 dark:text-rose-100 mb-2">No assignments found</h3>
+                  <p className="text-rose-700 dark:text-rose-300">
                     {assignments.length === 0 
                       ? "You don't have any assignments yet. Contact your administrator to get started."
                       : "No assignments match your current filters. Try adjusting your search criteria."}
@@ -691,153 +930,265 @@ export const SpecialistDashboard = () => {
             ) : (
               filteredAssignments.map((assignment) => {
                 const uploadsForAssignment = assignmentUploads[assignment.assignment_id] ?? [];
+                const currentPhaseUploads = uploadsForAssignment.filter(u => {
+                  const metaPhase = (u.metadata as any)?.f100_phase;
+                  const phaseValue = (typeof metaPhase === 'number' ? metaPhase : undefined) ?? u.phase;
+                  return phaseValue === assignment.phase;
+                });
                 return (
-                  <Card key={assignment.assignment_id} className="hover:shadow-md dark:hover:shadow-neon/20 transition-all dark:bg-dark-card dark:border-dark-border" data-tour={filteredAssignments.indexOf(assignment) === 0 ? "assignment-card" : undefined}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                  <Card key={assignment.assignment_id} className="hover:shadow-md dark:hover:shadow-neon/20 transition-all dark:bg-dark-card dark:border-dark-border min-w-0" data-tour={filteredAssignments.indexOf(assignment) === 0 ? "assignment-card" : undefined}>
+                  <CardContent className="p-4 md:p-6">
+                    <div className="flex flex-col md:flex-row items-start justify-between min-w-0 gap-4">
+                      <div 
+                        className="flex-1 min-w-0 w-full md:w-auto cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          // Switch to Data Library with assignment-focused view
+                          const params = new URLSearchParams(location.search);
+                          params.set('tab', 'library');
+                          params.set('assignmentId', assignment.assignment_id);
+                          navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                          setDataLibraryFocusedAssignment(assignment.assignment_id);
+                          setActiveNavItem('library');
+                        }}
+                        title="Click to view files in Data Library"
+                      >
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
                           {getPhaseIcon(assignment.phase)}
-                            <h3 className="text-lg text-heading-secondary">
-                            Farmer ID: {assignment.farmer_id_number}
+                          <h3 className="text-base md:text-lg font-semibold text-heading-secondary truncate flex items-center gap-1.5">
+                            <span className="text-xs md:text-sm font-normal text-body-muted">Farmer</span>
+                            {assignment.farmer_id_number}
                           </h3>
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${getStatusColor(assignment.status)} cursor-default pointer-events-none`}>
-                                {getStatusLabel(assignment.status)}
+                          <Badge className={`${getStatusColor(assignment.status)} flex-shrink-0`}>
+                            {getStatusLabel(assignment.status)}
                           </Badge>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild data-tour={filteredAssignments.indexOf(assignment) === 0 ? "status-dropdown" : undefined}>
-                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                    <MoreHorizontal className="h-3 w-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {getAllowedStatusTransitions(assignment.status).map((newStatus) => (
-                                    <DropdownMenuItem
-                                      key={newStatus}
-                                      onClick={() => updateAssignmentStatus(assignment.assignment_id, newStatus)}
-                                      className="flex items-center gap-2"
-                                    >
-                                      {newStatus === 'in_progress' && <Play className="h-3 w-3" />}
-                                      {newStatus === 'completed' && <CheckCircle className="h-3 w-3" />}
-                                      {newStatus === 'pending_review' && <AlertCircle className="h-3 w-3" />}
-                                      {newStatus === 'pending' && <Clock className="h-3 w-3" />}
-                                      {newStatus === 'cancelled' && <XCircle className="h-3 w-3" />}
-                                      Mark as {getStatusLabel(newStatus)}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                          <div>
-                              <p className="text-sm text-body-secondary">Farmer ID</p>
-                              <p className="font-medium text-body-primary">{assignment.farmer_id_number}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                          <div className="min-w-0">
+                            <p className="text-sm text-body-secondary">Crop</p>
+                            <p className="font-medium text-body-primary">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-md text-sm truncate max-w-full">
+                                🌾 {assignment.crop || 'Not specified'}
+                              </span>
+                            </p>
                           </div>
-                          <div>
-                              <p className="text-sm text-body-secondary">Crop</p>
-                              <p className="font-medium text-body-primary">
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-md text-sm">
-                                  🌾 {assignment.crop || 'Not specified'}
-                                </span>
-                              </p>
+                          <div className="min-w-0">
+                            <p className="text-sm text-body-secondary">Phase</p>
+                            <p className="font-medium text-body-primary truncate">{getPhaseLabel(assignment.phase)}</p>
                           </div>
-                          <div>
-                              <p className="text-sm text-body-secondary">Phase</p>
-                              <p className="font-medium text-body-primary">{getPhaseLabel(assignment.phase)}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm text-body-secondary">Files</p>
+                            <p className="font-medium text-body-primary">{currentPhaseUploads.length} uploaded</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-6 text-sm text-gray-600">
-                            <div 
-                              className="flex items-center gap-1 cursor-pointer text-accent-interactive hover:underline"
-                              onClick={() => {
-                                // Switch to data library tab and filter by this assignment
-                                handleTabChange('library');
-                                // You could add filtering logic here if needed
-                              }}
-                              title="View files in Data Library"
-                            >
-                            <Upload className="h-4 w-4" />
-                              {uploadsForAssignment.length} files
-                          </div>
+                        <div className="flex flex-wrap items-center gap-4 mt-3 text-xs md:text-sm text-body-muted">
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
                             Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
                           </div>
+                          
                           {assignment.last_activity && (
                             <div className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
                               Last activity {new Date(assignment.last_activity).toLocaleDateString()}
                             </div>
                           )}
+                          
+                          {/* Status Change Button with Info */}
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild data-tour={filteredAssignments.indexOf(assignment) === 0 ? "status-dropdown" : undefined}>
+                                <Button variant="outline" size="sm" className="h-7 text-xs">
+                                  <MoreHorizontal className="h-3 w-3 mr-1" />
+                                  Change Status
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                {getAllowedStatusTransitions(assignment.status).map((newStatus) => (
+                                  <DropdownMenuItem
+                                    key={newStatus}
+                                    onClick={() => updateAssignmentStatus(assignment.assignment_id, newStatus)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    {newStatus === 'pending' && <Clock className="h-3 w-3 text-gray-500" />}
+                                    {newStatus === 'in_progress' && <Play className="h-3 w-3 text-blue-600" />}
+                                    {newStatus === 'pending_review' && <AlertCircle className="h-3 w-3 text-orange-600" />}
+                                    {newStatus === 'completed' && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                    {newStatus === 'cancelled' && <XCircle className="h-3 w-3 text-red-600" />}
+                                    Mark as {getStatusLabel(newStatus)}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            
+                            {/* Status Info Popover */}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-6 w-6 p-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  title="Learn about assignment statuses"
+                                >
+                                  <Info className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-4" align="start">
+                                <div className="space-y-3">
+                                  <div>
+                                    <h4 className="font-semibold text-sm text-heading-primary mb-2">Assignment Status Guide</h4>
+                                    <p className="text-xs text-body-secondary mb-3">
+                                      Track your work progress by updating the assignment status as you complete each phase.
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="space-y-2.5 text-xs">
+                                    <div className="flex items-start gap-2">
+                                      <Clock className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Pending</p>
+                                        <p className="text-body-muted">Assignment created, not yet started</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <Play className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">In Progress</p>
+                                        <p className="text-body-muted">Actively working on analysis and data review</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Pending Review</p>
+                                        <p className="text-body-muted">Work complete, awaiting admin verification</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Completed</p>
+                                        <p className="text-body-muted">Assignment finished and approved</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-2">
+                                      <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-heading-secondary">Cancelled</p>
+                                        <p className="text-body-muted">Assignment stopped or no longer needed</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="pt-2 border-t border-border">
+                                    <p className="text-xs text-body-muted italic">
+                                      💡 Tip: Click "Change Status" to update your progress
+                                    </p>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2 ml-4">
-                        <Button 
-                          size="sm" 
-                            variant="default"
-                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 dark:bg-neon-600 dark:hover:bg-neon-500 dark:shadow-neon dark:hover:shadow-neon-lg"
-                            data-tour={filteredAssignments.indexOf(assignment) === 0 ? "ai-chat-button" : undefined}
-                            onClick={async () => {
-                              // Force refresh uploads for this assignment if we don't have any
-                              let currentUploads = assignmentUploads[assignment.assignment_id] ?? [];
-                              
-                              if (currentUploads.length === 0) {
-                                try {
-                                  const { data: uploads } = await supabase
-                                    .from('farmer_data_uploads')
-                                    .select('*')
-                                    .eq('farmer_id', assignment.farmer_id)
-                                    .order('created_at', { ascending: false });
-                                  
-                                  if (uploads) {
-                                    currentUploads = uploads as FarmerDataUpload[];
-                                    handleUploadsLoaded(assignment.assignment_id, uploads as FarmerDataUpload[]);
-                                  }
-                                } catch (error) {
-                                  console.error('Failed to fetch uploads:', error);
-                                }
-                              }
+              <div className="flex flex-col gap-2 md:ml-4 mt-4 md:mt-0 w-full md:w-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="relative">
+                  {/* Pulsing ring for highlight */}
+                  {highlightAICoPilot && (
+                    <div className="absolute inset-0 animate-ping rounded-md bg-blue-400 opacity-75 pointer-events-none" />
+                  )}
+                  <Button 
+                    size="sm" 
+                      variant="default"
+                      className={`w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 dark:bg-neon-600 dark:hover:bg-neon-500 dark:shadow-neon dark:hover:shadow-neon-lg relative ${
+                        highlightAICoPilot ? 'ring-4 ring-blue-300 dark:ring-blue-500 animate-pulse' : ''
+                      }`}
+                      data-tour={filteredAssignments.indexOf(assignment) === 0 ? "ai-chat-button" : undefined}
+                      onClick={async () => {
+                        // Clear highlight when clicked
+                        if (highlightAICoPilot) {
+                          setHighlightAICoPilot(false);
+                        }
+                        
+                        // Force refresh uploads for this assignment if we don't have any
+                        let currentUploads = assignmentUploads[assignment.assignment_id] ?? [];
+                        
+                        if (currentUploads.length === 0) {
+                          try {
+                            const { data: uploads } = await supabase
+                              .from('farmer_data_uploads')
+                              .select('*')
+                              .eq('farmer_id', assignment.farmer_id)
+                              .order('created_at', { ascending: false });
+                            
+                            if (uploads) {
+                              currentUploads = uploads as FarmerDataUpload[];
+                              handleUploadsLoaded(assignment.assignment_id, uploads as FarmerDataUpload[]);
+                            }
+                          } catch (error) {
+                            console.error('Failed to fetch uploads:', error);
+                          }
+                        }
 
-                              const initialUploads =
-                                (chatContextUploads[assignment.assignment_id]?.length > 0 
-                                  ? chatContextUploads[assignment.assignment_id] 
-                                  : currentUploads);
+                        const initialUploads =
+                          (chatContextUploads[assignment.assignment_id]?.length > 0 
+                            ? chatContextUploads[assignment.assignment_id] 
+                            : currentUploads);
 
-                              setChatContextUploads((prev) => {
-                                if (uploadsEqual(prev[assignment.assignment_id], initialUploads)) {
-                                  return prev;
-                                }
-                                return {
-                                  ...prev,
-                                  [assignment.assignment_id]: initialUploads,
-                                };
-                              });
+                        setChatContextUploads((prev) => {
+                          if (uploadsEqual(prev[assignment.assignment_id], initialUploads)) {
+                            return prev;
+                          }
+                          return {
+                            ...prev,
+                            [assignment.assignment_id]: initialUploads,
+                          };
+                        });
 
-                              setAiChatContext({
-                                farmerId: assignment.farmer_id,
-                                farmerIdNumber: assignment.farmer_id_number,
-                                crop: assignment.crop,
-                                phase: assignment.phase,
-                                phaseLabel: getPhaseLabel(assignment.phase),
-                                assignmentId: assignment.assignment_id,
-                                uploads: initialUploads
-                              });
-                              handleNavItemChange("chat");
-                            }}
-                          >
-                            <Brain className="h-4 w-4 mr-1" />
-                            AI Co-Pilot
-                            {messageCounts[assignment.assignment_id] > 0 && (
-                              <span className="ml-2 bg-white text-blue-600 text-xs px-2 py-1 rounded-full font-medium">
-                                {messageCounts[assignment.assignment_id]}
-                              </span>
-                            )}
-                        </Button>
+                        setAiChatContext({
+                          farmerId: assignment.farmer_id,
+                          farmerIdNumber: assignment.farmer_id_number,
+                          crop: assignment.crop,
+                          phase: assignment.phase,
+                          phaseLabel: getPhaseLabel(assignment.phase),
+                          assignmentId: assignment.assignment_id,
+                          uploads: initialUploads
+                        });
+                        
+                        // Navigate to chat with assignment ID in URL for persistence
+                        const searchParams = new URLSearchParams(location.search);
+                        searchParams.set('tab', 'chat');
+                        searchParams.set('chatAssignmentId', assignment.assignment_id);
+                        navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true });
+                        setActiveNavItem('chat');
+                      }}
+                    >
+                      <Brain className="h-4 w-4 mr-1" />
+                      AI Co-Pilot
+                      {messageCounts[assignment.assignment_id] > 0 && (
+                        <span className="ml-2 bg-white text-blue-600 text-xs px-2 py-1 rounded-full font-medium">
+                          {messageCounts[assignment.assignment_id]}
+                        </span>
+                      )}
+                  </Button>
+                </div>
+                        
+                        <div className="mt-3 w-full md:w-auto">
+                        <F100ModalSpecialist
+                          farmerId={assignment.farmer_id}
+                          farmerName={assignment.farmer_name || assignment.farmer_id_number}
+                          farmerIdNumber={assignment.farmer_id_number}
+                          phase={assignment.phase}
+                          crop={assignment.crop}
+                          docUrl={assignment.f100_doc_url}
+                          />
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -851,17 +1202,17 @@ export const SpecialistDashboard = () => {
 
             {activeNavItem === 'library' && (
               <div className="space-y-4">
-          <Card className="dark:bg-dark-card dark:border-dark-border transition-colors">
-            <CardHeader>
+          <Card className="dark:bg-dark-card dark:border-dark-border transition-colors min-w-0">
+            <CardHeader className="space-y-2">
               <CardTitle className="flex items-center gap-2 text-heading-secondary">
-                <Upload className="h-5 w-5 text-accent-blue" />
-                Data Library
+                <Upload className="h-5 w-5 text-accent-blue flex-shrink-0" />
+                <span className="truncate">Data Library</span>
               </CardTitle>
-              <CardDescription className="text-body-secondary">
+              <CardDescription className="text-body-secondary break-words">
                 Review and download admin-uploaded documents organized by farmer assignments
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 min-w-0">
               {assignments.length === 0 ? (
                 <div className="text-center py-8">
                   <Upload className="h-12 w-12 text-body-muted mx-auto mb-3" />
@@ -871,12 +1222,12 @@ export const SpecialistDashboard = () => {
               ) : (
                 <div className="space-y-6">
                   {/* Filter Controls */}
-                  <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-lg border dark:border-dark-border transition-colors" data-tour="library-filters">
+                  <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-lg border dark:border-dark-border transition-colors min-w-0" data-tour="library-filters">
                     <div className="flex items-center gap-2 mb-3">
                       <Filter className="h-4 w-4 text-accent-blue" />
                       <span className="text-sm font-medium text-heading-tertiary">Filter Files</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className={`grid grid-cols-1 ${dataLibraryFocusedAssignment ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-3 w-full`}>
                       {/* Search */}
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-body-muted" />
@@ -917,29 +1268,33 @@ export const SpecialistDashboard = () => {
                         </SelectContent>
                       </Select>
                       
-                      {/* Phase Filter */}
-                      <Select value={dataLibrarySelectedPhase} onValueChange={setDataLibrarySelectedPhase}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All Phases" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Phases</SelectItem>
-                          {(() => {
-                            const allAssignmentUploads = Object.values(assignmentUploads).flat();
-                            const phases = Array.from(new Set(allAssignmentUploads.map(upload => upload.phase.toString()))).sort((a, b) => parseInt(a) - parseInt(b));
-                            return phases.map(phase => (
-                              <SelectItem key={phase} value={phase}>
-                                Phase {phase}
-                              </SelectItem>
-                            ));
-                          })()}
-                        </SelectContent>
-                      </Select>
+                      {/* Phase Filter - Hide when viewing specific assignment */}
+                      {!dataLibraryFocusedAssignment && (
+                        <Select value={dataLibrarySelectedPhase} onValueChange={setDataLibrarySelectedPhase}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="All Phases" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Phases</SelectItem>
+                            {(() => {
+                              const allAssignmentUploads = Object.values(assignmentUploads).flat();
+                              const phases = Array.from(new Set(allAssignmentUploads.map(upload => upload.phase.toString()))).sort((a, b) => parseInt(a) - parseInt(b));
+                              return phases.map(phase => (
+                                <SelectItem key={phase} value={phase}>
+                                  Phase {phase}
+                                </SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      )}
               </div>
                   </div>
 
-                  {/* Assignment Groups */}
-                  {assignments.map((assignment) => {
+                  {/* Assignment Groups - optionally focus a single assignment */}
+                  {assignments
+                    .filter(a => !dataLibraryFocusedAssignment || a.assignment_id === dataLibraryFocusedAssignment)
+                    .map((assignment) => {
                     return (
                       <AssignmentUploads
                         key={assignment.assignment_id}
@@ -968,11 +1323,6 @@ export const SpecialistDashboard = () => {
               <div className="space-y-4">
           {aiChatContext ? (
             <div className="space-y-4">
-              {/* Mode Toggle */}
-              <div className="flex items-center gap-2 mb-4">
-                <Brain className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold">TelAgri Co-Pilot</h3>
-              </div>
 
               {/* Copilot Interface */}
               <AgriCopilot
@@ -983,42 +1333,97 @@ export const SpecialistDashboard = () => {
                 phaseLabel={aiChatContext.phaseLabel}
                 assignmentId={aiChatContext.assignmentId}
                 uploads={chatContextUploads[aiChatContext.assignmentId] ?? []}
-                onContextChange={(updatedUploads) =>
-                  handleChatContextChange(aiChatContext.assignmentId, updatedUploads)
-                }
-                onMessageCountUpdate={(count) => 
-                  handleMessageCountUpdate(aiChatContext.assignmentId, count)
-                }
-                onClose={() => setAiChatContext(null)}
+                onContextChange={agriCopilotOnContextChange}
+                onMessageCountUpdate={agriCopilotOnMessageCountUpdate}
+                onClose={agriCopilotOnClose}
+                onFullScreenChange={setAiCoPilotFullScreen}
               />
             </div>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5" />
-                  TelAgri Co-Pilot Workspace
+            <Card className="dark:bg-dark-card dark:border-dark-border">
+              <CardHeader className="text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                    <Brain className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                </div>
+                <CardTitle className="text-2xl text-heading-primary">
+                  TelAgri AI Co-Pilot
                 </CardTitle>
-                <CardDescription>
-                  Select an assignment above to open the professional AI copilot with advanced agricultural analysis capabilities.
+                <CardDescription className="text-base text-body-secondary mt-3">
+                  Your intelligent assistant for agricultural data analysis and insights
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                  <div className="p-4 border rounded-lg">
-                    <FileText className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-                    <h4 className="font-medium">Data Analysis</h4>
-                    <p className="text-sm text-gray-600">Analyze uploaded files and documents</p>
+              <CardContent className="space-y-6">
+                {/* How to Start Section */}
+                <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30 rounded-lg p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center font-semibold text-sm">
+                      1
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-heading-secondary mb-2">How to Start a Session</h3>
+                      <p className="text-sm text-body-secondary mb-3">
+                        To use the AI Co-Pilot, you need to select a farmer assignment first. This ensures the AI has access to all relevant documents and context for accurate analysis.
+                      </p>
+                      <Button
+                        onClick={() => {
+                          setHighlightAICoPilot(true);
+                          setActiveNavItem('assignments');
+                          const params = new URLSearchParams(location.search);
+                          params.set('tab', 'assignments');
+                          navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                          
+                          // Auto-remove highlight after 2 pulses (2 seconds)
+                          setTimeout(() => setHighlightAICoPilot(false), 2000);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Clipboard className="h-4 w-4 mr-2" />
+                        Go to My Assignments
+                      </Button>
+                    </div>
                   </div>
-                  <div className="p-4 border rounded-lg">
-                    <Brain className="h-8 w-8 mx-auto mb-2 text-green-600" />
-                    <h4 className="font-medium">AI Insights</h4>
-                    <p className="text-sm text-gray-600">Get agricultural recommendations</p>
+                </div>
+
+                {/* Features Grid */}
+                <div>
+                  <h3 className="font-semibold text-heading-secondary mb-4 text-center">What You Can Do</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 border dark:border-dark-border rounded-lg bg-white dark:bg-dark-card hover:shadow-md transition-shadow">
+                      <FileText className="h-8 w-8 mb-3 text-blue-600 dark:text-blue-400" />
+                      <h4 className="font-semibold text-heading-tertiary mb-2">Document Analysis</h4>
+                      <p className="text-sm text-body-muted">
+                        Extract insights from farmer documents, field reports, and agricultural data files.
+                      </p>
+                    </div>
+                    <div className="p-4 border dark:border-dark-border rounded-lg bg-white dark:bg-dark-card hover:shadow-md transition-shadow">
+                      <Brain className="h-8 w-8 mb-3 text-green-600 dark:text-green-400" />
+                      <h4 className="font-semibold text-heading-tertiary mb-2">Smart Recommendations</h4>
+                      <p className="text-sm text-body-muted">
+                        Get AI-powered agricultural advice based on crop type, phase, and historical data.
+                      </p>
+                    </div>
+                    <div className="p-4 border dark:border-dark-border rounded-lg bg-white dark:bg-dark-card hover:shadow-md transition-shadow">
+                      <CheckCircle className="h-8 w-8 mb-3 text-purple-600 dark:text-purple-400" />
+                      <h4 className="font-semibold text-heading-tertiary mb-2">Report Assistance</h4>
+                      <p className="text-sm text-body-muted">
+                        Generate summaries, extract key metrics, and prepare F-100 compliance reports.
+                      </p>
+                    </div>
                   </div>
-                  <div className="p-4 border rounded-lg">
-                    <CheckCircle className="h-8 w-8 mx-auto mb-2 text-purple-600" />
-                    <h4 className="font-medium">F-100 Reports</h4>
-                    <p className="text-sm text-gray-600">Generate compliance reports</p>
+                </div>
+
+                {/* Quick Tip */}
+                <div className="bg-gray-50 dark:bg-dark-border/30 border border-gray-200 dark:border-dark-border rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-heading-tertiary mb-1">Pro Tip</p>
+                      <p className="text-sm text-body-muted">
+                        Once you select an assignment and click the <span className="font-semibold text-blue-600 dark:text-blue-400">"AI Co-Pilot"</span> button, the AI will have full context of all uploaded files for that farmer, enabling more accurate and relevant responses.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1026,6 +1431,177 @@ export const SpecialistDashboard = () => {
           )}
               </div>
             )}
+
+            {activeNavItem === 'ale' && hasAleAccess && (
+              <AleManagement />
+            )}
+
+            {/* Page Transition Loader - Fixed Overlay */}
+            {isPageTransitioning && (
+              <div className="fixed inset-0 bg-white/70 dark:bg-dark-bg/70 backdrop-blur-sm z-[60] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 dark:border-blue-400" />
+                  <p className="text-sm text-body-secondary">Loading...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Bottom Navigation - Hidden on Desktop */}
+            <div className="md:hidden">
+              {/* Bottom Sheet Navigation */}
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <SheetContent 
+                  side="bottom" 
+                  className="h-[70vh] rounded-t-3xl p-0 border-t-2 dark:border-dark-border"
+                >
+                  <div className="flex flex-col h-full">
+                    {/* Handle bar */}
+                    <div className="flex justify-center pt-3 pb-2">
+                      <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full" />
+                    </div>
+
+                    {/* Header */}
+                    <div className="px-6 py-4 border-b dark:border-dark-border">
+                      <h2 className="text-xl font-semibold text-heading-primary">Navigation</h2>
+                      <p className="text-sm text-body-muted mt-1">Select a section to navigate</p>
+                    </div>
+
+                    {/* Navigation Items */}
+                    <nav className="flex-1 overflow-y-auto px-4 py-6">
+                      <div className="space-y-2">
+                        {navigationItems.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = activeNavItem === item.id;
+                          return (
+                            <button
+                              key={`mobile-bottom-${item.id}`}
+                              onClick={() => {
+                                handleNavItemChange(item.id);
+                                setMobileNavOpen(false);
+                              }}
+                              className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl transition-all duration-200 ${
+                                isActive
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-sm'
+                                  : 'text-foreground dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border active:bg-gray-100 dark:active:bg-dark-border/80'
+                              }`}
+                            >
+                              <div className={`p-2 rounded-lg ${
+                                isActive 
+                                  ? 'bg-blue-100 dark:bg-blue-800/30' 
+                                  : 'bg-gray-100 dark:bg-dark-border'
+                              }`}>
+                                <Icon className="h-6 w-6" />
+                              </div>
+                              <div className="flex-1 text-left">
+                                <p className="font-medium">{item.label}</p>
+                                <p className="text-xs text-body-muted mt-0.5">{item.description}</p>
+                              </div>
+                              {isActive && (
+                                <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </nav>
+
+                    {/* Footer Actions */}
+                    <div className="px-4 py-4 border-t dark:border-dark-border bg-gray-50 dark:bg-dark-border/30">
+                      <button
+                        onClick={async () => {
+                          setMobileNavOpen(false);
+                          await handleSignOut();
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl 
+                                 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 
+                                 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        <LogOut className="h-5 w-5" />
+                        <span className="font-medium">Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              {/* Bottom Navigation Bar - Optimized for iPhone */}
+              {!aiCoPilotFullScreen && (
+              <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card border-t dark:border-dark-border shadow-lg z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div className="relative flex items-end justify-around h-18 px-2 pb-5 pt-2">
+                  {/* My Assignments */}
+                  <button
+                    onClick={() => handleNavItemChange('assignments')}
+                    className={`flex flex-col items-center justify-end w-20 h-full pb-1 transition-colors ${
+                      activeNavItem === 'assignments'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <Clipboard className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">Tasks</span>
+                  </button>
+
+                  {/* Data Library */}
+                  <button
+                    onClick={() => handleNavItemChange('library')}
+                    className={`flex flex-col items-center justify-end w-20 h-full pb-1 transition-colors ${
+                      activeNavItem === 'library'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <Database className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">Files</span>
+                  </button>
+
+                  {/* Central FAB - Placeholder for spacing */}
+                  <div className="w-20" />
+
+                  {/* AI Co-Pilot */}
+                  <button
+                    onClick={() => handleNavItemChange('chat')}
+                    className={`flex flex-col items-center justify-end w-20 h-full pb-1 transition-colors ${
+                      activeNavItem === 'chat'
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    <MessageSquare className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">AI Co-Pilot</span>
+                  </button>
+
+                  {/* Menu Button (opens bottom sheet) */}
+                  <button
+                    onClick={() => setMobileNavOpen(true)}
+                    className="flex flex-col items-center justify-end w-20 h-full pb-1 text-gray-600 dark:text-gray-400 transition-colors"
+                  >
+                    <Settings className="h-6 w-6 mb-0.5" />
+                    <span className="text-[10px] font-medium leading-tight">More</span>
+                  </button>
+                </div>
+
+                {/* Central Floating Action Button - Smaller size */}
+                <div className="absolute left-1/2 -translate-x-1/2 -top-5">
+                  <button
+                    onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 
+                               text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 
+                               transition-all duration-200 flex items-center justify-center"
+                    aria-label="Open navigation menu"
+                  >
+                    {mobileNavOpen ? (
+                      <X className="h-5 w-5" />
+                    ) : (
+                      <Menu className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              )}
+
+              {/* Add bottom padding on mobile to account for bottom nav */}
+              {!aiCoPilotFullScreen && <div className="h-16" />}
+            </div>
           </div>
         </div>
       </div>
@@ -1067,6 +1643,22 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
   const [fileViewerFiles, setFileViewerFiles] = useState<any[]>([]);
   const [fileViewerInitialIndex, setFileViewerInitialIndex] = useState(0);
   const [fileViewerSectionName, setFileViewerSectionName] = useState('');
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  
+  // Iframe collapse state (track by iframe URL)
+  const [collapsedIframes, setCollapsedIframes] = useState<Set<string>>(new Set());
+  
+  const toggleIframeCollapse = useCallback((iframeUrl: string) => {
+    setCollapsedIframes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(iframeUrl)) {
+        newSet.delete(iframeUrl);
+      } else {
+        newSet.add(iframeUrl);
+      }
+      return newSet;
+    });
+  }, []);
 
   const {
     data: uploads = [],
@@ -1083,6 +1675,33 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       if (error) throw error;
       return data as FarmerDataUpload[];
     }
+  });
+
+  // Fetch phase iframes for this assignment's phase
+  const { data: phaseIframes = [], isLoading: isLoadingIframes, error: iframeError } = useQuery<Array<{ url: string; name: string; annotation?: string }>>({
+    queryKey: ['farmer-phase-iframes', farmerId, phase],
+    queryFn: async () => {
+      console.log('🗺️ Fetching iframes for farmer:', farmerId, 'phase:', phase);
+      const { data, error } = await supabase
+        .from('farmer_phases' as any)
+        .select('iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phase)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ Error fetching iframes:', error);
+        throw error;
+      }
+      
+      const iframes = ((data as any)?.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      console.log('✅ Loaded', iframes.length, 'iframe(s) for phase', phase);
+      return iframes;
+    },
+    enabled: !!farmerId && !!phase,
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false
   });
 
   useEffect(() => {
@@ -1195,20 +1814,29 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
     return 'bg-gray-50 border-gray-200';
   }, []);
 
+  // NOTE: thumbnail prefetch moved below after filteredUploads is defined to avoid TDZ
+
   const getImageThumbnail = useCallback((upload: FarmerDataUpload) => {
     if (upload.file_mime?.startsWith('image/') || upload.data_type === 'photo') {
-      const imageUrl = supabase.storage.from('farmer-documents').getPublicUrl(upload.file_path).data.publicUrl;
+      const pub = supabase.storage.from('farmer-documents').getPublicUrl(upload.file_path);
+      const imageUrl = thumbnailUrls[upload.id] || pub.data?.publicUrl;
       return (
         <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
-          <img
-            src={imageUrl}
-            alt={upload.file_name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-            }}
-          />
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={upload.file_name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-50">
+              <Image className="h-6 w-6 text-gray-400" />
+            </div>
+          )}
           <div className="hidden w-full h-full flex items-center justify-center bg-gray-50">
             <Image className="h-6 w-6 text-gray-400" />
           </div>
@@ -1216,11 +1844,25 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       );
     }
     return null;
-  }, []);
+  }, [thumbnailUrls]);
 
   // Filter uploads based on search and filters
-  const filteredUploads = useMemo(() => {
+  // Files for the assigned phase (baseline - what specialist should see)
+  const assignedPhaseUploads = useMemo(() => {
     return uploads.filter(upload => {
+      const effectivePhase = (upload.metadata as any)?.f100_phase ?? upload.phase;
+      return effectivePhase === phase;
+    });
+  }, [uploads, phase]);
+
+  // Check if user has actively applied any filters
+  const hasActiveFilters = useMemo(() => {
+    return searchTerm !== '' || selectedDataType !== 'all' || selectedPhase !== 'all';
+  }, [searchTerm, selectedDataType, selectedPhase]);
+
+  // Filtered uploads based on user's active filters
+  const filteredUploads = useMemo(() => {
+    return assignedPhaseUploads.filter(upload => {
       const matchesSearch = searchTerm === '' || 
         upload.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         upload.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1230,7 +1872,46 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
       
       return matchesSearch && matchesDataType && matchesPhase;
     });
-  }, [uploads, searchTerm, selectedDataType, selectedPhase]);
+  }, [assignedPhaseUploads, searchTerm, selectedDataType, selectedPhase]);
+
+  // Prefetch thumbnails ONLY for currently visible image/photo files
+  useEffect(() => {
+    const fetchThumbs = async () => {
+      const candidates = filteredUploads.filter(u =>
+        (u.file_mime?.startsWith('image/') || u.data_type === 'photo') && !thumbnailUrls[u.id]
+      );
+      if (candidates.length === 0) return;
+      const updates: Record<string, string> = {};
+      for (const u of candidates) {
+        try {
+          // Prefer a cached/derivative thumbnail in public bucket if available
+          const thumbPath = `thumbs/${u.file_path}.png`;
+          const pubThumb = supabase.storage.from('farmer-thumbs').getPublicUrl(thumbPath);
+          if (pubThumb.data?.publicUrl) {
+            updates[u.id] = pubThumb.data.publicUrl;
+          } else {
+            // Fallback to object public URL (if bucket has public set for testing) or skip
+            const pub = supabase.storage.from('farmer-documents').getPublicUrl(u.file_path);
+            if (pub.data?.publicUrl) {
+              updates[u.id] = pub.data.publicUrl;
+            } else {
+              // As a final fallback, create a short-lived signed URL (visible items only)
+              const { data, error } = await supabase.storage
+                .from('farmer-documents')
+                .createSignedUrl(u.file_path, 300);
+              if (!error && data?.signedUrl) updates[u.id] = data.signedUrl;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        setThumbnailUrls(prev => ({ ...prev, ...updates }));
+      }
+    };
+    fetchThumbs();
+  }, [filteredUploads, setThumbnailUrls]);
 
   const handleDownload = useCallback(async (upload: FarmerDataUpload) => {
     const { data, error } = await supabase.storage
@@ -1252,52 +1933,54 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
   }, []);
 
   return (
-    <Card className="border-l-4 border-l-blue-500 dark:border-l-blue-400 dark:bg-dark-card dark:border-dark-border transition-colors">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleCollapse}
-              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-4 w-4 text-gray-600 dark:text-gray-400 transition-colors" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-gray-600 dark:text-gray-400 transition-colors" />
-              )}
-            </Button>
-            <div>
-              <h3 className="text-lg text-heading-secondary">Farmer ID: {farmerIdNumber}</h3>
-              <div className="flex items-center space-x-2 mt-1">
-                <Badge variant="outline" className="text-xs dark:border-blue-500/30 dark:text-blue-300 transition-colors">
-                  ID: {farmerId.slice(0, 8)}...
-                </Badge>
-                <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800 transition-colors">
-                  🌾 {crop || 'Crop not specified'}
-                </Badge>
-                <Badge variant="secondary" className="text-xs dark:bg-dark-border dark:text-gray-300 transition-colors">
-                  {phaseLabel}
-                </Badge>
-              </div>
-            </div>
+    <Card className="border-l-4 border-l-blue-500 dark:border-l-blue-400 dark:bg-dark-card dark:border-dark-border transition-colors min-w-0">
+      <CardHeader 
+        className="pb-2 md:pb-3 px-3 md:px-6 pt-3 md:pt-6 cursor-pointer hover:bg-gray-50/50 dark:hover:bg-dark-border/30 active:bg-gray-50 dark:active:bg-dark-border/50 transition-colors"
+        onClick={onToggleCollapse}
+      >
+        <div className="flex items-start gap-2 min-w-0">
+          {/* Collapse button */}
+          <div className="h-7 w-7 md:h-8 md:w-8 flex items-center justify-center flex-shrink-0">
+            <ChevronDown className={`h-3.5 w-3.5 md:h-4 md:w-4 text-gray-600 dark:text-gray-400 transition-transform duration-300 ${
+              isCollapsed ? '-rotate-90' : 'rotate-0'
+            }`} />
           </div>
-          <div className="flex items-center space-x-2">
-            <Badge variant="secondary" className="dark:bg-dark-border dark:text-gray-300 transition-colors">
-              {filteredUploads.length} of {uploads.length} files
-            </Badge>
-            {filteredUploads.length !== uploads.length && (
-              <Badge variant="outline" className="text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400 transition-colors">
-                Filtered
+          
+          {/* Content: Farmer info + badges */}
+          <div className="min-w-0 flex-1">
+            {/* Farmer ID - Full width for visibility */}
+            <h3 className="text-xs md:text-sm font-semibold text-heading-secondary truncate flex items-center gap-1 mb-1.5">
+              <span className="text-[10px] md:text-xs font-normal text-body-muted flex-shrink-0">Farmer</span>
+              <span className="truncate">{farmerIdNumber}</span>
+            </h3>
+            
+            {/* Badges row: Crop, Phase, File count */}
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+              <Badge variant="secondary" className="text-[10px] md:text-xs bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800 transition-colors flex-shrink-0 px-1.5 py-0">
+                🌾 {crop && crop !== 'Not specified' ? crop : 'Not specified'}
               </Badge>
-            )}
+              <Badge variant="secondary" className="text-[10px] md:text-xs dark:bg-dark-border dark:text-gray-300 transition-colors flex-shrink-0 px-1.5 py-0">
+                {phaseLabel}
+              </Badge>
+              <Badge variant="secondary" className="text-[10px] md:text-xs dark:bg-dark-border dark:text-gray-300 transition-colors whitespace-nowrap px-1.5 py-0">
+                {hasActiveFilters ? `${filteredUploads.length}/${assignedPhaseUploads.length}` : `${assignedPhaseUploads.length}`}
+              </Badge>
+              {hasActiveFilters && filteredUploads.length !== assignedPhaseUploads.length && (
+                <Badge variant="outline" className="text-[10px] md:text-xs text-orange-600 border-orange-600 dark:text-orange-400 dark:border-orange-400 transition-colors px-1.5 py-0">
+                  Filtered
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
       
-      {!isCollapsed && (
-        <CardContent className="pt-0">
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[2000px] opacity-100'
+        }`}
+      >
+        <CardContent className="pt-0 px-3 md:px-6 pb-3 md:pb-6 min-w-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -1319,21 +2002,21 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUploads.map((upload) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {filteredUploads.map((upload) => {
                 const thumbnail = getImageThumbnail(upload);
                 return (
                   <div
                     key={upload.id}
-                    className={`border dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:hover:shadow-neon/20 transition-all cursor-pointer ${getFileTypeColor(upload)} dark:bg-dark-card`}
+                    className={`border dark:border-dark-border rounded-lg p-3 md:p-4 hover:shadow-md dark:hover:shadow-neon/20 transition-all cursor-pointer ${getFileTypeColor(upload)} dark:bg-dark-card min-w-0`}
                     onClick={() => openFileViewer(upload, filteredUploads, `Farmer ${farmerIdNumber} - Data Library`)}
                     title={`Click to preview: ${upload.file_name}`}
                   >
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start gap-2 md:gap-3 min-w-0">
                       {/* Thumbnail or Icon */}
                       <div className="flex-shrink-0">
-                        {thumbnail || (
-                          <div className="w-16 h-16 rounded-lg bg-white dark:bg-dark-bg border-2 border-dashed border-gray-300 dark:border-dark-border flex items-center justify-center transition-colors">
+                    {thumbnail || (
+                          <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-white dark:bg-dark-bg border-2 border-dashed border-gray-300 dark:border-dark-border flex items-center justify-center transition-colors">
                             {getFileTypeIcon(upload)}
                           </div>
                         )}
@@ -1341,52 +2024,20 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
                       
                       {/* File Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium text-body-primary truncate text-accent-interactive">
-                              {upload.file_name}
-                            </h4>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge variant="secondary" className="text-xs dark:bg-dark-border dark:text-gray-300 transition-colors">
-                                {upload.data_type}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs dark:border-blue-500/30 dark:text-blue-300 transition-colors">
-                                Phase {upload.phase}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center space-x-4 mt-2 text-xs text-body-muted">
-                              <span>{formatFileSize(upload.file_size_bytes)}</span>
-                              <span>{new Date(upload.created_at).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                          
-                          {/* Quick Actions */}
-                          <div className="flex items-center space-x-1 ml-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-white/80 dark:hover:bg-dark-border/80 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openFileViewer(upload, filteredUploads, `Farmer ${farmerIdNumber} - Data Library`);
-                              }}
-                              title="Preview file"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-white/80 dark:hover:bg-dark-border/80 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(upload);
-                              }}
-                              title="Download file"
-                            >
-                              <FileDown className="h-4 w-4" />
-                            </Button>
-                          </div>
+                        <h4 className="text-xs md:text-sm font-medium text-body-primary truncate text-accent-interactive mb-1">
+                          {upload.file_name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-1 md:gap-2 mb-1">
+                          <Badge variant="secondary" className="text-[10px] md:text-xs dark:bg-dark-border dark:text-gray-300 transition-colors px-1.5 py-0.5">
+                            {upload.data_type}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] md:text-xs dark:border-blue-500/30 dark:text-blue-300 transition-colors px-1.5 py-0.5">
+                            Phase {upload.phase}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs text-body-muted">
+                          <span className="whitespace-nowrap">{formatFileSize(upload.file_size_bytes)}</span>
+                          <span className="whitespace-nowrap">{new Date(upload.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
@@ -1395,8 +2046,91 @@ const AssignmentUploads: React.FC<AssignmentUploadsProps> = ({
               })}
             </div>
           )}
+
+          {/* Phase Interactive Maps Section in Data Library */}
+          <div className="mt-6 space-y-4">
+            {isLoadingIframes ? (
+              <div className="border-t pt-6 text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-xs text-muted-foreground mt-2">Loading interactive maps...</p>
+              </div>
+            ) : iframeError ? (
+              <div className="border-t pt-6 text-center py-4">
+                <p className="text-xs text-red-600">Error loading maps: {iframeError.message}</p>
+              </div>
+            ) : phaseIframes.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between border-t pt-6">
+                  <h3 className="text-base font-bold text-heading-primary flex items-center gap-2">
+                    <Map className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    Interactive Maps (Phase {phase})
+                  </h3>
+                  <span className="text-xs text-muted-foreground">
+                    {phaseIframes.length} map{phaseIframes.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                
+                <div className="space-y-4">
+                  {phaseIframes.map((iframe, idx) => {
+                    const isCollapsed = collapsedIframes.has(iframe.url);
+                    return (
+                      <div key={idx} className="border dark:border-dark-border rounded-lg overflow-hidden bg-card dark:bg-dark-card shadow-sm">
+                        {/* Map Header with Name and Annotation - Clickable to collapse */}
+                        <div 
+                          className="p-4 bg-muted/30 dark:bg-muted/10 border-b border-border/30 cursor-pointer hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors"
+                          onClick={() => toggleIframeCollapse(iframe.url)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 space-y-1">
+                              <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                {isCollapsed ? (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                )}
+                                <Map className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                {iframe.name}
+                              </h4>
+                              {iframe.annotation && !isCollapsed && (
+                                <p className="text-xs text-muted-foreground leading-relaxed ml-10">
+                                  {iframe.annotation}
+                                </p>
+                              )}
+                            </div>
+                            <a
+                              href={iframe.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                              Open
+                            </a>
+                          </div>
+                        </div>
+                        
+                        {/* Full Width Iframe - Collapsible */}
+                        {!isCollapsed && (
+                          <div className="w-full bg-white dark:bg-gray-950 animate-in slide-in-from-top-2 duration-300">
+                            <iframe
+                              src={iframe.url}
+                              className="w-full h-[500px]"
+                              title={iframe.name}
+                              loading="lazy"
+                              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
+          </div>
         </CardContent>
-      )}
+      </div>
       
       {/* File Viewer Modal */}
       <FileViewer

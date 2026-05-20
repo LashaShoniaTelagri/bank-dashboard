@@ -13,6 +13,8 @@ dist-ssr
 *.local
 
 # Environment variables
+# Real env files are NEVER committed. Only *.example files are tracked,
+# and they MUST be kept in sync whenever a new env var is added.
 .env
 .env.*
 env.dev
@@ -24,6 +26,13 @@ env.backend.*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Allow committed reference templates only.
+# Pattern matches env.frontend.example, env.backend.example, env.frontend.local.example, etc.
+!env.frontend.example
+!env.backend.example
+!env.frontend.*.example
+!env.backend.*.example
 
 # Editor directories and files
 .vscode/*
@@ -57,3 +66,20 @@ Thumbs.db
 # Cursor/AI generated files with potential secrets
 .specstory/
 .cursorindexingignore env.backend.prod
+.gitnexus
+
+# GitNexus knowledge graph (local, machine-specific)
+.gitnexus/
+
+# gis-scripts/ originally local-only; selectively tracked now for the parity
+# service to be reproducible. Top-level junk stays ignored; named subtrees pass.
+gis-scripts/**
+!gis-scripts/scripts/
+!gis-scripts/scripts/**
+!gis-scripts/specs/
+!gis-scripts/specs/**
+!gis-scripts/algorithms/
+!gis-scripts/algorithms/**
+!gis-scripts/parity-service/
+!gis-scripts/parity-service/**
+!gis-scripts/README.md

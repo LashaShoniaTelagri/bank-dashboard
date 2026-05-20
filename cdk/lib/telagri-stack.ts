@@ -113,19 +113,32 @@ export class TelAgriStack extends cdk.Stack {
         strictTransportSecurity: { accessControlMaxAge: cdk.Duration.seconds(31536000), includeSubdomains: true, override: true },
         contentSecurityPolicy: { 
           contentSecurityPolicy: [
-            "default-src 'self'",
-            // Allow Google Maps scripts
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https://maps.gstatic.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' https://fonts.gstatic.com",
-            "img-src 'self' data: https: blob:",
-            "connect-src 'self' https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://sentry.io https://*.sentry.io wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com",
-            // Allow iframes for Office viewer and Supabase signed URLs in FileViewer
-            "frame-src https://*.supabase.co https://view.officeapps.live.com",
-            // Allow PDF object embedding from Supabase (FileViewer primary renderer) and data/blob URLs
-            "object-src https://*.supabase.co blob: data:",
+            "default-src 'self' https: data: blob:",
+            // Allow all HTTPS scripts with unsafe-inline and unsafe-eval for maximum compatibility
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://web-sdk.smartlook.com https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://maps.googleapis.com https: data: blob:",
+            // Allow all HTTPS styles with unsafe-inline (includes Smartlook style recording)
+            "style-src 'self' 'unsafe-inline' https: data: blob:",
+            // Explicit style element and attribute sources for Smartlook CSS recording
+            "style-src-elem 'self' 'unsafe-inline' https: data:",
+            "style-src-attr 'unsafe-inline'",
+            // Allow all HTTPS fonts
+            "font-src 'self' https: data:",
+            // Allow all images from any HTTPS source (includes Smartlook)
+            "img-src 'self' data: https: blob: https://*.smartlook.com",
+            // Allow connections to any HTTPS endpoint and WebSockets (includes Smartlook API)
+            "connect-src 'self' https://api.telagri.com https://*.supabase.co https://*.telagri.com https://www.google-analytics.com https://*.sentry.io wss://api.telagri.com wss://*.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://*.smartlook.com https://*.smartlook.cloud https: wss: data: blob:",
+            // Allow iframes from any HTTPS source (for maps, PDFs, embeds)
+            "frame-src 'self' https: data: blob:",
+            // Allow objects and embeds from any HTTPS source (for PDFs and media)
+            "object-src 'self' https: data: blob:",
+            // Allow media from any HTTPS source
+            "media-src 'self' https: data: blob:",
+            // Allow workers and service workers
+            "worker-src 'self' blob:",
+            // Allow manifests
+            "manifest-src 'self'",
             "base-uri 'self'",
-            "form-action 'self'"
+            "form-action 'self' https:"
           ].join('; '),
           override: true 
         },

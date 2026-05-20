@@ -66,9 +66,9 @@ const createInvitationEmail = (
             
             <div class="warning">
               <p><strong>⚠️ Important:</strong></p>
-              <p>• This invitation link expires in 24 hours</p>
+              <p>• This invitation link expires in 5 days and can only be used once</p>
               <p>• For security, please don't share this link with others</p>
-              <p>• If you have any issues, contact your administrator</p>
+              <p>• If the link expires or you need a new one, contact your administrator</p>
             </div>
             
             <p>If the button doesn't work, copy and paste this link into your browser:</p>
@@ -99,7 +99,8 @@ As a Bank Viewer, you'll have access to:
 
 To activate your account, visit: ${resetUrl}
 
-This link expires in 24 hours.
+IMPORTANT: This link expires in 5 days and can only be used once.
+If the link expires or you need a new one, contact your administrator.
 
 If you have any questions, please contact your administrator.
 
@@ -108,7 +109,8 @@ TelAgri Bank Dashboard
 Agricultural Finance Management System
     `;
 
-  // Return correct SendGrid v3 API format
+  // Return correct SendGrid v3 API format with click tracking DISABLED
+  // Click tracking must be disabled to preserve Supabase auth tokens in the URL
   return {
     personalizations: [{
       to: [{ email: userEmail }],
@@ -127,7 +129,16 @@ Agricultural Finance Management System
         type: "text/html",
         value: htmlContent
       }
-    ]
+    ],
+    tracking_settings: {
+      click_tracking: {
+        enable: false,
+        enable_text: false
+      },
+      open_tracking: {
+        enable: false
+      }
+    }
   };
 }
 
@@ -258,75 +269,68 @@ serve(async (req) => {
       .eq('id', bankId)
       .single()
 
-    // Generate password reset link with improved URL handling
+    // Generate custom invitation token (5-day expiration, multi-click support)
     const origin = req.headers.get('origin');
     const siteUrl = Deno.env.get('SITE_URL');
-    // Use origin from request if available (auto-detects correct port), otherwise fall back to SITE_URL
-    const baseUrl = origin || siteUrl || 'http://localhost:8081';
+    // Prioritize SITE_URL (https://dashboard.telagri.com) for production consistency
+    const baseUrl = siteUrl || origin || 'http://localhost:8081';
     
-    console.log('🔗 URL Debug Info:');
+    console.log('🔗 URL Configuration:');
     console.log('  - Request origin:', origin);
     console.log('  - SITE_URL env var:', siteUrl);
     console.log('  - Using base URL:', baseUrl);
 
-    // Generate a proper recovery link with auth tokens
-    console.log('🔗 Attempting to generate recovery link for:', email);
-    console.log('  - PROJECT_URL:', Deno.env.get('PROJECT_URL') ? 'Set' : 'Missing');
-    console.log('  - SERVICE_ROLE_KEY:', Deno.env.get('SERVICE_ROLE_KEY') ? 'Set' : 'Missing');
-    console.log('  - Redirect URL:', `${baseUrl}/auth?type=recovery`);
+    // Generate secure random token (64 characters hex)
+    const generateInvitationToken = () => {
+      const randomBytes = new Uint8Array(32);
+      crypto.getRandomValues(randomBytes);
+      return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    };
 
-    const { data: resetData, error: resetError } = await supabaseClient.auth.admin.generateLink({
-      type: 'recovery',
-      email: email,
-      options: {
-        redirectTo: `${baseUrl}/auth?type=recovery`
-      }
-    })
+    const invitationToken = generateInvitationToken();
+    const expiresAt = new Date(Date.now() + (5 * 24 * 60 * 60 * 1000)); // 5 days
 
-    console.log('🔗 Supabase generateLink result:');
-    console.log('  - Error:', resetError);
-    console.log('  - Data:', resetData ? 'Present' : 'Missing');
-    console.log('  - Properties:', resetData?.properties ? 'Present' : 'Missing');
-    console.log('  - Action Link:', resetData?.properties?.action_link ? 'Present' : 'Missing');
+    console.log('🎫 Creating custom invitation token');
+    console.log('  - Token length:', invitationToken.length);
+    console.log('  - Expires at:', expiresAt.toISOString());
+    console.log('  - Days valid:', 5);
 
-    if (resetError) {
-      console.error('❌ Reset link generation failed:', resetError);
-      
-      // Provide specific error messages based on the error type
-      if (resetError.message?.includes('invalid_request')) {
-        throw new Error('Invalid request: Please check if the user email is valid and the service is properly configured.');
-      } else if (resetError.message?.includes('user_not_found')) {
-        throw new Error('User not found: Unable to generate recovery link for this email address.');
-      } else {
-        throw new Error(`Failed to generate secure reset link: ${resetError.message}`);
-      }
+    // Store invitation in database
+    const { data: invitation, error: invitationError } = await supabaseClient
+      .from('invitations')
+      .insert({
+        email: email,
+        token: invitationToken,
+        user_id: userId,
+        role: 'bank_viewer',
+        bank_id: bankId,
+        invited_by: inviterEmail,
+        expires_at: expiresAt.toISOString(),
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (invitationError) {
+      console.error('❌ Failed to create invitation:', invitationError);
+      throw new Error(`Failed to create invitation: ${invitationError.message}`);
     }
 
-    if (!resetData?.properties?.action_link) {
-      console.error('❌ No action link returned from Supabase');
-      console.error('   - resetData structure:', JSON.stringify(resetData, null, 2));
-      throw new Error('Failed to generate secure reset link: No action link returned from Supabase auth service.');
-    }
+    console.log('✅ Invitation record created:', invitation.id);
 
-    const resetUrl = resetData.properties.action_link;
-    console.log('✅ Successfully generated secure reset URL');
-    console.log('📋 Reset URL length:', resetUrl.length);
-    console.log('🔑 Contains access_token:', resetUrl.includes('access_token='));
-    console.log('🔑 Contains refresh_token:', resetUrl.includes('refresh_token='));
-    console.log('🔗 Reset URL (first 100 chars):', resetUrl.substring(0, 100) + '...');
+    // Create custom invitation URL
+    const invitationUrl = `${baseUrl}/invitation/accept?token=${invitationToken}`;
+    console.log('🔗 Custom invitation URL generated');
+    console.log('  - URL:', invitationUrl.substring(0, 80) + '...');
+    console.log('  - Multi-click: Enabled');
+    console.log('  - Expiration: 5 days')
 
-    // Validate that the URL is actually secure
-    if (!resetUrl.includes('access_token=') && !resetUrl.includes('token=')) {
-      console.error('❌ Generated URL does not contain security tokens');
-      throw new Error('Security validation failed: Generated reset link does not contain proper authentication tokens.');
-    }
-
-    // Prepare email data
+    // Prepare email data with custom invitation URL
     const emailData = createInvitationEmail(
       email,
       bank?.name || 'Unknown Bank',
       inviterEmail || 'TelAgri Admin',
-      resetUrl
+      invitationUrl
     )
 
     // Log the email data being sent to SendGrid
@@ -356,21 +360,16 @@ serve(async (req) => {
 
     console.log(`✅ Invitation email sent successfully to ${email}`)
 
-    // Log invitation in database (optional - you might want to create an invitations table)
-    await supabaseClient
-      .from('profiles')
-      .update({ 
-        created_at: new Date().toISOString() 
-      })
-      .eq('user_id', userId)
-
     return new Response(
       JSON.stringify({
         success: true,
         message: `Bank viewer invitation sent successfully to ${email}`,
         userId: userId,
         bankName: bank?.name,
-        isNewUser: isNewUser
+        isNewUser: isNewUser,
+        invitationId: invitation.id,
+        expiresAt: expiresAt.toISOString(),
+        validDays: 5
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

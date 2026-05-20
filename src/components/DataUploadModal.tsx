@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth, UserProfile } from "../hooks/useAuth";
 import { supabase } from "../integrations/supabase/client";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -23,7 +23,9 @@ import {
   AlertCircle,
   Loader2,
   Sun,
-  Trash2
+  Trash2,
+  Plus,
+  ExternalLink
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "./ui/use-toast";
@@ -47,6 +49,7 @@ type UploadRow = {
   phase: number;
   data_type: DataType;
   metadata: Record<string, unknown> | null;
+  iframe_urls?: Array<{ url: string; name: string; annotation?: string }> | null;
   updated_at?: string;
 };
 
@@ -57,6 +60,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   onUploadComplete
 }) => {
   const { profile } = useAuth();
+  const userProfile = profile as UserProfile | null;
   const [isOpen, setIsOpen] = useState(false);
   const [uploadData, setUploadData] = useState<DataUploadForm>({
     farmer_id: farmerId,
@@ -78,34 +82,113 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     file_name: string;
     file_path: string;
   }>(null);
-  const [f100Phase, setF100Phase] = useState<F100Phase | null>(null);
+  const [f100Phase, setF100Phase] = useState<F100Phase | null>(1 as F100Phase);
+  const [iframeUrls, setIframeUrls] = useState<Array<{ url: string; name: string; annotation: string }>>([]);
+  const [iframeUrlInput, setIframeUrlInput] = useState('');
+  const [iframeNameInput, setIframeNameInput] = useState('');
+  const [iframeAnnotationInput, setIframeAnnotationInput] = useState('');
 
-  // Reset success message when modal opens
+  useEffect(() => {
+    setUploadData(prev => ({ ...prev, phase: (f100Phase ?? prev.phase) as F100Phase }));
+  }, [f100Phase]);
+
+  // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setShowSuccessMessage(false);
+    } else {
+      // Reset form when modal closes (but don't reset iframes - they're managed per phase)
+      setUploadData({
+        farmer_id: farmerId,
+        data_type: 'photo',
+        file: null,
+        description: '',
+        tags: [],
+        phase: 1 as F100Phase
+      });
+      setSelectedFiles([]);
+      setIframeUrlInput('');
+      setIframeNameInput('');
+      setIframeAnnotationInput('');
+      setF100Phase(1 as F100Phase);
+      setUploadProgress(null);
     }
-  }, [isOpen]);
+  }, [isOpen, farmerId]);
+
+  // Controls for filtering previously uploaded list
+  const [existingPhaseFilter, setExistingPhaseFilter] = useState<string>('all');
 
   // Load previously uploaded data for this farmer
   const { data: existingUploads = [], isLoading: uploadsLoading } = useQuery({
-    queryKey: ['farmer-data-uploads', farmerId],
+    queryKey: ['farmer-data-uploads', farmerId, existingPhaseFilter],
     queryFn: async (): Promise<UploadRow[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('farmer_data_uploads')
-        .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata')
+        .select('id, file_name, file_path, file_mime, file_size_bytes, created_at, phase, data_type, metadata, iframe_urls')
         .eq('farmer_id', farmerId)
+        .eq('bank_id', bankId)
         .order('created_at', { ascending: false });
+      if (existingPhaseFilter !== 'all') {
+        query = query.eq('phase', Number(existingPhaseFilter));
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data as unknown as UploadRow[]) ?? [];
-    }
+    },
+    enabled: isOpen,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
 
   const queryClient = useQueryClient();
 
+  // Generate a small thumbnail (PNG) for image files in-browser (common formats)
+  const generateImageThumbnail = useCallback(async (file: File): Promise<Blob | null> => {
+    try {
+      // Try to decode via browser (JPEG/PNG/WebP/GIF/BMP/TIFF). HEIC/HEIF may fail and return null.
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const im = new window.Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = url;
+      }).catch(() => null);
+
+      if (!img) return null; // Unsupported format for client-side decoding
+
+      const targetSize = 128;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+
+      const srcW = img.width || targetSize;
+      const srcH = img.height || targetSize;
+      const scale = Math.max(targetSize / srcW, targetSize / srcH);
+      const drawW = Math.round(srcW * scale);
+      const drawH = Math.round(srcH * scale);
+      const dx = Math.round((targetSize - drawW) / 2);
+      const dy = Math.round((targetSize - drawH) / 2);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, targetSize, targetSize);
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+
+      const blob: Blob | null = await new Promise((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png', 0.8)
+      );
+      return blob;
+    } catch (e) {
+      console.warn('Thumbnail generation failed:', e);
+      return null;
+    }
+  }, []);
+
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file }: { file: File }) => {
       // Validate file size
       const maxSize = parseInt(DATA_TYPES[uploadData.data_type].maxSize.replace('MB', '')) * 1024 * 1024;
       if (file.size > maxSize) {
@@ -129,61 +212,57 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Insert record into database (admin via RPC to bypass RLS; others direct insert)
-      let dbResponse: UploadRow | null = null;
-      let dbError: Error | null = null;
-      if (profile?.role === 'admin') {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('admin_insert_farmer_data_upload', {
-          p_farmer_id: farmerId,
-          p_bank_id: bankId,
-          p_data_type: uploadData.data_type,
-          p_file_name: file.name,
-          p_file_path: filePath,
-          p_file_mime: file.type,
-          p_file_size: file.size,
-          p_description: uploadData.description,
-          p_tags: uploadData.tags,
-          p_phase: uploadData.phase,
-          p_metadata: {
+      // Insert record into database (no iframe_urls here, they're saved to farmer_phases)
+      const { data: insertData, error: insertError } = await supabase
+        .from('farmer_data_uploads')
+        .insert({
+          farmer_id: farmerId,
+          bank_id: bankId,
+          uploaded_by: userProfile?.user_id ?? '',
+          data_type: uploadData.data_type,
+          file_name: file.name,
+          file_path: filePath,
+          file_mime: file.type,
+          file_size_bytes: file.size,
+          description: uploadData.description,
+          tags: uploadData.tags,
+          phase: f100Phase,
+          metadata: {
             original_name: file.name,
             upload_timestamp: new Date().toISOString(),
-            uploader_role: profile?.role,
+            uploader_role: userProfile?.role,
             f100_phase: f100Phase
           }
-        });
-        dbResponse = rpcData as unknown as UploadRow ?? null;
-        dbError = rpcError ? new Error(rpcError.message) : null;
-      } else {
-        const { data: insertData, error: insertError } = await supabase
-          .from('farmer_data_uploads')
-          .insert({
-            farmer_id: farmerId,
-            bank_id: bankId,
-            uploaded_by: profile?.user_id ?? '',
-            data_type: uploadData.data_type,
-            file_name: file.name,
-            file_path: filePath,
-            file_mime: file.type,
-            file_size_bytes: file.size,
-            description: uploadData.description,
-            tags: uploadData.tags,
-            phase: uploadData.phase,
-            metadata: {
-              original_name: file.name,
-              upload_timestamp: new Date().toISOString(),
-              uploader_role: profile?.role,
-              f100_phase: f100Phase
-            }
-          })
-          .select()
-          .single();
-        dbResponse = insertData as UploadRow ?? null;
-        dbError = insertError ? new Error(insertError.message) : null;
-      }
+        })
+        .select()
+        .single();
+      
+      const dbResponse = insertData as UploadRow ?? null;
+      const dbError = insertError ? new Error(insertError.message) : null;
 
       if (dbError) {
         await supabase.storage.from('farmer-documents').remove([filePath]);
         throw dbError;
+      }
+
+      // Best-effort: create and upload a small public thumbnail for images
+      if (file.type.startsWith('image/')) {
+        try {
+          const thumbBlob = await generateImageThumbnail(file);
+          if (thumbBlob) {
+            const withoutExt = filePath.replace(/\.[^/.]+$/, '');
+            const thumbPath = `thumbs/${withoutExt}.png`;
+            await supabase.storage
+              .from('farmer-thumbs')
+              .upload(thumbPath, thumbBlob, {
+                upsert: true,
+                contentType: 'image/png',
+              });
+          }
+        } catch (e) {
+          console.warn('Failed to upload thumbnail:', e);
+          // Non-blocking
+        }
       }
 
       // Generate AI description for image files
@@ -223,7 +302,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       setShowSuccessMessage(true);
       setTimeout(() => setShowSuccessMessage(false), 5000); // Hide after 5 seconds
       
-      // Reset form but keep modal open
+      // Reset form but keep modal open (keep iframe URLs as they're managed separately)
       setUploadData(prev => ({
         ...prev,
         file: null as any
@@ -233,6 +312,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
       
       // Invalidate queries to refresh the "Previously Uploaded" section
       queryClient.invalidateQueries({ queryKey: ['farmer-data-uploads', farmerId] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-data-uploads', farmerId, existingPhaseFilter] });
       queryClient.invalidateQueries({ queryKey: ['specialist-assignments'] });
       
       onUploadComplete?.();
@@ -254,7 +334,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     const allowedTypes = {
       photo: [
         // Images
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/tif', 'image/heic', 'image/heif',
         // Documents
         'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -403,6 +483,239 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     }));
   }, []);
 
+  // Handle iframe URL validation
+  const isValidUrl = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  // Auto-save iframe to farmer_phases
+  const saveIframeMutation = useMutation({
+    mutationFn: async (iframeData: { url: string; name: string; annotation: string }) => {
+      if (!f100Phase) {
+        throw new Error('Please select a phase first');
+      }
+
+      // Fetch existing phase data
+      const { data: existingPhase, error: fetchError } = await supabase
+        .from('farmer_phases')
+        .select('id, iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', f100Phase)
+        .single();
+
+      const currentIframes = (existingPhase?.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      
+      // Add new iframe
+      const updatedIframes = [...currentIframes, iframeData];
+
+      if (existingPhase?.id) {
+        // Update existing phase
+        const { error } = await supabase
+          .from('farmer_phases')
+          .update({ iframe_urls: updatedIframes })
+          .eq('id', existingPhase.id);
+        
+        if (error) throw error;
+      } else {
+        // Create new phase record
+        const { error } = await supabase
+          .from('farmer_phases')
+          .insert({
+            farmer_id: farmerId,
+            phase_number: f100Phase,
+            iframe_urls: updatedIframes
+          });
+        
+        if (error) throw error;
+      }
+
+      return updatedIframes;
+    },
+    onSuccess: (updatedIframes) => {
+      setIframeUrls(updatedIframes);
+      toast({
+        title: "Iframe saved",
+        description: `Iframe added to Phase ${f100Phase}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase', farmerId, f100Phase] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase-iframes', farmerId, f100Phase] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to save iframe",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Load existing iframes for selected phase
+  const { data: existingPhaseIframes = [] } = useQuery({
+    queryKey: ['phase-iframes-modal', farmerId, f100Phase],
+    queryFn: async () => {
+      if (!f100Phase) return [];
+      
+      const { data, error } = await supabase
+        .from('farmer_phases')
+        .select('iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', f100Phase)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      return (data?.iframe_urls as Array<{ url: string; name: string; annotation: string }>) || [];
+    },
+    enabled: isOpen && !!f100Phase && !!farmerId,
+    staleTime: 0,
+    refetchOnMount: true
+  });
+
+  // Update local state when phase changes or data loads
+  // Use JSON comparison to avoid infinite loops from array reference changes
+  const prevPhaseIframesRef = useRef<string>('');
+  useEffect(() => {
+    const newDataStr = JSON.stringify(existingPhaseIframes);
+    if (newDataStr !== prevPhaseIframesRef.current) {
+      prevPhaseIframesRef.current = newDataStr;
+      setIframeUrls(existingPhaseIframes);
+    }
+  }, [existingPhaseIframes]);
+
+  // Handle iframe URL addition with auto-save
+  const handleAddIframeUrl = useCallback(async () => {
+    const trimmedUrl = iframeUrlInput.trim();
+    const trimmedName = iframeNameInput.trim();
+    
+    if (!f100Phase) {
+      toast({
+        title: "Phase required",
+        description: "Please select a phase first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!trimmedUrl) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!trimmedName) {
+      toast({
+        title: "Name required",
+        description: "Please enter a name for this iframe",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Ensure URL starts with http:// or https://
+    const normalizedUrl = trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')
+      ? trimmedUrl
+      : `https://${trimmedUrl}`;
+    
+    if (!isValidUrl(normalizedUrl)) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL (e.g., https://example.com)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (iframeUrls.some(item => item.url === normalizedUrl)) {
+      toast({
+        title: "Duplicate URL",
+        description: "This URL has already been added for this phase",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newIframe = {
+      url: normalizedUrl,
+      name: trimmedName,
+      annotation: iframeAnnotationInput.trim()
+    };
+    
+    // Auto-save to database
+    await saveIframeMutation.mutateAsync(newIframe);
+    
+    setIframeUrlInput('');
+    setIframeNameInput('');
+    setIframeAnnotationInput('');
+  }, [iframeUrlInput, iframeNameInput, iframeAnnotationInput, iframeUrls, f100Phase, farmerId, saveIframeMutation]);
+
+  // Remove iframe mutation with auto-save
+  const removeIframeMutation = useMutation({
+    mutationFn: async (urlToRemove: string) => {
+      if (!f100Phase) {
+        throw new Error('Phase not selected');
+      }
+
+      // Fetch existing phase data
+      const { data: existingPhase, error: fetchError } = await supabase
+        .from('farmer_phases')
+        .select('id, iframe_urls')
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', f100Phase)
+        .single();
+
+      if (fetchError || !existingPhase) {
+        throw new Error('Phase data not found');
+      }
+
+      const currentIframes = (existingPhase.iframe_urls as Array<{ url: string; name: string; annotation?: string }>) || [];
+      const updatedIframes = currentIframes.filter(item => item.url !== urlToRemove);
+
+      // Update phase with removed iframe
+      const { error } = await supabase
+        .from('farmer_phases')
+        .update({ iframe_urls: updatedIframes })
+        .eq('id', existingPhase.id);
+      
+      if (error) throw error;
+
+      return updatedIframes;
+    },
+    onSuccess: (updatedIframes) => {
+      setIframeUrls(updatedIframes);
+      toast({
+        title: "Iframe removed",
+        description: `Iframe removed from Phase ${f100Phase}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase', farmerId, f100Phase] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase-iframes', farmerId, f100Phase] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to remove iframe",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Handle iframe URL removal with auto-save
+  const handleRemoveIframeUrl = useCallback(async (urlToRemove: string) => {
+    await removeIframeMutation.mutateAsync(urlToRemove);
+  }, [removeIframeMutation]);
+
+  // Truncate URL for display
+  const truncateUrl = (url: string, maxLength: number = 50) => {
+    if (url.length <= maxLength) return url;
+    return url.substring(0, maxLength - 3) + '...';
+  };
+
   // Handle form submission
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,14 +744,23 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
         return;
       }
 
+      if (!f100Phase) {
+        toast({
+          title: 'Phase required',
+          description: 'Please select a Phase (1-12) before uploading.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       for (const file of selectedFiles) {
         setUploadProgress({ file_name: file.name, progress: 0, status: 'uploading' });
-        await uploadMutation.mutateAsync(file);
+        await uploadMutation.mutateAsync({ file });
       }
     } finally {
       setUploadProgress(null);
     }
-  }, [selectedFiles, uploadMutation]);
+  }, [selectedFiles, uploadMutation, f100Phase]);
 
   // Get data type icon
   const getDataTypeIcon = (type: DataType) => {
@@ -470,10 +792,10 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           Upload Data
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="data-upload-modal-desc">
         <DialogHeader>
           <DialogTitle>Upload Data for {farmerName}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="data-upload-modal-desc">
             Upload photos, analysis files, geospatial data, and other documents for specialist analysis
           </DialogDescription>
         </DialogHeader>
@@ -603,6 +925,117 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
             />
           </div>
 
+          {/* Iframe URLs (Admin only) */}
+          {userProfile?.role === 'admin' && (
+            <div className="space-y-3">
+              <div>
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  Interactive Maps for Phase {f100Phase || '(Select phase first)'}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Add iframe URLs (e.g., QGIS HTML maps) that will be displayed to specialists viewing this phase. Auto-saves on click.
+                </p>
+              </div>
+              <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <Input
+                    placeholder="URL (required)"
+                    value={iframeUrlInput}
+                    onChange={(e) => setIframeUrlInput(e.target.value)}
+                    type="url"
+                    className="md:col-span-3"
+                  />
+                  <Input
+                    placeholder="Name (required)"
+                    value={iframeNameInput}
+                    onChange={(e) => setIframeNameInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddIframeUrl();
+                      }
+                    }}
+                  />
+                  <Input
+                    placeholder="Annotation (optional)"
+                    value={iframeAnnotationInput}
+                    onChange={(e) => setIframeAnnotationInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddIframeUrl();
+                      }
+                    }}
+                    className="md:col-span-2"
+                  />
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleAddIframeUrl} 
+                  disabled={saveIframeMutation.isPending || !f100Phase}
+                  className="w-full md:w-auto"
+                >
+                  {saveIframeMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Iframe
+                    </>
+                  )}
+                </Button>
+              </div>
+              {iframeUrls.length > 0 && (
+                <div className="space-y-2">
+                  {iframeUrls.map((item, index) => (
+                    <div key={index} className="p-3 border rounded-lg bg-card space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-foreground mb-1">{item.name}</div>
+                          {item.annotation && (
+                            <div className="text-xs text-muted-foreground mb-2">{item.annotation}</div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
+                              title={item.url}
+                            >
+                              {truncateUrl(item.url, 60)}
+                            </a>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveIframeUrl(item.url)}
+                          disabled={removeIframeMutation.isPending}
+                          className="h-7 w-7 p-0 flex-shrink-0"
+                        >
+                          {removeIframeMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tags */}
           <div className="space-y-2">
             <Label>Tags (Optional)</Label>
@@ -709,7 +1142,27 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
 
           {/* Existing Uploads */}
           <div className="space-y-2">
-            <Label>Previously Uploaded</Label>
+            <div className="flex items-center justify-between">
+              <Label>Previously Uploaded</Label>
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-muted-foreground">Phase:</div>
+                <select
+                  value={existingPhaseFilter}
+                  onChange={(e) => setExistingPhaseFilter(e.target.value)}
+                  className="h-8 rounded-md border px-2 text-sm bg-background"
+                >
+                  <option value="all">All</option>
+                  {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(p => (
+                    <option key={p} value={p}>Phase {p}</option>
+                  ))}
+                </select>
+                {(existingPhaseFilter !== 'all') && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setExistingPhaseFilter('all')}>
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </div>
             {uploadsLoading ? (
               <div className="text-sm text-gray-500">Loading...</div>
             ) : (existingUploads as UploadRow[]).length === 0 ? (
@@ -728,16 +1181,17 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {(existingUploads as UploadRow[]).map((u: UploadRow) => (
-                      <tr key={u.id} className="border-t">
-                        <td className="p-2 break-all">{u.file_name}</td>
-                        <td className="p-2">{u.data_type}</td>
-                        <td className="p-2">{(u.file_size_bytes / 1024 / 1024).toFixed(2)} MB</td>
-                        <td className="p-2">
-                          {getPhaseLabel((u.metadata?.f100_phase as F100Phase | undefined) ?? (u.phase as F100Phase))}
-                        </td>
-                        <td className="p-2">{new Date(u.created_at).toLocaleString()}</td>
-                        <td className="p-2 flex items-center gap-2">
+                    {(existingUploads as UploadRow[]).map((u: UploadRow) => {
+                      return (
+                        <tr key={u.id} className="border-t">
+                          <td className="p-2 break-all">{u.file_name}</td>
+                          <td className="p-2">{u.data_type}</td>
+                          <td className="p-2">{(u.file_size_bytes / 1024 / 1024).toFixed(2)} MB</td>
+                          <td className="p-2">
+                            {getPhaseLabel((u.metadata?.f100_phase as F100Phase | undefined) ?? (u.phase as F100Phase))}
+                          </td>
+                          <td className="p-2">{new Date(u.created_at).toLocaleString()}</td>
+                          <td className="p-2 flex items-center gap-2">
                           <Button
                             type="button"
                             variant="ghost"
@@ -758,7 +1212,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                               <path d="M4.5 15.75a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75V18A2.25 2.25 0 0 1 17.25 20.25H6.75A2.25 2.25 0 0 1 4.5 18v-2.25z" />
                             </svg>
                           </Button>
-                          {profile?.role === 'admin' && (
+                          {userProfile?.role === 'admin' && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -778,7 +1232,8 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

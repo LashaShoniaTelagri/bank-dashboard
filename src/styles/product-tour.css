@@ -7,6 +7,11 @@
   pointer-events: auto !important;
 }
 
+/* Dark mode overlay */
+.dark .driver-overlay {
+  background: rgba(0, 0, 0, 0.6) !important;
+}
+
 .driver-popover {
   z-index: 999999 !important;
   pointer-events: auto !important;
@@ -18,6 +23,13 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
   padding: 20px !important;
   max-width: 400px !important;
+}
+
+/* Dark mode popover */
+.dark .driver-popover {
+  background: hsl(210 9% 7%) !important; /* --card color */
+  border: 1px solid hsl(210 8% 18%) !important; /* --border color */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2) !important;
 }
 
 .driver-popover * {
@@ -37,7 +49,10 @@
   text-align: center !important;
 }
 
-/* Removed duplicate wheat icon - it's already in the title text */
+/* Dark mode title */
+.dark .driver-popover-title {
+  color: hsl(210 6% 93%) !important; /* --foreground */
+}
 
 /* Popover description */
 .driver-popover-description {
@@ -46,6 +61,11 @@
   line-height: 1.5 !important;
   margin: 0 0 16px 0 !important;
   text-align: center !important;
+}
+
+/* Dark mode description */
+.dark .driver-popover-description {
+  color: hsl(210 6% 73%) !important; /* Lighter muted text for dark mode */
 }
 
 /* Popover footer */
@@ -63,6 +83,11 @@
   font-size: 12px !important;
   font-weight: 500 !important;
   margin: 0 !important;
+}
+
+/* Dark mode progress text */
+.dark .driver-popover-progress-text {
+  color: hsl(210 6% 73%) !important;
 }
 
 /* Buttons - Critical styling for clickability */
@@ -95,6 +120,19 @@
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
 }
 
+/* Dark mode primary buttons */
+.dark .driver-popover-next-btn,
+.dark .driver-popover-done-btn {
+  background: hsl(217 32% 65%) !important; /* --primary in dark mode */
+  color: hsl(210 11% 4%) !important; /* --primary-foreground */
+}
+
+.dark .driver-popover-next-btn:hover,
+.dark .driver-popover-done-btn:hover {
+  background: hsl(217 32% 55%) !important;
+  box-shadow: 0 4px 12px rgba(123, 167, 217, 0.3) !important;
+}
+
 .driver-popover-prev-btn {
   background: #f3f4f6 !important;
   color: #374151 !important;
@@ -122,6 +160,18 @@
   transform: translateY(-1px) !important;
 }
 
+/* Dark mode previous button */
+.dark .driver-popover-prev-btn {
+  background: hsl(210 8% 11%) !important; /* --secondary */
+  color: hsl(210 6% 93%) !important; /* --foreground */
+  border: 1px solid hsl(210 8% 18%) !important; /* --border */
+}
+
+.dark .driver-popover-prev-btn:hover {
+  background: hsl(210 8% 15%) !important;
+  border-color: hsl(210 8% 25%) !important;
+}
+
 /* Close button */
 .driver-popover-close-btn {
   position: absolute !important;
@@ -146,6 +196,16 @@
 .driver-popover-close-btn:hover {
   color: #6b7280 !important;
   background: #f3f4f6 !important;
+}
+
+/* Dark mode close button */
+.dark .driver-popover-close-btn {
+  color: hsl(210 6% 56%) !important; /* Lighter gray for visibility */
+}
+
+.dark .driver-popover-close-btn:hover {
+  color: hsl(210 6% 73%) !important;
+  background: hsl(210 8% 11%) !important;
 }
 
 /* Highlighted element styling - Smooth & Elegant */
@@ -176,6 +236,13 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
   pointer-events: auto !important;
   z-index: 999999 !important;
+}
+
+/* Dark mode custom popover */
+.dark .telagri-tour-popover {
+  background: hsl(210 9% 7%) !important;
+  border: 1px solid hsl(210 8% 18%) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2) !important;
 }
 
 

@@ -1,12 +1,17 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { Navigate } from "react-router-dom";
+import { useAuth, UserProfile } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader as SheetHead, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
+import { LogOut, Menu, X, Users, Settings, FileText } from "lucide-react";
 import { FarmersTable } from "@/components/FarmersTable";
+import { FarmerListView } from "@/components/FarmerListView";
 import { BankFilters } from "@/components/BankFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "@/components/ui/use-toast";
+import { hasProductAccess, ProductAccess } from "@/types/productAccess";
 
 interface Bank {
   id: string;
@@ -16,7 +21,11 @@ interface Bank {
 
 const BankDashboard = () => {
   const { user, profile, signOut, loading } = useAuth();
+  const userProfile = profile as UserProfile | null;
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [bank, setBank] = useState<Bank | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [filters, setFilters] = useState({
     search: "",
     fromDate: "",
@@ -24,18 +33,46 @@ const BankDashboard = () => {
     bankId: "", // Will be set when profile loads
   });
 
+  // Check authentication and redirect if session expired
+  useEffect(() => {
+    if (!loading && !user) {
+      console.log('🔒 User session expired or not authenticated, redirecting to login');
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again to continue.",
+        variant: "destructive"
+      });
+      navigate('/auth', { replace: true });
+    }
+  }, [user, loading, navigate]);
 
+  // Check user role and product access
+  useEffect(() => {
+    if (!loading && user && profile) {
+      if (profile.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (profile.role === 'specialist') {
+        navigate('/specialist', { replace: true });
+      } else if (!hasProductAccess(profile.products_enabled ?? 0, ProductAccess.FieldMonitoring)) {
+        if (hasProductAccess(profile.products_enabled ?? 0, ProductAccess.Underwriting)) {
+          navigate('/underwriting/applications', { replace: true });
+        } else {
+          navigate('/products', { replace: true });
+        }
+      }
+    }
+  }, [user, profile, loading, navigate]);
 
   useEffect(() => {
     const fetchBank = async () => {
-      if (profile?.bank_id) {
+      if (userProfile?.bank_id) {
         // Set the bank filter for bank users to only see their own farmers
-        setFilters(prev => ({ ...prev, bankId: profile.bank_id }));
+        setFilters(prev => ({ ...prev, bankId: userProfile.bank_id }));
   
         const { data } = await supabase
           .from('banks')
           .select('*')
-          .eq('id', profile.bank_id)
+          .eq('id', userProfile.bank_id)
           .maybeSingle();
         
         if (data) {
@@ -45,42 +82,23 @@ const BankDashboard = () => {
     };
 
     fetchBank();
-  }, [profile]);
+  }, [userProfile]);
 
   // Show loading while auth is being determined
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
+      <div className="min-h-screen bg-background dark:bg-dark-bg transition-colors flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Redirect if not authenticated
-  if (!user) {
-
-    return <Navigate to="/auth" replace />;
-  }
-
-  // Redirect if admin (should go to admin dashboard)
-  if (profile && profile.role === 'admin') {
-
-    return <Navigate to="/admin" replace />;
-  }
-
-  // If user exists but no profile, show loading
-  if (user && !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground">Loading your profile...</p>
-        </div>
-      </div>
-    );
-  }
+  // Don't render dashboard if user is not authenticated or will be redirected
+  if (!user || !profile) return null;
+  if (!hasProductAccess(profile.products_enabled ?? 0, ProductAccess.FieldMonitoring)) return null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -134,12 +152,22 @@ const BankDashboard = () => {
               {bank?.name || 'TelAgri'}
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
+            {userProfile && hasProductAccess(userProfile.products_enabled ?? 1, ProductAccess.Underwriting) && (
+              <Button
+                variant="outline"
+                onClick={() => navigate('/underwriting/applications')}
+                className="hidden md:flex hover:bg-muted dark:hover:bg-muted/80"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Underwriting
+              </Button>
+            )}
             <ThemeToggle variant="icon" size="sm" />
             <Button 
               variant="outline" 
               onClick={handleSignOut} 
-              className="
+              className="hidden md:flex
                 bg-gradient-to-r from-emerald-600 to-green-600 
                 hover:from-emerald-500 hover:to-green-500
                 text-white font-medium border-emerald-400/30
@@ -155,13 +183,119 @@ const BankDashboard = () => {
         </div>
       </header>
 
-      <div className="relative z-10 container mx-auto px-4 py-6">
-        <div className="bg-card/60 dark:bg-card/40 backdrop-blur-md border border-border/30 rounded-lg shadow-xl p-6 space-y-6">
+      <div className="relative z-10 container mx-auto px-4 py-6 pb-20 md:pb-6">
+        <div className="space-y-6">
           <BankFilters 
             filters={{ search: filters.search, fromDate: filters.fromDate, toDate: filters.toDate }} 
             onFiltersChange={handleFiltersChange} 
           />
-          <FarmersTable filters={filters} isAdmin={false} />
+          <FarmerListView 
+            filters={filters} 
+            isAdmin={false}
+          />
+        </div>
+      </div>
+
+      {/* Mobile Bottom Navigation - Hidden on Desktop */}
+      <div className="md:hidden">
+        {/* Bottom Sheet Navigation */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent 
+            side="bottom" 
+            className="h-[50vh] rounded-t-3xl p-0 border-t-2 dark:border-dark-border"
+          >
+            <div className="flex flex-col h-full">
+              {/* Handle bar */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full" />
+              </div>
+
+              {/* Header */}
+              <div className="px-6 py-4 border-b dark:border-dark-border">
+                <h2 className="text-xl font-semibold text-heading-primary">Menu</h2>
+                <p className="text-sm text-body-muted mt-1">{bank?.name || 'TelAgri'}</p>
+              </div>
+
+              {/* Menu Items */}
+              <nav className="flex-1 overflow-y-auto px-4 py-6">
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      document.getElementById('filters')?.scrollIntoView({ behavior: 'smooth' });
+                      setMobileNavOpen(false);
+                    }}
+                    className="w-full flex items-center gap-4 px-4 py-4 rounded-xl transition-all duration-200 text-foreground dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border active:bg-gray-100 dark:active:bg-dark-border/80"
+                  >
+                    <div className="p-2 rounded-lg bg-gray-100 dark:bg-dark-border">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium">Farmers</p>
+                      <p className="text-xs text-body-muted mt-0.5">View farmer loans and data</p>
+                    </div>
+                  </button>
+                </div>
+              </nav>
+
+              {/* Footer Actions */}
+              <div className="px-4 py-4 border-t dark:border-dark-border bg-gray-50 dark:bg-dark-border/30">
+                <button
+                  onClick={async () => {
+                    setMobileNavOpen(false);
+                    await handleSignOut();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl 
+                           bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 
+                           hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="font-medium">Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Bottom Navigation Bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card border-t dark:border-dark-border shadow-lg z-40">
+          <div className="relative flex items-center justify-around h-16 px-4">
+            {/* Farmers */}
+            <button
+              className="flex flex-col items-center justify-center w-20 text-emerald-600 dark:text-emerald-400"
+            >
+              <Users className="h-5 w-5 mb-1" />
+              <span className="text-[10px] font-medium">Farmers</span>
+            </button>
+
+            {/* Central FAB - Placeholder for spacing */}
+            <div className="w-16" />
+
+            {/* Menu Button */}
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="flex flex-col items-center justify-center w-20 text-gray-600 dark:text-gray-400 transition-colors"
+            >
+              <Settings className="h-5 w-5 mb-1" />
+              <span className="text-[10px] font-medium">More</span>
+            </button>
+          </div>
+
+          {/* Central Floating Action Button */}
+          <div className="absolute left-1/2 -translate-x-1/2 -top-8">
+            <button
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+              className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-600 to-green-700 dark:from-emerald-500 dark:to-green-600 
+                         text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 
+                         transition-all duration-200 flex items-center justify-center"
+              aria-label="Open menu"
+            >
+              {mobileNavOpen ? (
+                <X className="h-7 w-7" />
+              ) : (
+                <Menu className="h-7 w-7" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

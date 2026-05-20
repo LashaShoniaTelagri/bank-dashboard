@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -8,29 +9,38 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Edit, Trash2, Upload, Eye, FileText, User, MoreVertical, Brain, Users } from "lucide-react";
+import { Edit, Trash2, Upload, Eye, FileText, User, MoreVertical, Brain, Users, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { FarmerModal } from "@/components/FarmerModal";
 import { F100Modal } from "@/components/F100Modal";
-import { FarmerProfileModal } from "@/components/FarmerProfileModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FileViewer } from "@/components/FileViewer";
 import { DataUploadModal } from "@/components/DataUploadModal";
 import { SpecialistAssignmentModal } from "@/components/SpecialistAssignmentModal";
+import { getPhaseScoreColors } from "@/lib/phaseColors";
+import { OnePagerSummaryModal } from "@/components/OnePagerSummaryModal";
 
 interface FarmerWithF100 {
   farmer_id: string;
   bank_id: string;
   name: string;
   id_number: string;
+  created_at: string;
+  bank_name: string;
+  bank_logo_url: string;
   latest: Record<string, {
     issue_date: string;
     score: number;
     file_path: string;
   }>;
+  phases: Record<number, number | null>; // Phase scores from farmer_phases table
+  phaseIssueDates: Record<number, string | null>; // Phase issue dates from farmer_phases table
+  onePagerSummaries: Record<number, boolean>; // Track which phases have one pager summaries
 }
 
 interface Farmer {
@@ -57,17 +67,10 @@ interface FarmersTableProps {
 export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   const { profile } = useAuth();
   const [farmerModal, setFarmerModal] = useState<{ open: boolean; farmer?: Farmer }>({ open: false });
-  const [farmerProfileModal, setFarmerProfileModal] = useState<{ 
-    open: boolean; 
-    farmerId?: string; 
-    farmerName?: string; 
-  }>({ open: false });
   const [f100Modal, setF100Modal] = useState<{ 
     open: boolean; 
     farmerId?: string; 
     farmerName?: string; 
-    editMode?: boolean; 
-    deleteMode?: boolean;
     phaseData?: { 
       phase: number; 
       issue_date: string; 
@@ -75,7 +78,14 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
       file_path: string; 
     } 
   }>({ open: false });
-  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; type?: 'farmer' | 'f100'; id?: string; title?: string; description?: string }>({ open: false });
+  const [confirmDialog, setConfirmDialog] = useState<{ 
+    open: boolean; 
+    type?: 'farmer' | 'f100' | 'onepager'; 
+    id?: string; 
+    title?: string; 
+    description?: string;
+    f100Data?: { phase: number; file_path: string };
+  }>({ open: false });
   
   // FileViewer state for F-100 reports
   const [fileViewerOpen, setFileViewerOpen] = useState(false);
@@ -84,12 +94,24 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   const [fileViewerSectionName, setFileViewerSectionName] = useState('');
   const [isLoadingFile, setIsLoadingFile] = useState<string | null>(null);
 
+  // OnePager modal state
+  const [onePagerModal, setOnePagerModal] = useState<{ 
+    open: boolean; 
+    farmerId?: string; 
+    farmerName?: string; 
+    phaseNumber?: number; 
+  }>({ open: false });
+
   const queryClient = useQueryClient();
 
   // Determine if current user can edit farmers
   const canEditFarmers = isAdmin || profile?.role === 'bank_viewer';
   // Only admins can delete farmers (based on RLS policies)
   const canDeleteFarmers = isAdmin;
+  // Only admins can upload F-100, data, and assign specialists
+  const canUploadF100 = isAdmin;
+  const canUploadData = isAdmin;
+  const canAssignSpecialists = isAdmin;
 
   const { data: farmers = [], isLoading, refetch } = useQuery({
     queryKey: ['farmers', filters],
@@ -102,7 +124,33 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
       });
 
       if (error) throw error;
-      return data as FarmerWithF100[];
+      
+      // Fetch phase scores, issue dates, and one pager summaries for all farmers
+      const farmerIds = data.map((f: any) => f.farmer_id);
+      const { data: phaseData, error: phaseError } = await supabase
+        .from('farmer_phases')
+        .select('farmer_id, phase_number, score, issue_date, one_pager_summary')
+        .in('farmer_id', farmerIds);
+      
+      if (phaseError) console.error('Error fetching phase data:', phaseError);
+      
+      // Map phase scores, issue dates, and one pager summaries to farmers
+      const farmersWithPhases = data.map((farmer: any) => {
+        const phases: Record<number, number | null> = {};
+        const phaseIssueDates: Record<number, string | null> = {};
+        const onePagerSummaries: Record<number, boolean> = {};
+        for (let i = 1; i <= 12; i++) {
+          const phaseInfo = phaseData?.find(
+            (p) => p.farmer_id === farmer.farmer_id && p.phase_number === i
+          );
+          phases[i] = phaseInfo?.score ?? null;
+          phaseIssueDates[i] = phaseInfo?.issue_date ?? null;
+          onePagerSummaries[i] = !!(phaseInfo?.one_pager_summary && phaseInfo.one_pager_summary.trim().length > 0);
+        }
+        return { ...farmer, phases, phaseIssueDates, onePagerSummaries };
+      });
+      
+      return farmersWithPhases as FarmerWithF100[];
     },
   });
 
@@ -121,6 +169,82 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
     onError: (error) => {
       toast({
         title: "Error deleting farmer",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting F100 reports
+  const deleteF100Mutation = useMutation({
+    mutationFn: async ({ farmerId, phase, filePath }: { farmerId: string; phase: number; filePath: string }) => {
+      // Delete the database record first
+      const { error: dbError } = await supabase
+        .from('f100')
+        .delete()
+        .eq('farmer_id', farmerId)
+        .eq('phase', phase);
+      
+      if (dbError) throw dbError;
+
+      // Then delete the file from storage
+      if (filePath) {
+        const { error: storageError } = await supabase.storage
+          .from('f100')
+          .remove([filePath]);
+        
+        if (storageError) {
+          console.warn('Storage deletion warning:', storageError);
+          // Don't throw here - the DB record is already deleted
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['farmers'] });
+      queryClient.invalidateQueries({ queryKey: ['f100'] });
+      toast({ 
+        title: "F-100 Report deleted successfully",
+        variant: "success"
+      });
+      setConfirmDialog({ open: false });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error deleting F-100 report",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting One Pager summaries
+  const deleteOnePagerMutation = useMutation({
+    mutationFn: async ({ farmerId, phase }: { farmerId: string; phase: number }) => {
+      // Update the farmer_phases entry to clear the one_pager_summary
+      const { error } = await supabase
+        .from('farmer_phases')
+        .update({ 
+          one_pager_summary: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('farmer_id', farmerId)
+        .eq('phase_number', phase);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['farmers'] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phases'] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-phase'] });
+      toast({ 
+        title: "One Pager deleted successfully",
+        variant: "success"
+      });
+      setConfirmDialog({ open: false });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error deleting One Pager",
         description: error.message,
         variant: "destructive",
       });
@@ -232,17 +356,20 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
   };
 
   const handleConfirmDelete = () => {
-    if (confirmDialog.id && confirmDialog.type === 'farmer') {
+    if (confirmDialog.type === 'farmer' && confirmDialog.id) {
       deleteFarmerMutation.mutate(confirmDialog.id);
+    } else if (confirmDialog.type === 'f100' && confirmDialog.id && confirmDialog.f100Data) {
+      deleteF100Mutation.mutate({
+        farmerId: confirmDialog.id,
+        phase: confirmDialog.f100Data.phase,
+        filePath: confirmDialog.f100Data.file_path,
+      });
+    } else if (confirmDialog.type === 'onepager' && confirmDialog.id && confirmDialog.f100Data) {
+      deleteOnePagerMutation.mutate({
+        farmerId: confirmDialog.id,
+        phase: confirmDialog.f100Data.phase,
+      });
     }
-  };
-
-  const handleViewFarmerProfile = (farmerId: string, farmerName: string) => {
-    setFarmerProfileModal({
-      open: true,
-      farmerId,
-      farmerName,
-    });
   };
 
   const phases = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -259,28 +386,8 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Farmers & F-100 Reports</h2>
-        <Button 
-          onClick={() => setFarmerModal({ open: true })}
-          className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg transform transition-all duration-200 hover:scale-[1.02]"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Farmer
-        </Button>
-      </div>
-
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Farmers List ({farmers.length})</span>
-            <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-              <Eye className="h-4 w-4" />
-              <span>Click names to view profiles</span>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -289,7 +396,6 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-emerald-600" />
                       <span>Name</span>
-                      <span className="text-xs text-emerald-600 font-normal">(clickable)</span>
                     </div>
                   </th>
                   <th className="md:sticky md:left-[200px] bg-background p-2 text-left font-medium md:z-10 border-r">Identification Code</th>
@@ -307,135 +413,215 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                 {farmers.map((farmer) => (
                   <tr key={farmer.farmer_id} className="border-b hover:bg-muted/50">
                     <td className="md:sticky md:left-0 bg-background p-2 font-medium md:z-10 border-r min-w-[200px] max-w-[200px]" title={`Click to view ${farmer.name}'s profile`}>
-                      <button
-                        onClick={() => handleViewFarmerProfile(farmer.farmer_id, farmer.name)}
-                        className="group flex items-center gap-2 text-left w-full p-2 -m-2 rounded-md hover:bg-emerald-50 hover:text-emerald-700 transition-all duration-200 cursor-pointer border border-transparent hover:border-emerald-200 hover:shadow-sm active:scale-95"
+                      <Link
+                        to={`/farmers/${farmer.farmer_id}`}
+                        className="group flex flex-col gap-1.5 text-left w-full p-2 -m-2 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-950/20 hover:text-emerald-700 dark:hover:text-emerald-400 transition-all duration-200 cursor-pointer border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-sm active:scale-95"
                       >
-                        <User className="h-4 w-4 text-emerald-600 opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <span className="truncate font-medium group-hover:underline">
-                          {farmer.name}
-                        </span>
-                        <Eye className="h-3 w-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0" />
-                      </button>
+                        <div className="flex items-center gap-2 w-full">
+                          <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          <span className="truncate font-medium group-hover:underline">
+                            {farmer.name}
+                          </span>
+                          <Eye className="h-3 w-3 text-emerald-500 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0" />
+                        </div>
+                        
+                        {/* Separator line */}
+                        <div className="h-px bg-border/50 my-0.5" />
+                        
+                        {/* Bank info first */}
+                        {farmer.bank_name && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground pl-6">
+                            {farmer.bank_logo_url && (
+                              <img 
+                                src={farmer.bank_logo_url} 
+                                alt={farmer.bank_name}
+                                className="h-3 w-auto object-contain flex-shrink-0"
+                              />
+                            )}
+                            <span className="truncate font-medium">{farmer.bank_name}</span>
+                          </div>
+                        )}
+                        
+                        {/* Creation time second */}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground pl-6">
+                          <span className="truncate">
+                            {new Date(farmer.created_at).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </Link>
                     </td>
                     <td className="md:sticky md:left-[200px] bg-background p-2 md:z-10 border-r">
                       {farmer.id_number}
                     </td>
                     {phases.map((phase) => {
+                      const phaseScore = farmer.phases[phase];
                       const phaseData = farmer.latest[phase.toString()];
+                      const scoreColors = getPhaseScoreColors(phaseScore);
+                      const hasOnePager = farmer.onePagerSummaries[phase];
+                      
                       return (
-                        <td key={phase} className="p-2 text-center border-r relative">
-                          <div className="flex flex-col items-center justify-center h-16 space-y-1">
-                            {/* Admin-only dropdown menu - positioned at top-right of cell */}
-                            {isAdmin && phaseData && (
+                        <td key={phase} className={`p-2 text-center border-r relative ${scoreColors.bg}`}>
+                          <div className="flex flex-col items-center justify-center space-y-1 min-h-[100px]">
+                            {/* Admin-only dropdown menu - always show for all phases */}
+                            {isAdmin && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="absolute top-1 right-1 h-5 w-5 p-0 hover:bg-slate-100 transition-colors z-10"
+                                    className="absolute top-1 right-1 h-5 w-5 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors z-10"
                                     title="Admin actions"
                                   >
-                                    <MoreVertical className="h-3 w-3 text-slate-600" />
+                                    <MoreVertical className="h-3 w-3 text-slate-600 dark:text-slate-400" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
-                                  <DropdownMenuItem
-                                    onClick={() => setF100Modal({
-                                      open: true,
-                                      farmerId: farmer.farmer_id,
-                                      farmerName: farmer.name,
-                                      editMode: true,
-                                      deleteMode: false,
-                                      phaseData: {
-                                        phase: phase,
-                                        issue_date: phaseData.issue_date,
-                                        score: phaseData.score,
-                                        file_path: phaseData.file_path
-                                      }
-                                    })}
-                                    className="cursor-pointer"
-                                  >
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit F-100 Report
-                                  </DropdownMenuItem>
+                                <DropdownMenuContent align="end" className="w-52">
+                                  {/* F-100 Report Section - Only show if F-100 exists */}
+                                  {phaseData && (
+                                    <>
+                                      <DropdownMenuLabel className="text-xs text-muted-foreground">F-100 Report</DropdownMenuLabel>
+                                      <DropdownMenuItem
+                                        onClick={() => setF100Modal({
+                                          open: true,
+                                          farmerId: farmer.farmer_id,
+                                          farmerName: farmer.name,
+                                          phaseData: {
+                                            phase: phase,
+                                            issue_date: phaseData.issue_date,
+                                            score: phaseData.score,
+                                            file_path: phaseData.file_path
+                                          }
+                                        })}
+                                        className="cursor-pointer"
+                                      >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        View F-100 Report
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setConfirmDialog({
+                                            open: true,
+                                            type: 'f100',
+                                            id: farmer.farmer_id,
+                                            title: 'Delete F-100 Report',
+                                            description: `Are you sure you want to delete the Phase ${phase} F-100 report for "${farmer.name}"? This action cannot be undone.`,
+                                            f100Data: {
+                                              phase: phase,
+                                              file_path: phaseData.file_path
+                                            }
+                                          });
+                                        }}
+                                        className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete F-100 Report
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  )}
+                                  
+                                  {/* One Pager Section */}
+                                  <DropdownMenuLabel className="text-xs text-muted-foreground">One Pager</DropdownMenuLabel>
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      setF100Modal({
-                                        open: true,
-                                        farmerId: farmer.farmer_id,
+                                      setOnePagerModal({ 
+                                        open: true, 
+                                        farmerId: farmer.farmer_id, 
                                         farmerName: farmer.name,
-                                        editMode: false,
-                                        deleteMode: true,
-                                        phaseData: {
-                                          phase: phase,
-                                          issue_date: phaseData.issue_date,
-                                          score: phaseData.score,
-                                          file_path: phaseData.file_path
-                                        }
+                                        phaseNumber: phase
                                       });
                                     }}
-                                    className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    className="cursor-pointer"
                                   >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete F-100 Report
+                                    {hasOnePager ? (
+                                      <>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit One Pager
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add One Pager
+                                      </>
+                                    )}
                                   </DropdownMenuItem>
+                                  {hasOnePager && (
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setConfirmDialog({
+                                          open: true,
+                                          type: 'onepager',
+                                          id: farmer.farmer_id,
+                                          title: 'Delete One Pager',
+                                          description: `Are you sure you want to delete the Phase ${phase} One Pager for "${farmer.name}"? This action cannot be undone.`,
+                                          f100Data: {
+                                            phase: phase,
+                                            file_path: ''
+                                          }
+                                        });
+                                      }}
+                                      className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete One Pager
+                                    </DropdownMenuItem>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
                             
-                            {phaseData ? (
+                            {/* Phase Score Display */}
+                            {phaseScore !== null && phaseScore !== undefined ? (
                               <>
                                 <Badge 
-                                  className={`${getScoreColor(phaseData.score)} text-white text-xs`}
+                                  className={`${scoreColors.badge} text-sm font-bold border ${scoreColors.border} h-6 min-h-[24px] flex items-center justify-center mb-1`}
                                 >
-                                  {phaseData.score}
+                                  {phaseScore}
                                 </Badge>
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(phaseData.issue_date).toLocaleDateString()}
+                                {farmer.phaseIssueDates[phase] && (
+                                  <div className="text-xs text-muted-foreground mb-2">
+                                    {new Date(farmer.phaseIssueDates[phase]!).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric', 
+                                      year: 'numeric' 
+                                    })}
                                 </div>
-                                {/* View F-100 Report button - visible for all users */}
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  className="h-8 w-16 text-xs font-medium flex items-center justify-center gap-1 transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                                  onClick={() => openF100InLightbox(phaseData.file_path, farmer.name, phase.toString())}
-                                  disabled={isLoadingFile === phaseData.file_path}
-                                  title="View F-100 Report"
-                                >
-                                  {isLoadingFile === phaseData.file_path ? (
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                  ) : (
-                                    <Eye className="h-3 w-3" />
-                                  )}
-                                  F-100
-                                </Button>
+                                )}
                               </>
                             ) : (
-                              <>
-                                <div className="h-5 flex items-center">
-                                  <div className="text-muted-foreground text-xs">No data</div>
-                                </div>
-                                <div className="h-4"></div>
-                                {canEditFarmers ? (
+                              <div className="text-xs text-muted-foreground h-6 min-h-[24px] flex items-center justify-center mb-3">No score</div>
+                            )}
+                            
+                            {/* One Pager Button - Only show if one pager summary exists */}
+                            {farmer.onePagerSummaries[phase] && (
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-8 w-20 text-xs font-medium border-2 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-500 hover:text-emerald-700 hover:shadow-lg transition-all duration-200 hover:scale-105 shadow-md flex items-center justify-center gap-1"
-                                    onClick={() => setF100Modal({ 
+                                className="text-sm font-medium leading-5 px-4 py-2.5 rounded-md border-2 border-purple-500 text-purple-600 bg-background hover:bg-purple-500 hover:text-white focus:outline-none focus:ring-4 focus:ring-purple-200 dark:focus:ring-purple-800 transition-all duration-200 flex items-center justify-center gap-1.5 w-full"
+                                onClick={() => {
+                                  console.log('🔘 Opening One Pager for:', {
+                                    farmerId: farmer.farmer_id,
+                                    farmerName: farmer.name,
+                                    phase
+                                  });
+                                  setOnePagerModal({ 
                                       open: true, 
                                       farmerId: farmer.farmer_id, 
-                                      farmerName: farmer.name 
-                                    })}
-                                    title="Upload F-100 Report"
+                                    farmerName: farmer.name,
+                                    phaseNumber: phase
+                                  });
+                                }}
+                                title="View Phase One Pager"
                                   >
-                                    <Upload className="h-3 w-3" />
-                                    Upload
+                                <FileText className="h-3.5 w-3.5" />
+                                One Pager
                                   </Button>
-                                ) : (
-                                  <div className="h-8"></div>
-                                )}
-                              </>
                             )}
                           </div>
                         </td>
@@ -444,22 +630,26 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
                     {canEditFarmers && (
                       <td className="md:sticky md:right-0 bg-background p-2 md:z-10 border-l">
                         <div className="flex gap-1 justify-center">
-                          <DataUploadModal
-                            farmerId={farmer.farmer_id}
-                            farmerName={farmer.name}
-                            bankId={farmer.bank_id}
-                            onUploadComplete={() => {
-                              // Refresh data if needed
-                            }}
-                          />
-                          <SpecialistAssignmentModal
-                            farmerId={farmer.farmer_id}
-                            farmerName={farmer.name}
-                            bankId={farmer.bank_id}
-                            onAssignmentComplete={() => {
-                              // Refresh data if needed
-                            }}
-                          />
+                          {canUploadData && (
+                            <DataUploadModal
+                              farmerId={farmer.farmer_id}
+                              farmerName={farmer.name}
+                              bankId={farmer.bank_id}
+                              onUploadComplete={() => {
+                                // Refresh data if needed
+                              }}
+                            />
+                          )}
+                          {canAssignSpecialists && (
+                            <SpecialistAssignmentModal
+                              farmerId={farmer.farmer_id}
+                              farmerName={farmer.name}
+                              bankId={farmer.bank_id}
+                              onAssignmentComplete={() => {
+                                // Refresh data if needed
+                              }}
+                            />
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -501,22 +691,12 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         farmer={farmerModal.farmer}
       />
 
-      <FarmerProfileModal
-        isOpen={farmerProfileModal.open}
-        onClose={() => setFarmerProfileModal({ open: false })}
-        farmerId={farmerProfileModal.farmerId || ''}
-        farmerName={farmerProfileModal.farmerName || ''}
-      />
-
       <F100Modal
         isOpen={f100Modal.open}
         onClose={() => setF100Modal({ open: false })}
         farmerId={f100Modal.farmerId || ''}
         farmerName={f100Modal.farmerName || ''}
-        editMode={f100Modal.editMode}
-        deleteMode={f100Modal.deleteMode}
-        isAdmin={isAdmin}
-        phaseData={f100Modal.phaseData}
+        phaseNumber={f100Modal.phaseData?.phase || 1}
       />
 
       <ConfirmDialog
@@ -536,6 +716,15 @@ export const FarmersTable = ({ filters, isAdmin }: FarmersTableProps) => {
         files={fileViewerFiles}
         initialFileIndex={fileViewerInitialIndex}
         sectionName={fileViewerSectionName}
+      />
+
+      {/* One Pager Summary Modal */}
+      <OnePagerSummaryModal
+        isOpen={onePagerModal.open}
+        onClose={() => setOnePagerModal({ open: false })}
+        farmerId={onePagerModal.farmerId || ''}
+        farmerName={onePagerModal.farmerName || ''}
+        phaseNumber={onePagerModal.phaseNumber || 1}
       />
     </div>
   );
