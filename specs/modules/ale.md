@@ -150,12 +150,12 @@ When in parity mode, `ale-evaluate` returns:
 
 ## UI surfaces
 
-- `/ale/crops` — CRUD crops + varieties + frost thresholds + bloom windows + monthly stages (forms / table editors).
-- `/ale/global-physics` — admin / granted-specialist editor for Utah/Dynamic/Weinberger/Richardson constants. Versioned with diff/revert.
-- `/ale/logic/:cropId/:varietyId/:regionId` — React Flow graph editor with primitive palette and live in-browser preview using `simValue` mocks.
-- `/ale/runs` — pick crop + variety + region + Google Places lat/lon + date range → submit → see results matching the schema above + run history.
-- `/ale/parity` — fixtures table with R-frozen vs TS-live results side-by-side.
-- `/ale/grants` (admin only) — grant/revoke ALE access to specialists.
+ALE renders as a single `AleManagement` shell (admin `/admin/ale` tab; specialist dashboard, access-gated) with classic tabs for the two modules:
+
+- **Crop Management** (`CropListView` ⇄ `CropDetailView`) — crop list (Add crop, per-row delete) → click a crop for its detail: varieties, frost thresholds, bloom windows, monthly stages, each with full CRUD via the `ale/*EditDialog` components. Destructive actions confirm through `ConfirmDeleteDialog` (`AlertDialog`). Global physics (read-only active version) and the parity fixtures table render under the crop list.
+- **Run Analysis** — pick a Google-map location + crop/variety → run the frost-risk algorithm and view results. **Phase 2 (in build).**
+
+Deferred from the original per-route design: separate `/ale/logic` React Flow editor and `ale_logic_graphs` versioning — replaced by a **direct run** (location + crop/variety → result). See ADR (added with Phase 2).
 
 ## Build plan (7 phases)
 
