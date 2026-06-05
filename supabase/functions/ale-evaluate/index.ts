@@ -1,0 +1,261 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  runFrostAnalysis, planClimateFetch, combineHourly, parseHourly,
+  buildArchiveUrl, buildForecastUrl, addDays,
+  type CropParams, type GlobalPhysics, type HourlyPoint, type RunResult,
+} from "../_shared/ale-engine/index.ts";
+import { callParity, parityEnabled } from "../_shared/r-parity-client.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+interface Body { lat: number; lon: number; variety: string; crop?: string; }
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // --- Auth: verify JWT + ALE access (server-side, don't trust the client) ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "Missing authorization header" }, 401);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (authError || !user) return json({ error: "Invalid token" }, 401);
+
+    const { data: hasAccess, error: accessErr } = await supabase.rpc("has_ale_access", { uid: user.id });
+    if (accessErr) return json({ error: "Access check failed", details: accessErr.message }, 500);
+    if (!hasAccess) return json({ error: "ALE access denied" }, 403);
+
+    // --- Inputs ---
+    const { lat, lon, variety, crop: cropSlug = "apple" }: Body = await req.json();
+    if (typeof lat !== "number" || typeof lon !== "number" || !variety) {
+      return json({ error: "Required: lat (number), lon (number), variety (string)" }, 400);
+    }
+
+    // --- Load crop params + active global physics ---
+    const { crop, gp, gpRow, error: loadErr } = await loadCropParams(supabase, cropSlug);
+    if (loadErr || !crop || !gp) return json({ error: loadErr ?? "Crop not found" }, 404);
+
+    // --- Run the TS engine (read-through weather cache) ---
+    const today = new Date().toISOString().slice(0, 10);
+    let ts_result: RunResult;
+    try {
+      ts_result = await runFrostAnalysis(crop, gp, { lat, lon, variety, crop: cropSlug }, {
+        today,
+        fetchClimate: (la, lo, s, e) => fetchClimate(supabase, la, lo, s, e, today),
+      });
+    } catch (e) {
+      await recordRun(supabase, user.id, cropSlug, variety, { lat, lon, variety, crop: cropSlug }, gpRow, null, null, null, "failed", errMsg(e));
+      return json({ error: "Engine failed", details: errMsg(e) }, 400);
+    }
+
+    // --- R parity (best-effort; never blocks the TS result) ---
+    let r_result: unknown = null;
+    let diff: DiffEntry[] | null = null;
+    let parityNote: string | undefined;
+    if (parityEnabled()) {
+      try {
+        r_result = await callParity("frost-risk", { lat, lon, variety, crop: cropSlug });
+        diff = diffResults(ts_result, r_result);
+      } catch (e) {
+        parityNote = `parity unavailable: ${errMsg(e)}`;
+      }
+    } else {
+      parityNote = "parity disabled (PARITY_HMAC_SECRET unset)";
+    }
+
+    await recordRun(supabase, user.id, cropSlug, variety, { lat, lon, variety, crop: cropSlug }, gpRow, ts_result, r_result, diff, "succeeded", null);
+
+    return json({ ts_result, r_result, diff, parity_note: parityNote });
+  } catch (e) {
+    console.error("ale-evaluate error:", e);
+    return json({ error: "Internal server error", details: errMsg(e) }, 500);
+  }
+});
+
+// ── Crop params loader ───────────────────────────────────────────────────────
+
+async function loadCropParams(supabase: any, slug: string): Promise<{
+  crop?: CropParams; gp?: GlobalPhysics; gpRow?: unknown; error?: string;
+}> {
+  const { data: cropRow, error: cropErr } = await supabase
+    .from("ale_crops").select("*").eq("slug", slug).maybeSingle();
+  if (cropErr) return { error: cropErr.message };
+  if (!cropRow) return { error: `Crop '${slug}' not found` };
+
+  const [varieties, thresholds, windows, monthly, gpRow] = await Promise.all([
+    supabase.from("ale_crop_varieties").select("*").eq("crop_id", cropRow.id).order("sort_order"),
+    supabase.from("ale_frost_thresholds").select("*").eq("crop_id", cropRow.id).order("sort_order"),
+    supabase.from("ale_bloom_windows").select("*").eq("crop_id", cropRow.id).order("window_id"),
+    supabase.from("ale_crop_monthly_stages").select("*").eq("crop_id", cropRow.id),
+    supabase.from("ale_global_physics").select("*").eq("is_active", true).maybeSingle(),
+  ]);
+
+  if (!gpRow.data) return { error: "No active global physics version" };
+
+  const monthly_stages: Record<string, string[]> = {};
+  for (const m of monthly.data ?? []) monthly_stages[String(m.month)] = (m.stages as string[]) ?? [];
+
+  const crop: CropParams = {
+    slug: cropRow.slug,
+    display_name: cropRow.display_name,
+    chill_biofix_month: cropRow.chill_biofix_month,
+    chill_biofix_day: cropRow.chill_biofix_day,
+    insufficient_chill_penalty: Number(cropRow.insufficient_chill_penalty),
+    varieties: (varieties.data ?? []).map((v: any) => ({
+      display_name: v.display_name,
+      chill_portions_cp: num(v.chill_portions_cp),
+      chill_hours_ch: num(v.chill_hours_ch),
+      chill_units_cu: num(v.chill_units_cu),
+      gdh_to_bloom: num(v.gdh_to_bloom),
+    })),
+    frost_thresholds: (thresholds.data ?? []).map((t: any) => ({
+      stage: t.stage,
+      kill_10_pct_c: Number(t.kill_10_pct_c),
+      kill_90_pct_c: Number(t.kill_90_pct_c),
+      slope_frac: Number(t.slope_frac),
+    })),
+    bloom_windows: (windows.data ?? []).map((w: any) => ({
+      window_id: w.window_id,
+      window_name: w.window_name,
+      stage: w.stage,
+      offset_start_days: w.offset_start_days,
+      offset_end_days: w.offset_end_days,
+    })),
+    monthly_stages,
+  };
+
+  const g = gpRow.data;
+  const gp: GlobalPhysics = {
+    utah_breakpoints: g.utah_breakpoints,
+    dynamic_params: g.dynamic_params,
+    weinberger_params: g.weinberger_params,
+    richardson_gdh_params: g.richardson_gdh_params,
+    frost_threshold_c: Number(g.frost_threshold_c),
+  };
+
+  return { crop, gp, gpRow: g };
+}
+
+const num = (x: unknown): number | null => (x == null ? null : Number(x));
+
+// ── Weather: read-through cache (archive cached per-day; recent always fresh) ──
+
+async function fetchClimate(
+  supabase: any, lat: number, lon: number, startDate: string, endDate: string, today: string,
+): Promise<HourlyPoint[]> {
+  const plan = planClimateFetch(startDate, endDate, today);
+  const archive = plan.archive ? await getArchive(supabase, lat, lon, plan.archive.start, plan.archive.end) : [];
+  const recent = plan.recent ? parseHourly(await fetchJson(buildForecastUrl(lat, lon, plan.recent.pastDays))) : [];
+  return combineHourly(archive, recent, endDate);
+}
+
+async function getArchive(supabase: any, lat: number, lon: number, start: string, end: string): Promise<HourlyPoint[]> {
+  const latR = Number(lat.toFixed(4));
+  const lonR = Number(lon.toFixed(4));
+
+  const { data: cached } = await supabase
+    .from("ale_weather_cache")
+    .select("date, hourly_jsonb")
+    .eq("lat_round", latR).eq("lon_round", lonR).eq("source", "archive")
+    .gte("date", start).lte("date", end);
+
+  const expected = enumerateDates(start, end);
+  const cachedDates = new Set((cached ?? []).map((r: any) => r.date));
+  const allCached = cached && cached.length > 0 && expected.every((d) => cachedDates.has(d));
+
+  if (allCached) {
+    return (cached as any[]).flatMap((r) => r.hourly_jsonb as HourlyPoint[]);
+  }
+
+  // Cache miss: fetch the whole archive range, parse, and upsert per-day.
+  const points = parseHourly(await fetchJson(buildArchiveUrl(lat, lon, start, end)));
+  const byDate = new Map<string, HourlyPoint[]>();
+  for (const p of points) {
+    const arr = byDate.get(p.date);
+    if (arr) arr.push(p);
+    else byDate.set(p.date, [p]);
+  }
+
+  const rows = [...byDate.entries()].map(([date, pts]) => ({
+    lat_round: latR, lon_round: lonR, date, source: "archive", hourly_jsonb: pts,
+  }));
+  if (rows.length) {
+    await supabase.from("ale_weather_cache").upsert(rows, { onConflict: "lat_round,lon_round,date,source" });
+  }
+  return points;
+}
+
+async function fetchJson(url: string): Promise<any> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
+  return r.json();
+}
+
+function enumerateDates(start: string, end: string): string[] {
+  const out: string[] = [];
+  let d = start;
+  while (d <= end) { out.push(d); d = addDays(d, 1); }
+  return out;
+}
+
+// ── Field-by-field diff (numeric tolerance 1e-3) ──────────────────────────────
+
+interface DiffEntry { path: string; ts: unknown; r: unknown; }
+
+function diffResults(ts: unknown, r: unknown): DiffEntry[] {
+  const out: DiffEntry[] = [];
+  walk(ts, r, "", out);
+  return out;
+}
+
+function walk(a: unknown, b: unknown, path: string, out: DiffEntry[]): void {
+  if (typeof a === "number" && typeof b === "number") {
+    if (Math.abs(a - b) > 1e-3) out.push({ path, ts: a, r: b });
+    return;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) out.push({ path: `${path}.length`, ts: a.length, r: b.length });
+    for (let i = 0; i < Math.min(a.length, b.length); i++) walk(a[i], b[i], `${path}[${i}]`, out);
+    return;
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const k of keys) walk((a as any)[k], (b as any)[k], path ? `${path}.${k}` : k, out);
+    return;
+  }
+  if (a !== b) out.push({ path, ts: a, r: b });
+}
+
+// ── Run history ──────────────────────────────────────────────────────────────
+
+async function recordRun(
+  supabase: any, userId: string, cropSlug: string, variety: string, inputs: unknown,
+  gpRow: unknown, result: unknown, rResult: unknown, diff: unknown,
+  status: string, errorText: string | null,
+): Promise<void> {
+  const { error } = await supabase.from("ale_runs").insert({
+    crop_slug: cropSlug,
+    variety_name: variety,
+    inputs_jsonb: inputs,
+    global_physics_snapshot_jsonb: gpRow,
+    result_jsonb: result,
+    r_result_jsonb: rResult,
+    diff_jsonb: diff,
+    status,
+    error_text: errorText,
+    finished_at: new Date().toISOString(),
+    created_by: userId,
+  });
+  if (error) console.warn("ale_runs insert failed:", error.message);
+}
+
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { CropListView } from "./ale/CropListView";
 import { CropDetailView } from "./ale/CropDetailView";
+import { RunAnalysis } from "./ale/RunAnalysis";
 import type { Crop } from "./ale/aleShared";
 
 // Classic underline-style tab header: muted by default, emerald underline +
@@ -69,15 +70,7 @@ export const AleManagement = () => {
         </TabsContent>
 
         <TabsContent value="run" className="mt-0 rounded-b-lg border border-t-0 bg-card p-4 sm:p-6">
-          <div className="space-y-1">
-            <h3 className="flex items-center gap-2 text-base font-semibold text-heading-primary">
-              <Play className="h-5 w-5 text-amber-600 dark:text-amber-400" /> Run Analysis
-            </h3>
-            <p className="text-sm text-body-secondary">
-              Pick a location, choose a crop and variety, and run the frost-risk algorithm.
-            </p>
-          </div>
-          <p className="mt-4 text-sm text-body-secondary">Coming in Phase 2.</p>
+          <RunAnalysis />
         </TabsContent>
       </Tabs>
     </div>
