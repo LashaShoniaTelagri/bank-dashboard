@@ -16,10 +16,12 @@ const json = (body: unknown, status = 200) =>
 
 interface RunInputsBody { lat: number; lon: number; variety: string; crop?: string; }
 interface Body extends Partial<RunInputsBody> {
+  // Algorithm id (defaults to "frost-risk"). Non-frost ids run R-only via parity.
+  algorithm?: string;
   // Graph mode (canvas builder): run a saved graph by id, or an inline graph.
   graph_id?: string;
   graph_jsonb?: GraphSpec;
-  inputs?: RunInputsBody;
+  inputs?: RunInputsBody | Record<string, unknown>;
 }
 
 Deno.serve(async (req) => {
@@ -40,9 +42,28 @@ Deno.serve(async (req) => {
     if (accessErr) return json({ error: "Access check failed", details: accessErr.message }, 500);
     if (!hasAccess) return json({ error: "ALE access denied" }, 403);
 
-    // --- Inputs (graph mode supplies them under `inputs`; legacy mode at top level) ---
     const body: Body = await req.json();
-    const inp = body.inputs ?? { lat: body.lat as number, lon: body.lon as number, variety: body.variety as string, crop: body.crop };
+
+    // --- Generic dispatch: non-frost algorithms run R-only via parity ---
+    // Frost-risk has a TS port (below); the others (heat-stress, insufficient-
+    // chill, ...) are R-only until their Phase 3 TS ports land. They take
+    // algorithm-specific inputs, so forward the body's `inputs` untouched.
+    // Run history for these is deferred to the Phase 1 ale_runs migration.
+    const algorithm = body.algorithm ?? "frost-risk";
+    if (algorithm !== "frost-risk") {
+      if (!parityEnabled()) {
+        return json({ error: `No runtime for '${algorithm}': parity service disabled` }, 503);
+      }
+      try {
+        const r_result = await callParity(algorithm, (body.inputs ?? {}) as Record<string, unknown>);
+        return json({ ts_result: null, r_result, diff: null, algorithm, parity_note: "R-only (no TS port yet)" });
+      } catch (e) {
+        return json({ error: `Algorithm '${algorithm}' failed`, details: errMsg(e) }, 502);
+      }
+    }
+
+    // --- Inputs (graph mode supplies them under `inputs`; legacy mode at top level) ---
+    const inp = (body.inputs ?? { lat: body.lat as number, lon: body.lon as number, variety: body.variety as string, crop: body.crop }) as RunInputsBody;
     const cropSlug = inp.crop ?? "apple";
     if (typeof inp.lat !== "number" || typeof inp.lon !== "number" || !inp.variety) {
       return json({ error: "Required inputs: lat (number), lon (number), variety (string)" }, 400);
@@ -64,11 +85,10 @@ Deno.serve(async (req) => {
     const { crop, gp, gpRow, error: loadErr } = await loadCropParams(supabase, cropSlug);
     if (loadErr || !crop || !gp) return json({ error: loadErr ?? "Crop not found" }, 404);
 
-    // --- Run: graph (canvas) or direct frost-risk (legacy) ---
+    // --- Run frost-risk: graph (canvas) or direct (legacy) ---
     const today = new Date().toISOString().slice(0, 10);
     const deps = { today, fetchClimate: (la: number, lo: number, s: string, e: string) => fetchClimate(supabase, la, lo, s, e, today) };
-    let ts_result: RunResult | null;
-    let algorithm: "frost-risk" | null;
+    let ts_result: RunResult;
     try {
       if (graph) {
         const out = await runGraph(graph, crop, gp, runInputs, deps);
@@ -77,36 +97,32 @@ Deno.serve(async (req) => {
           return json({ error: "Invalid graph", details: out.errors }, 400);
         }
         ts_result = out.result;
-        algorithm = out.algorithm;
       } else {
         ts_result = await runFrostAnalysis(crop, gp, runInputs, deps);
-        algorithm = "frost-risk";
       }
     } catch (e) {
       await recordRun(supabase, user.id, cropSlug, inp.variety, runInputs, graphId, graph, gpRow, null, null, null, "failed", errMsg(e));
       return json({ error: "Engine failed", details: errMsg(e) }, 400);
     }
 
-    // --- R parity for the frost-risk algorithm (best-effort; never blocks TS) ---
+    // --- R parity (best-effort; never blocks TS) ---
     let r_result: unknown = null;
     let diff: DiffEntry[] | null = null;
     let parityNote: string | undefined;
-    if (algorithm === "frost-risk" && parityEnabled()) {
+    if (parityEnabled()) {
       try {
         r_result = await callParity("frost-risk", runInputs);
         diff = diffResults(ts_result, r_result);
       } catch (e) {
         parityNote = `parity unavailable: ${errMsg(e)}`;
       }
-    } else if (algorithm !== "frost-risk") {
-      parityNote = "no R reference for this algorithm";
     } else {
       parityNote = "parity disabled (PARITY_HMAC_SECRET unset)";
     }
 
     await recordRun(supabase, user.id, cropSlug, inp.variety, runInputs, graphId, graph, gpRow, ts_result, r_result, diff, "succeeded", null);
 
-    return json({ ts_result, r_result, diff, parity_note: parityNote });
+    return json({ ts_result, r_result, diff, algorithm, parity_note: parityNote });
   } catch (e) {
     console.error("ale-evaluate error:", e);
     return json({ error: "Internal server error", details: errMsg(e) }, 500);
