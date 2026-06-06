@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  runFrostAnalysis, planClimateFetch, combineHourly, parseHourly,
+  runFrostAnalysis, runGraph, planClimateFetch, combineHourly, parseHourly,
   buildArchiveUrl, buildForecastUrl, addDays,
-  type CropParams, type GlobalPhysics, type HourlyPoint, type RunResult,
+  type CropParams, type GlobalPhysics, type HourlyPoint, type RunResult, type GraphSpec,
 } from "../_shared/ale-engine/index.ts";
 import { callParity, parityEnabled } from "../_shared/r-parity-client.ts";
 
@@ -14,7 +14,13 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-interface Body { lat: number; lon: number; variety: string; crop?: string; }
+interface RunInputsBody { lat: number; lon: number; variety: string; crop?: string; }
+interface Body extends Partial<RunInputsBody> {
+  // Graph mode (canvas builder): run a saved graph by id, or an inline graph.
+  graph_id?: string;
+  graph_jsonb?: GraphSpec;
+  inputs?: RunInputsBody;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -34,45 +40,71 @@ Deno.serve(async (req) => {
     if (accessErr) return json({ error: "Access check failed", details: accessErr.message }, 500);
     if (!hasAccess) return json({ error: "ALE access denied" }, 403);
 
-    // --- Inputs ---
-    const { lat, lon, variety, crop: cropSlug = "apple" }: Body = await req.json();
-    if (typeof lat !== "number" || typeof lon !== "number" || !variety) {
-      return json({ error: "Required: lat (number), lon (number), variety (string)" }, 400);
+    // --- Inputs (graph mode supplies them under `inputs`; legacy mode at top level) ---
+    const body: Body = await req.json();
+    const inp = body.inputs ?? { lat: body.lat as number, lon: body.lon as number, variety: body.variety as string, crop: body.crop };
+    const cropSlug = inp.crop ?? "apple";
+    if (typeof inp.lat !== "number" || typeof inp.lon !== "number" || !inp.variety) {
+      return json({ error: "Required inputs: lat (number), lon (number), variety (string)" }, 400);
+    }
+    const runInputs = { lat: inp.lat, lon: inp.lon, variety: inp.variety, crop: cropSlug };
+
+    // --- Resolve graph (by id, inline, or none = legacy direct frost run) ---
+    let graph: GraphSpec | null = null;
+    let graphId: string | null = body.graph_id ?? null;
+    if (body.graph_id) {
+      const { data, error } = await supabase.from("ale_logic_graphs").select("graph_jsonb").eq("id", body.graph_id).maybeSingle();
+      if (error || !data) return json({ error: "Graph not found" }, 404);
+      graph = data.graph_jsonb as GraphSpec;
+    } else if (body.graph_jsonb) {
+      graph = body.graph_jsonb;
     }
 
     // --- Load crop params + active global physics ---
     const { crop, gp, gpRow, error: loadErr } = await loadCropParams(supabase, cropSlug);
     if (loadErr || !crop || !gp) return json({ error: loadErr ?? "Crop not found" }, 404);
 
-    // --- Run the TS engine (read-through weather cache) ---
+    // --- Run: graph (canvas) or direct frost-risk (legacy) ---
     const today = new Date().toISOString().slice(0, 10);
-    let ts_result: RunResult;
+    const deps = { today, fetchClimate: (la: number, lo: number, s: string, e: string) => fetchClimate(supabase, la, lo, s, e, today) };
+    let ts_result: RunResult | null;
+    let algorithm: "frost-risk" | null;
     try {
-      ts_result = await runFrostAnalysis(crop, gp, { lat, lon, variety, crop: cropSlug }, {
-        today,
-        fetchClimate: (la, lo, s, e) => fetchClimate(supabase, la, lo, s, e, today),
-      });
+      if (graph) {
+        const out = await runGraph(graph, crop, gp, runInputs, deps);
+        if (out.errors.length || !out.result) {
+          await recordRun(supabase, user.id, cropSlug, inp.variety, runInputs, graphId, graph, gpRow, null, null, null, "failed", out.errors.join("; "));
+          return json({ error: "Invalid graph", details: out.errors }, 400);
+        }
+        ts_result = out.result;
+        algorithm = out.algorithm;
+      } else {
+        ts_result = await runFrostAnalysis(crop, gp, runInputs, deps);
+        algorithm = "frost-risk";
+      }
     } catch (e) {
-      await recordRun(supabase, user.id, cropSlug, variety, { lat, lon, variety, crop: cropSlug }, gpRow, null, null, null, "failed", errMsg(e));
+      await recordRun(supabase, user.id, cropSlug, inp.variety, runInputs, graphId, graph, gpRow, null, null, null, "failed", errMsg(e));
       return json({ error: "Engine failed", details: errMsg(e) }, 400);
     }
 
-    // --- R parity (best-effort; never blocks the TS result) ---
+    // --- R parity for the frost-risk algorithm (best-effort; never blocks TS) ---
     let r_result: unknown = null;
     let diff: DiffEntry[] | null = null;
     let parityNote: string | undefined;
-    if (parityEnabled()) {
+    if (algorithm === "frost-risk" && parityEnabled()) {
       try {
-        r_result = await callParity("frost-risk", { lat, lon, variety, crop: cropSlug });
+        r_result = await callParity("frost-risk", runInputs);
         diff = diffResults(ts_result, r_result);
       } catch (e) {
         parityNote = `parity unavailable: ${errMsg(e)}`;
       }
+    } else if (algorithm !== "frost-risk") {
+      parityNote = "no R reference for this algorithm";
     } else {
       parityNote = "parity disabled (PARITY_HMAC_SECRET unset)";
     }
 
-    await recordRun(supabase, user.id, cropSlug, variety, { lat, lon, variety, crop: cropSlug }, gpRow, ts_result, r_result, diff, "succeeded", null);
+    await recordRun(supabase, user.id, cropSlug, inp.variety, runInputs, graphId, graph, gpRow, ts_result, r_result, diff, "succeeded", null);
 
     return json({ ts_result, r_result, diff, parity_note: parityNote });
   } catch (e) {
@@ -239,10 +271,13 @@ function walk(a: unknown, b: unknown, path: string, out: DiffEntry[]): void {
 
 async function recordRun(
   supabase: any, userId: string, cropSlug: string, variety: string, inputs: unknown,
+  graphId: string | null, graphSnapshot: unknown,
   gpRow: unknown, result: unknown, rResult: unknown, diff: unknown,
   status: string, errorText: string | null,
 ): Promise<void> {
   const { error } = await supabase.from("ale_runs").insert({
+    graph_id: graphId,
+    graph_snapshot_jsonb: graphSnapshot,
     crop_slug: cropSlug,
     variety_name: variety,
     inputs_jsonb: inputs,

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { CropListView } from "./ale/CropListView";
 import { CropDetailView } from "./ale/CropDetailView";
-import { RunAnalysis } from "./ale/RunAnalysis";
+import { GraphBuilder } from "./ale/builder/GraphBuilder";
 import type { Crop } from "./ale/aleShared";
 
 // Classic underline-style tab header: muted by default, emerald underline +
@@ -70,7 +70,7 @@ export const AleManagement = () => {
         </TabsContent>
 
         <TabsContent value="run" className="mt-0 rounded-b-lg border border-t-0 bg-card p-4 sm:p-6">
-          <RunAnalysis />
+          <GraphBuilder />
         </TabsContent>
       </Tabs>
     </div>

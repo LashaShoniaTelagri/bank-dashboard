@@ -6,3 +6,4 @@ export * from "./types.ts";
 export * from "./compute.ts";
 export * from "./weather.ts";
 export { runFrostAnalysis } from "./frostRisk.ts";
+export * from "./graph.ts";
