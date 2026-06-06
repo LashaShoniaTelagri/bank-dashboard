@@ -1,10 +1,36 @@
 # ALE — Agronomical Logic Engine
 
-In-build module that replaces the hardcoded R workflow in `gis-scripts/scripts/frost-risk/`. Lets specialists (= agronomists) self-serve crop parameters and compose evaluation logic visually, without GIS or engineering handoff.
+**ALE is TelAgri's strategic product engine** (see [`decisions.md`](../decisions.md) § 0021). It hosts the **algorithms** that turn agronomic risk into numbers — replacing the legacy manual F-100 field-monitoring model. Frost-risk is the **first of many** algorithms; more are in development. Inputs are **crop phenology, weather, and satellite imagery (Sentinel Hub — future)**. Specialists (= agronomists) self-serve crop parameters and compose logic on a canvas, without engineering handoff.
 
 ## Why
 
-Today's flow: agronomist authors logic in Word/Excel → GIS rewrites as R → engineer ports / wires it. Slow, error-prone, every new logic variant repeats the cycle. Reference: `gis-scripts/specs/dynamic-crop-parameter-config.md`, `gis-scripts/scripts/frost-risk/data/crop_data.R`.
+The legacy flow was: agronomist authors logic in Word/Excel → GIS rewrites as R → engineer ports / wires it, per farmer, by hand. Slow, error-prone, unscalable. ALE makes the algorithms first-class and reusable. Reference: `gis-scripts/specs/dynamic-crop-parameter-config.md`, `gis-scripts/scripts/frost-risk/data/crop_data.R`.
+
+## Algorithm authoring workflow (operating model)
+
+Every algorithm is produced by the same pipeline:
+
+1. **Agronomist** designs the risk logic + narrative — which data sources to use, what parameters to inject, how the result is calculated.
+2. **GIS specialist** (R/Python + data-analytics expertise) implements it as an **R script** under `gis-scripts/`, and verifies it with the agronomist until they agree it's correct.
+3. **Engineer** TS-ports the R into the ALE engine (`supabase/functions/_shared/ale-engine/`). The **R parity service** (§ R parity service; ADR 0013) runs the original R alongside the TS port so outputs can be diffed field-by-field until sign-off.
+
+So R is the source of truth during authoring; the TS port is the production runtime; parity guards the translation.
+
+## Algorithm roadmap
+
+| Algorithm | Inputs | Status |
+|-----------|--------|--------|
+| **frost-risk** | phenology (chill/GDH/bloom), weather (Open-Meteo) | TS-ported; R parity live at `algo.telagri.com` |
+| heat-stress, disease, others | phenology + weather + satellite | in development (agronomist/GIS) — port as they're delivered |
+| (cross-cutting) **satellite ingestion** | Sentinel Hub imagery → NDVI/vigor | **future build** — prerequisite for several algorithms |
+
+Adding an algorithm = drop `gis-scripts/algorithms/<id>/{run.R,manifest.json}` (parity auto-discovers it), TS-port it into the engine, and expose it as a node type in the canvas.
+
+## Current implementation state (2026-06)
+
+- **Engine** (`_shared/ale-engine/`): pure-TS frost-risk port (`compute.ts`/`weather.ts`/`frostRisk.ts`), a **graph runner** (`graph.ts` — topological eval, `validateGraph`/`runGraph`), Deno tests passing.
+- **`ale-evaluate` Edge Function**: runs a graph or a direct frost run; read-through `ale_weather_cache`; calls R parity; writes `ale_runs`.
+- **Canvas builder** (`src/components/ale/builder/`): React Flow (`@xyflow/react`) drag-and-drop — palette of node types (Inputs · Weather · Satellite-stub · Frost-risk · Result), save/load graphs to `ale_logic_graphs` (now reusable named **templates**), run → result panel with TS/R toggle. This is the **composition layer** (ADR 0008) for the algorithms above. *(Implemented; commit + Stage-D polish pending at time of writing.)*
 
 ## Scope (V1)
 
@@ -185,6 +211,7 @@ V1 baseline data (one-shot SQL migration) seeded from `gis-scripts/scripts/frost
 - Open-Meteo Archive API (past dates) and Forecast API (next ~14 days). Free, no API key.
 - Variety / crop / region selected in run form.
 - lat/lon from Google Places autocomplete (already integrated in dashboard).
+- **Satellite imagery (Sentinel Hub) — future.** NDVI/vigor and related indices for plant-health inputs to several in-development algorithms. Ingestion service not yet built; see § Algorithm roadmap.
 
 ## Decisions reference
 

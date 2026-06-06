@@ -1,5 +1,7 @@
 # Domain
 
+> **Legacy vs strategic (2026 pivot — see [`decisions.md`](decisions.md) § 0021).** The **F-100 monitoring** flow and the manual farmers/field-monitoring product below are **LEGACY** — built for hand-operated on-site monitoring, kept running but not the strategic direction. The strategic product is the **algorithm-driven ALE engine** ([`modules/ale.md`](modules/ale.md)); its bank-facing delivery (orchards, orders, cash-flow) is designed but deferred ([`modules/bank-delivery.md`](modules/bank-delivery.md)). Underwriting + roles/banks/auth below remain current.
+
 ## Roles
 
 | Role (`profiles.role`) | Who | Sees |
@@ -22,7 +24,8 @@
 - Has many `farmer_data_uploads` (analysis files, photos, maps, climate data, text notes).
 - May have orchard maps stored separately.
 
-### F-100 (12-phase agricultural assessment)
+### F-100 (12-phase agricultural assessment) — LEGACY
+> Manual, on-site monitoring with PM-crafted narratives per phase. Superseded strategically by ALE algorithms (§ 0021). Kept running; no new investment.
 - `F100Phase = 1..12`. Phases are numeric, not enum.
 - Each phase has its own data uploads, AI chat session(s), assignment, and report URL.
 - Phases progress through statuses: `pending` → `in_progress` → `completed` / `pending_review` / `cancelled`.

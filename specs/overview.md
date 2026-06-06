@@ -2,12 +2,19 @@
 
 ## What this project is
 
-TelAgri Bank Dashboard is a banking-grade PWA that lets banks underwrite and monitor agricultural loans. Banks and their viewers see farmer portfolios; agronomy specialists upload field analysis and run AI-assisted reports; admins manage the platform end-to-end.
+TelAgri Bank Dashboard is a banking-grade PWA that serves banks underwriting and monitoring agricultural loans. Banks and their viewers see farmer portfolios; agronomy specialists run analysis; admins manage the platform end-to-end.
+
+### Strategic direction (2026 pivot — read this first)
+
+TelAgri has **pivoted** from manual field monitoring to an **algorithm-driven agronomic-risk engine** (the **ALE** module). Hired agronomists + GIS specialists author algorithms that turn agronomic risk into numbers from **crop phenology, weather, and satellite imagery (Sentinel Hub — future)**. The frost-risk algorithm is the first of many; more are in development. See [`decisions.md`](decisions.md) § 0021 and [`modules/ale.md`](modules/ale.md).
+
+The bank-facing **delivery** of these results (place order → monitoring → orchard cash-flow) is designed but **DEFERRED** until the algorithm set is built and verified — see [`modules/bank-delivery.md`](modules/bank-delivery.md). Do not build it yet.
 
 Core flows:
+- **ALE (strategic)** — agronomist/GIS-authored algorithms compute agronomic risk per crop/orchard from phenology + weather + satellite. The engine + canvas builder are in `modules/ale.md`.
 - **Underwriting** — bank submits a credit application with shapefile + crop type → specialist reviews → score recorded.
-- **F-100 monitoring** — 12-phase agricultural assessment per farmer; specialists upload data per phase, generate reports, communicate with farmers.
-- **Bank portfolio view** — bank viewers see their farmers, F-100 reports, and aggregate analytics.
+- **F-100 monitoring (LEGACY)** — 12-phase manual assessment per farmer; specialists upload data per phase, PMs craft narratives. Kept running, not the strategic direction (see § 0021). Do not invest further without explicit reason.
+- **Bank portfolio view** — bank viewers see their farmers, reports, and aggregate analytics.
 
 ## Tech stack
 
