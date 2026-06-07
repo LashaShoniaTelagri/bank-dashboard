@@ -2,7 +2,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   runFrostAnalysis, runGraph, planClimateFetch, combineHourly, parseHourly,
   buildArchiveUrl, buildForecastUrl, addDays,
+  runHeatStress, runInsufficientChill,
   type CropParams, type GlobalPhysics, type HourlyPoint, type RunResult, type GraphSpec,
+  type HeatWeather,
 } from "../_shared/ale-engine/index.ts";
 import { callParity, parityEnabled } from "../_shared/r-parity-client.ts";
 
@@ -44,22 +46,13 @@ Deno.serve(async (req) => {
 
     const body: Body = await req.json();
 
-    // --- Generic dispatch: non-frost algorithms run R-only via parity ---
-    // Frost-risk has a TS port (below); the others (heat-stress, insufficient-
-    // chill, ...) are R-only until their Phase 3 TS ports land. They take
-    // algorithm-specific inputs, so forward the body's `inputs` untouched.
-    // Run history for these is deferred to the Phase 1 ale_runs migration.
+    // --- Generic dispatch: non-frost algorithms ---
+    // heat-stress / insufficient-chill have TS ports (run as the production
+    // runtime, with best-effort R parity + field diff). Any other id is R-only.
+    // All carry algorithm-specific inputs, forwarded untouched.
     const algorithm = body.algorithm ?? "frost-risk";
     if (algorithm !== "frost-risk") {
-      if (!parityEnabled()) {
-        return json({ error: `No runtime for '${algorithm}': parity service disabled` }, 503);
-      }
-      try {
-        const r_result = await callParity(algorithm, (body.inputs ?? {}) as Record<string, unknown>);
-        return json({ ts_result: null, r_result, diff: null, algorithm, parity_note: "R-only (no TS port yet)" });
-      } catch (e) {
-        return json({ error: `Algorithm '${algorithm}' failed`, details: errMsg(e) }, 502);
-      }
+      return await runNonFrost(supabase, user.id, algorithm, (body.inputs ?? {}) as Record<string, unknown>);
     }
 
     // --- Inputs (graph mode supplies them under `inputs`; legacy mode at top level) ---
@@ -286,12 +279,13 @@ function walk(a: unknown, b: unknown, path: string, out: DiffEntry[]): void {
 // ── Run history ──────────────────────────────────────────────────────────────
 
 async function recordRun(
-  supabase: any, userId: string, cropSlug: string, variety: string, inputs: unknown,
+  supabase: any, userId: string, cropSlug: string | null, variety: string | null, inputs: unknown,
   graphId: string | null, graphSnapshot: unknown,
   gpRow: unknown, result: unknown, rResult: unknown, diff: unknown,
-  status: string, errorText: string | null,
+  status: string, errorText: string | null, algorithm = "frost-risk",
 ): Promise<void> {
   const { error } = await supabase.from("ale_runs").insert({
+    algorithm,
     graph_id: graphId,
     graph_snapshot_jsonb: graphSnapshot,
     crop_slug: cropSlug,
@@ -307,6 +301,91 @@ async function recordRun(
     created_by: userId,
   });
   if (error) console.warn("ale_runs insert failed:", error.message);
+}
+
+// ── Non-frost algorithms: TS port (heat-stress / insufficient-chill) + R parity ──
+
+async function runNonFrost(
+  supabase: any, userId: string, algorithm: string, inputs: Record<string, unknown>,
+): Promise<Response> {
+  const today = new Date().toISOString().slice(0, 10);
+  const variety = (inputs.variety ?? inputs.cultivar ?? null) as string | null;
+
+  // Run the TS port if one exists; otherwise the algorithm is R-only.
+  let ts_result: unknown = null;
+  try {
+    if (algorithm === "heat-stress") {
+      ts_result = await runHeatStress(
+        { lat: Number(inputs.lat), lon: Number(inputs.lon), cultivar: String(inputs.cultivar), year: Number(inputs.year) },
+        { fetchWeather: fetchHeatWeather },
+      );
+    } else if (algorithm === "insufficient-chill") {
+      ts_result = await runInsufficientChill(
+        {
+          lat: Number(inputs.lat), lon: Number(inputs.lon),
+          variety: (inputs.variety as string) ?? null,
+          n_years: inputs.n_years == null ? undefined : Number(inputs.n_years),
+          climate_type: (inputs.climate_type as string) ?? undefined,
+        },
+        { fetchSeasonTemps, today },
+      );
+    }
+  } catch (e) {
+    await recordRun(supabase, userId, null, variety, inputs, null, null, null, null, null, null, "failed", errMsg(e), algorithm);
+    return json({ error: `Algorithm '${algorithm}' failed`, details: errMsg(e) }, 400);
+  }
+
+  // Best-effort R parity (never blocks the TS result).
+  let r_result: unknown = null;
+  let diff: DiffEntry[] | null = null;
+  let parityNote: string | undefined;
+  if (parityEnabled()) {
+    try {
+      r_result = await callParity(algorithm, inputs);
+      if (ts_result) diff = diffResults(ts_result, r_result);
+    } catch (e) {
+      parityNote = `parity unavailable: ${errMsg(e)}`;
+    }
+  } else {
+    parityNote = "parity disabled (PARITY_HMAC_SECRET unset)";
+  }
+
+  if (ts_result == null && r_result == null) {
+    return json({ error: `No runtime for '${algorithm}': no TS port and parity disabled/unreachable` }, 503);
+  }
+  if (ts_result == null) parityNote = "R-only (no TS port for this algorithm)";
+
+  await recordRun(supabase, userId, null, variety, inputs, null, null, null, ts_result, r_result, diff, "succeeded", null, algorithm);
+  return json({ ts_result, r_result, diff, algorithm, parity_note: parityNote });
+}
+
+// Open-Meteo fetch for heat-stress (hourly temp/rad/wind/rh + daily max/mean).
+async function fetchHeatWeather(lat: number, lon: number, startDate: string, endDate: string): Promise<HeatWeather> {
+  const p = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon), start_date: startDate, end_date: endDate,
+    hourly: "temperature_2m,shortwave_radiation,windspeed_10m,relativehumidity_2m",
+    daily: "temperature_2m_max,temperature_2m_mean", timezone: "auto", wind_speed_unit: "ms",
+  });
+  const j = await fetchJson(`https://archive-api.open-meteo.com/v1/archive?${p}`);
+  const ht: string[] = j.hourly.time;
+  const hourly = ht.map((t, i) => ({
+    datetime: t, date: t.slice(0, 10), hour: Number(t.slice(11, 13)),
+    temp: Number(j.hourly.temperature_2m[i]), rad: Number(j.hourly.shortwave_radiation[i]),
+    wind: Number(j.hourly.windspeed_10m[i]), rh: Number(j.hourly.relativehumidity_2m[i]),
+  }));
+  const dt: string[] = j.daily.time;
+  const daily = dt.map((d, i) => ({ date: d, tMax: Number(j.daily.temperature_2m_max[i]), tMean: Number(j.daily.temperature_2m_mean[i]) }));
+  return { hourly, daily };
+}
+
+// Open-Meteo per-season hourly temperature fetch for insufficient-chill.
+async function fetchSeasonTemps(lat: number, lon: number, startDate: string, endDate: string): Promise<number[]> {
+  const p = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon), start_date: startDate, end_date: endDate,
+    hourly: "temperature_2m", timezone: "auto", temperature_unit: "celsius",
+  });
+  const j = await fetchJson(`https://archive-api.open-meteo.com/v1/archive?${p}`);
+  return (j.hourly.temperature_2m as (number | null)[]).map((t) => (t == null ? NaN : Number(t)));
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
