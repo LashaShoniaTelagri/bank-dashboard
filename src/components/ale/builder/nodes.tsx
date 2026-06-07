@@ -125,15 +125,22 @@ function FrostRiskNode() {
 function HeatStressNode({ id, data }: NodeProps) {
   const d = (data ?? {}) as HeatStressNodeData;
   const { updateNodeData } = useReactFlow();
+  // Heat-stress analyses a COMPLETED season (needs weather through Sep 30), so
+  // the latest selectable year is the most recent season whose Sep 30 has passed.
+  const now = new Date();
+  const maxYear = (now.getUTCMonth() > 8 || (now.getUTCMonth() === 8 && now.getUTCDate() >= 30))
+    ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
   return (
     <NodeShell type="heat-stress" icon={Flame} title="Heat-stress" subtitle="algorithm">
       <div className="nodrag space-y-2" style={{ width: 180 }}>
         <p className="text-[10px] text-body-secondary">Crop &amp; variety come from the Inputs node.</p>
         <Input
-          type="number" placeholder="Season year" className="h-8 text-xs"
+          type="number" placeholder={`Season year (≤ ${maxYear})`} className="h-8 text-xs"
+          max={maxYear}
           value={d.year ?? ""}
           onChange={(e) => updateNodeData(id, { year: e.target.value === "" ? undefined : Number(e.target.value) })}
         />
+        <p className="text-[10px] text-body-secondary">Completed seasons only — needs data through Sep 30.</p>
       </div>
       <Handle type="target" position={Position.Left} style={handleStyle} />
       <Handle type="source" position={Position.Right} style={handleStyle} />

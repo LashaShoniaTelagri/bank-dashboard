@@ -237,7 +237,11 @@ async function getArchive(supabase: any, lat: number, lon: number, start: string
 
 async function fetchJson(url: string): Promise<any> {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
+  if (!r.ok) {
+    let reason = "";
+    try { const b = await r.json(); if (b?.reason) reason = `: ${b.reason}`; } catch { /* non-JSON error body */ }
+    throw new Error(`Open-Meteo ${r.status}${reason}`);
+  }
   return r.json();
 }
 
@@ -311,6 +315,16 @@ async function runNonFrost(
   const today = new Date().toISOString().slice(0, 10);
   const variety = (inputs.variety ?? inputs.cultivar ?? null) as string | null;
   const cropSlug = (inputs.crop as string) ?? "apple";
+
+  // Fail fast on a not-yet-complete heat-stress season: it needs weather through
+  // Sep 30 of `year` (the sunburn window), and the archive only holds past data.
+  if (algorithm === "heat-stress") {
+    const yr = Number(inputs.year);
+    if (!Number.isFinite(yr)) return json({ error: "heat-stress: 'year' is required" }, 400);
+    if (`${yr}-09-30` > today) {
+      return json({ error: `heat-stress: season ${yr} isn't complete yet — it needs weather through ${yr}-09-30, but only past data is available. Choose a completed season (e.g. ${yr - 1}).` }, 400);
+    }
+  }
 
   // Run the TS port if one exists; otherwise the algorithm is R-only.
   let ts_result: unknown = null;
