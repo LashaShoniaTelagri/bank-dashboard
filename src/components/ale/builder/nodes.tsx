@@ -1,13 +1,19 @@
 import { useState } from "react";
 import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
-import { Sprout, CloudSun, Satellite, Snowflake, BarChart3, MapPin } from "lucide-react";
+import { Sprout, CloudSun, Satellite, Snowflake, Flame, ThermometerSnowflake, BarChart3, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";
+import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import LocationPickerModal from "../../LocationPickerModal";
-import { NODE_ACCENT, type AleNodeType, type InputsNodeData, type LocationValue } from "./graphTypes";
+import { NODE_ACCENT, type AleNodeType, type InputsNodeData, type LocationValue, type HeatStressNodeData, type InsufficientChillNodeData } from "./graphTypes";
+
+// Apple cultivars known to the algorithm ports (mirror the TS engine's tables:
+// heat-stress CULTIVARS and insufficient-chill CR_TABLE). Kept in sync manually.
+const HEAT_CULTIVARS = ["Lory", "Pink Lady", "Luiza", "Galy", "Story", "HOT84A1", "Fuji", "Gala", "Isadora", "Venice"];
+const CHILL_VARIETIES = [...HEAT_CULTIVARS, "Tutti", "Royal Gala", "Golden Delicious", "Jonatan Cubinec", "Petrovaca Hvar", "Unknown"];
 
 // Shared shell: accent-bordered card + title. Handles are added per node.
 const NodeShell = ({ type, icon: Icon, title, subtitle, children, dim }: {
@@ -121,6 +127,57 @@ function FrostRiskNode() {
   );
 }
 
+function HeatStressNode({ id, data }: NodeProps) {
+  const d = (data ?? {}) as HeatStressNodeData;
+  const { updateNodeData } = useReactFlow();
+  return (
+    <NodeShell type="heat-stress" icon={Flame} title="Heat-stress" subtitle="algorithm">
+      <div className="nodrag space-y-2" style={{ width: 180 }}>
+        <Select value={d.cultivar ?? ""} onValueChange={(v) => updateNodeData(id, { cultivar: v })}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Cultivar" /></SelectTrigger>
+          <SelectContent>{HEAT_CULTIVARS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+        </Select>
+        <Input
+          type="number" placeholder="Season year" className="h-8 text-xs"
+          value={d.year ?? ""}
+          onChange={(e) => updateNodeData(id, { year: e.target.value === "" ? undefined : Number(e.target.value) })}
+        />
+      </div>
+      <Handle type="target" position={Position.Left} style={handleStyle} />
+      <Handle type="source" position={Position.Right} style={handleStyle} />
+    </NodeShell>
+  );
+}
+
+function InsufficientChillNode({ id, data }: NodeProps) {
+  const d = (data ?? {}) as InsufficientChillNodeData;
+  const { updateNodeData } = useReactFlow();
+  return (
+    <NodeShell type="insufficient-chill" icon={ThermometerSnowflake} title="Insufficient-chill" subtitle="algorithm">
+      <div className="nodrag space-y-2" style={{ width: 190 }}>
+        <Select value={d.variety ?? ""} onValueChange={(v) => updateNodeData(id, { variety: v })}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Variety (optional)" /></SelectTrigger>
+          <SelectContent>{CHILL_VARIETIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+        </Select>
+        <Input
+          type="number" placeholder="Seasons (default 5)" className="h-8 text-xs"
+          value={d.n_years ?? ""}
+          onChange={(e) => updateNodeData(id, { n_years: e.target.value === "" ? undefined : Number(e.target.value) })}
+        />
+        <Select value={d.climate_type ?? "continental"} onValueChange={(v) => updateNodeData(id, { climate_type: v })}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Climate" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="continental">continental</SelectItem>
+            <SelectItem value="warm">warm</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Handle type="target" position={Position.Left} style={handleStyle} />
+      <Handle type="source" position={Position.Right} style={handleStyle} />
+    </NodeShell>
+  );
+}
+
 function ResultNode() {
   return (
     <NodeShell type="result" icon={BarChart3} title="Result">
@@ -135,5 +192,7 @@ export const nodeTypes = {
   weather: WeatherNode,
   satellite: SatelliteNode,
   "frost-risk": FrostRiskNode,
+  "heat-stress": HeatStressNode,
+  "insufficient-chill": InsufficientChillNode,
   result: ResultNode,
 };
