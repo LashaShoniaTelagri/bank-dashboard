@@ -21,16 +21,18 @@ So R is the source of truth during authoring; the TS port is the production runt
 | Algorithm | Inputs | Status |
 |-----------|--------|--------|
 | **frost-risk** | phenology (chill/GDH/bloom), weather (Open-Meteo) | TS-ported; R parity live at `algo.telagri.com` |
-| heat-stress, disease, others | phenology + weather + satellite | in development (agronomist/GIS) — port as they're delivered |
+| **heat-stress** | phenology (Utah CU + Richardson GDH → bloom), weather (temp/radiation/wind/RH + daily max/mean) | TS-ported; R parity; canvas node (2026-06-07) |
+| **insufficient-chill** | multi-season chill (Utah CU + Weinberger CH + Dynamic CP via `ChillModels`), weather | TS-ported; R parity; canvas node (2026-06-07) |
+| disease, others | phenology + weather + satellite | in development (agronomist/GIS) — port as they're delivered |
 | (cross-cutting) **satellite ingestion** | Sentinel Hub imagery → NDVI/vigor | **future build** — prerequisite for several algorithms |
 
-Adding an algorithm = drop `gis-scripts/algorithms/<id>/{run.R,manifest.json}` (parity auto-discovers it), TS-port it into the engine, and expose it as a node type in the canvas.
+Adding an algorithm = drop `gis-scripts/algorithms/<id>/{run.R,manifest.json}` (parity auto-discovers it), TS-port it into the engine, and expose it as a node type in the canvas. **Note:** an algorithm needing a new CRAN package also requires a parity image rebuild (ADR 0022). The TS engine ports (`heatStress.ts`, `insufficientChill.ts`) are verified field-by-field against R-generated fixtures (`gis-scripts/algorithms/<id>/fixtures/`) by `*.parity.test.ts` (live Open-Meteo, ±1e-3). insufficient-chill ports `ChillModels::utah_model`/`dynamic_model` exactly.
 
 ## Current implementation state (2026-06)
 
-- **Engine** (`_shared/ale-engine/`): pure-TS frost-risk port (`compute.ts`/`weather.ts`/`frostRisk.ts`), a **graph runner** (`graph.ts` — topological eval, `validateGraph`/`runGraph`), Deno tests passing.
-- **`ale-evaluate` Edge Function**: runs a graph or a direct frost run; read-through `ale_weather_cache`; calls R parity; writes `ale_runs`.
-- **Canvas builder** (`src/components/ale/builder/`): React Flow (`@xyflow/react`) drag-and-drop — palette of node types (Inputs · Weather · Satellite-stub · Frost-risk · Result), save/load graphs to `ale_logic_graphs` (now reusable named **templates**), run → result panel with TS/R toggle. This is the **composition layer** (ADR 0008) for the algorithms above. *(Implemented; commit + Stage-D polish pending at time of writing.)*
+- **Engine** (`_shared/ale-engine/`): pure-TS ports — frost-risk (`compute.ts`/`weather.ts`/`frostRisk.ts`), **heat-stress** (`heatStress.ts`), **insufficient-chill** (`insufficientChill.ts`) — plus a **graph runner** (`graph.ts`, frost-only; non-frost bypasses it). Deno tests + `*.parity.test.ts` passing (7/7 vs R fixtures).
+- **`ale-evaluate` Edge Function**: dispatches by `body.algorithm`. frost-risk → graph or direct run (read-through `ale_weather_cache`); heat-stress / insufficient-chill → their TS ports with their own Open-Meteo fetch; any id → best-effort R parity + field diff; writes `ale_runs` (now has an `algorithm` column, ADR migration `20260607000001`). Unknown ids with no TS port are R-only.
+- **Canvas builder** (`src/components/ale/builder/`): React Flow drag-and-drop — palette node types (Inputs · Weather · Satellite-stub · **Frost-risk · Heat-stress · Insufficient-chill** · Result). Algorithm-specific params live on the algorithm node (Inputs supplies location); run dispatches by the canvas algorithm node. Frost results render in `ResultView`; others in `GenericResultView` + R-parity panel. Save/load graphs to `ale_logic_graphs` (named **templates**). Composition layer per ADR 0008.
 
 ## Scope (V1)
 
@@ -137,6 +139,42 @@ UI: ALE switch shows in `UsersManagement.tsx` only when role is `specialist`. Ba
 ```
 
 Both R Plumber wrapper and TS engine target this exact shape; diff is field-by-field.
+
+### heat-stress result
+
+```ts
+{
+  meta: { lat, lon, cultivar, year },
+  yield_reduction: {
+    ptf: number,            // pollen tube formation loss (0-0.20)
+    bud_formation: number,  // previous-season bud/flower loss (0-0.20)
+    sunburn_sd: number,     // sunburn days loss (0-0.20)
+    sunburn_sn: number,     // sunburn necrosis loss (uncapped)
+    total: number,          // sum
+    retained_yield: number  // max(0, 1 - total)
+  }
+}
+```
+
+### insufficient-chill result
+
+```ts
+{
+  meta: { lat, lon, variety, variety_found, climate_type, run_date, season_complete, current_season },
+  chill: { cu_accumulated, ch_accumulated, cp_accumulated, cr_cu, cr_ch, cr_cp },
+  deficit: { cd_cu, cd_ch, cd_cp, cd_pct_primary, primary_model, severity, model_agreement },
+  tiers: {
+    tier1: { prob_sufficient, yield_risk_prob, risk_label, n_seasons, n_sufficient },  // multi-year probability
+    tier2: { yield_reduction, yield_reduction_pct, confidence },                       // binary coefficient
+    tier3: { yield_reduction, yield_reduction_pct, confidence }                        // proportional
+  },
+  recommended: { yield_reduction, output_tier },
+  historical: Array<{ season, cd_pct, severity, tier2_pct, tier3_pct, chill_met }>,
+  projection: null   // mid-season projection object when the current season is incomplete
+}
+```
+
+`run_date` is server-side (`Sys.Date()` in R / injected `today` in TS) — season windows derive from it, so parity fixtures pin it. Non-frost algorithm outputs render through the schema-agnostic `GenericResultView`; only frost-risk has a bespoke `ResultView`.
 
 ### Trigger model
 
