@@ -6,4 +6,8 @@ export * from "./types.ts";
 export * from "./compute.ts";
 export * from "./weather.ts";
 export { runFrostAnalysis } from "./frostRisk.ts";
+export { runHeatStress } from "./heatStress.ts";
+export type { HeatStressInputs, HeatWeather, HeatStressResult } from "./heatStress.ts";
+export { runInsufficientChill } from "./insufficientChill.ts";
+export type { InsufficientChillInputs, InsufficientChillResult } from "./insufficientChill.ts";
 export * from "./graph.ts";
