@@ -1,5 +1,5 @@
 // Insufficient-chill yield loss — pure-TS port of
-// gis-scripts/algorithms/insufficient-chill/insufficient_chill_yield_loss.R
+// gis-scripts/scripts/insufficient-chill/insufficient_chill_yield_loss.R
 // (+ data/chill_parameters.R). Parity target: that algorithm's fixtures/*.json.
 //
 // The Utah CU and Dynamic CP models are EXACT ports of ChillModels::utah_model

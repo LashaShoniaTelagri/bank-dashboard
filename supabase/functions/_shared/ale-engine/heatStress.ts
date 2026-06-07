@@ -1,5 +1,5 @@
 // Heat-stress yield-reduction — pure-TS port of
-// gis-scripts/algorithms/heat-stress/heat_stress_yield_reduction.R (+ crop_parameters.R).
+// gis-scripts/scripts/heat-stress/heat_stress_yield_reduction.R (+ data/crop_parameters.R).
 // Parity target: gis-scripts/algorithms/heat-stress/fixtures/*.json (R-on-EC2 / local R).
 //
 // Faithful port — replicates the R behaviour exactly, including:
