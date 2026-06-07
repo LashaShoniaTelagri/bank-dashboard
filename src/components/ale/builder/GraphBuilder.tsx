@@ -84,13 +84,14 @@ const Flow = () => {
       return { ...base, variety: inputsCfg.variety, crop: inputsCfg.crop };
     }
     if (algorithm === "heat-stress") {
+      // cultivar = the Inputs-node variety (DB-managed); year is heat-stress-specific.
       const d = (algoNode!.data ?? {}) as HeatStressNodeData;
-      if (!d.cultivar || !d.year) return null;
-      return { ...base, cultivar: d.cultivar, year: d.year };
+      if (!inputsCfg?.variety || !d.year) return null;
+      return { ...base, cultivar: inputsCfg.variety, year: d.year };
     }
-    // insufficient-chill — variety optional (median fallback); n_years/climate default server-side.
+    // insufficient-chill — variety from Inputs (optional → median fallback); n_years/climate default server-side.
     const d = (algoNode!.data ?? {}) as InsufficientChillNodeData;
-    return { ...base, variety: d.variety, n_years: d.n_years, climate_type: d.climate_type };
+    return { ...base, variety: inputsCfg?.variety, n_years: d.n_years, climate_type: d.climate_type };
   };
 
   const hasChain = !!algoNode
@@ -99,9 +100,9 @@ const Flow = () => {
   const canRun = hasChain && buildInputs() != null;
 
   const requirementHint = algorithm === "heat-stress"
-    ? "Set location (Inputs node) and cultivar + year (Heat-stress node)."
+    ? "Set crop, variety & location on the Inputs node, and year on the Heat-stress node."
     : algorithm === "insufficient-chill"
-      ? "Set location on the Inputs node (variety optional on the node)."
+      ? "Set crop, variety & location on the Inputs node (variety optional)."
       : "Set crop, variety and location on the Inputs node.";
 
   const run = async () => {

@@ -17,16 +17,16 @@ export interface InputsNodeData {
   [k: string]: unknown;
 }
 
-/** Per-algorithm params live on the algorithm node (Inputs provides location). */
+// Algorithm nodes carry ONLY params specific to the algorithm. Shared inputs
+// (crop, variety, location) come from the Inputs node — crop/variety are managed
+// dynamically in Crop Management (ale_crops / ale_crop_varieties), never hardcoded.
 export interface HeatStressNodeData {
-  cultivar?: string;
-  year?: number;
+  year?: number;          // season (harvest) year — heat-stress only
   [k: string]: unknown;
 }
 export interface InsufficientChillNodeData {
-  variety?: string;
-  n_years?: number;
-  climate_type?: string;
+  n_years?: number;       // number of historical seasons
+  climate_type?: string;  // continental | warm
   [k: string]: unknown;
 }
 

@@ -10,11 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import LocationPickerModal from "../../LocationPickerModal";
 import { NODE_ACCENT, type AleNodeType, type InputsNodeData, type LocationValue, type HeatStressNodeData, type InsufficientChillNodeData } from "./graphTypes";
 
-// Apple cultivars known to the algorithm ports (mirror the TS engine's tables:
-// heat-stress CULTIVARS and insufficient-chill CR_TABLE). Kept in sync manually.
-const HEAT_CULTIVARS = ["Lory", "Pink Lady", "Luiza", "Galy", "Story", "HOT84A1", "Fuji", "Gala", "Isadora", "Venice"];
-const CHILL_VARIETIES = [...HEAT_CULTIVARS, "Tutti", "Royal Gala", "Golden Delicious", "Jonatan Cubinec", "Petrovaca Hvar", "Unknown"];
-
 // Shared shell: accent-bordered card + title. Handles are added per node.
 const NodeShell = ({ type, icon: Icon, title, subtitle, children, dim }: {
   type: AleNodeType;
@@ -133,10 +128,7 @@ function HeatStressNode({ id, data }: NodeProps) {
   return (
     <NodeShell type="heat-stress" icon={Flame} title="Heat-stress" subtitle="algorithm">
       <div className="nodrag space-y-2" style={{ width: 180 }}>
-        <Select value={d.cultivar ?? ""} onValueChange={(v) => updateNodeData(id, { cultivar: v })}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Cultivar" /></SelectTrigger>
-          <SelectContent>{HEAT_CULTIVARS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-        </Select>
+        <p className="text-[10px] text-body-secondary">Crop &amp; variety come from the Inputs node.</p>
         <Input
           type="number" placeholder="Season year" className="h-8 text-xs"
           value={d.year ?? ""}
@@ -155,10 +147,7 @@ function InsufficientChillNode({ id, data }: NodeProps) {
   return (
     <NodeShell type="insufficient-chill" icon={ThermometerSnowflake} title="Insufficient-chill" subtitle="algorithm">
       <div className="nodrag space-y-2" style={{ width: 190 }}>
-        <Select value={d.variety ?? ""} onValueChange={(v) => updateNodeData(id, { variety: v })}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Variety (optional)" /></SelectTrigger>
-          <SelectContent>{CHILL_VARIETIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-        </Select>
+        <p className="text-[10px] text-body-secondary">Crop &amp; variety come from the Inputs node.</p>
         <Input
           type="number" placeholder="Seasons (default 5)" className="h-8 text-xs"
           value={d.n_years ?? ""}
