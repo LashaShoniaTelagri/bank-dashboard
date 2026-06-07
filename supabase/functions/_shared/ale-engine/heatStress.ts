@@ -15,21 +15,10 @@
 
 import { makeDate, addDays } from "./compute.ts";
 
-// ── Cultivar params + constants (mirror crop_parameters.R) ────────────────────
-
-interface Cultivar { cu: number; gdh: number; }
-const CULTIVARS: Record<string, Cultivar> = {
-  "Lory":      { cu: 506.5,  gdh: 9782 },
-  "Pink Lady": { cu: 643.0,  gdh: 9241 },
-  "Luiza":     { cu: 643.0,  gdh: 9241 },
-  "Galy":      { cu: 643.0,  gdh: 9584 },
-  "Story":     { cu: 887.5,  gdh: 8866 },
-  "HOT84A1":   { cu: 1153.0, gdh: 10009 },
-  "Fuji":      { cu: 1114.5, gdh: 8733 },
-  "Gala":      { cu: 1348.5, gdh: 8333 },
-  "Isadora":   { cu: 1348.5, gdh: 7392 },
-  "Venice":    { cu: 1348.5, gdh: 7392 },
-};
+// ── Model constants (mirror crop_parameters.R) ───────────────────────────────
+// Per-cultivar requirements (CU/GDH) are NOT hardcoded here — they come from the
+// DB (ale_crop_varieties.chill_units_cu / gdh_to_bloom), passed in as params, so
+// the agronomist-managed crop catalogue is the single source of truth.
 
 const GDH_BASE_TEMP = 4.0;
 
@@ -90,6 +79,8 @@ const round = (x: number, dp: number): number => { const f = 10 ** dp; return Ma
 // ── IO contract ──────────────────────────────────────────────────────────────
 
 export interface HeatStressInputs { lat: number; lon: number; cultivar: string; year: number; }
+/** Per-cultivar requirements, loaded from ale_crop_varieties (cu = chill_units_cu, gdh = gdh_to_bloom). */
+export interface HeatStressParams { cu: number; gdh: number; }
 export interface HeatHourly { datetime: string; date: string; hour: number; temp: number; rad: number; wind: number; rh: number; }
 export interface HeatDaily { date: string; tMax: number; tMean: number; }
 export interface HeatWeather { hourly: HeatHourly[]; daily: HeatDaily[]; }
@@ -220,9 +211,10 @@ function calcSunburn(hourly: HeatHourly[], daily: HeatDaily[], fb: string, year:
 
 // ── Orchestration ────────────────────────────────────────────────────────────
 
-export async function runHeatStress(inputs: HeatStressInputs, deps: HeatStressDeps): Promise<HeatStressResult> {
-  const cp = CULTIVARS[inputs.cultivar];
-  if (!cp) throw new Error(`Cultivar '${inputs.cultivar}' not found. Available: ${Object.keys(CULTIVARS).join(", ")}`);
+export async function runHeatStress(inputs: HeatStressInputs, params: HeatStressParams, deps: HeatStressDeps): Promise<HeatStressResult> {
+  if (params.cu == null || params.gdh == null) {
+    throw new Error(`Cultivar '${inputs.cultivar}' is missing CU/GDH requirements (chill_units_cu / gdh_to_bloom).`);
+  }
 
   const startDate = makeDate(inputs.year - 1, 9, 1);
   const endDate = makeDate(inputs.year, 9, 30);
@@ -230,8 +222,8 @@ export async function runHeatStress(inputs: HeatStressInputs, deps: HeatStressDe
 
   // FB_prev asks to start Sep1(yr-2) but the fetched data begins Sep1(yr-1);
   // replicate the R: both effectively start at the first available row.
-  const fbPrev = findFullBloom(hourly, makeDate(inputs.year - 2, 9, 1), cp.cu, cp.gdh);
-  const fb = findFullBloom(hourly, makeDate(inputs.year - 1, 9, 1), cp.cu, cp.gdh);
+  const fbPrev = findFullBloom(hourly, makeDate(inputs.year - 2, 9, 1), params.cu, params.gdh);
+  const fb = findFullBloom(hourly, makeDate(inputs.year - 1, 9, 1), params.cu, params.gdh);
 
   const ptf = calcPTF(hourly, fb);
   const budFormation = calcBudDevelopment(daily, fbPrev);

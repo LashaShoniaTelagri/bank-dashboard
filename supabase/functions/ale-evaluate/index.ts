@@ -4,7 +4,7 @@ import {
   buildArchiveUrl, buildForecastUrl, addDays,
   runHeatStress, runInsufficientChill,
   type CropParams, type GlobalPhysics, type HourlyPoint, type RunResult, type GraphSpec,
-  type HeatWeather,
+  type HeatWeather, type ChillCR,
 } from "../_shared/ale-engine/index.ts";
 import { callParity, parityEnabled } from "../_shared/r-parity-client.ts";
 
@@ -310,16 +310,26 @@ async function runNonFrost(
 ): Promise<Response> {
   const today = new Date().toISOString().slice(0, 10);
   const variety = (inputs.variety ?? inputs.cultivar ?? null) as string | null;
+  const cropSlug = (inputs.crop as string) ?? "apple";
 
   // Run the TS port if one exists; otherwise the algorithm is R-only.
   let ts_result: unknown = null;
   try {
     if (algorithm === "heat-stress") {
+      // Per-cultivar CU/GDH come from the crop catalogue (ale_crop_varieties).
+      const varieties = await loadCropVarieties(supabase, cropSlug);
+      const v = resolveVariety(varieties, String(inputs.cultivar));
+      if (!v || v.chill_units_cu == null || v.gdh_to_bloom == null) {
+        throw new Error(`Cultivar '${inputs.cultivar}' not found in ${cropSlug} catalogue, or missing CU/GDH.`);
+      }
       ts_result = await runHeatStress(
         { lat: Number(inputs.lat), lon: Number(inputs.lon), cultivar: String(inputs.cultivar), year: Number(inputs.year) },
+        { cu: Number(v.chill_units_cu), gdh: Number(v.gdh_to_bloom) },
         { fetchWeather: fetchHeatWeather },
       );
     } else if (algorithm === "insufficient-chill") {
+      const varieties = await loadCropVarieties(supabase, cropSlug);
+      const cr = resolveChillCR(varieties, (inputs.variety as string) ?? null);
       ts_result = await runInsufficientChill(
         {
           lat: Number(inputs.lat), lon: Number(inputs.lon),
@@ -327,6 +337,7 @@ async function runNonFrost(
           n_years: inputs.n_years == null ? undefined : Number(inputs.n_years),
           climate_type: (inputs.climate_type as string) ?? undefined,
         },
+        cr,
         { fetchSeasonTemps, today },
       );
     }
@@ -357,6 +368,53 @@ async function runNonFrost(
 
   await recordRun(supabase, userId, null, variety, inputs, null, null, null, ts_result, r_result, diff, "succeeded", null, algorithm);
   return json({ ts_result, r_result, diff, algorithm, parity_note: parityNote });
+}
+
+// ── Crop catalogue (ale_crop_varieties) — per-variety algorithm params ────────
+
+interface VarietyRow { display_name: string; chill_units_cu: number | null; chill_hours_ch: number | null; chill_portions_cp: number | null; gdh_to_bloom: number | null; }
+
+async function loadCropVarieties(supabase: any, cropSlug: string): Promise<VarietyRow[]> {
+  const { data: crop } = await supabase.from("ale_crops").select("id").eq("slug", cropSlug).maybeSingle();
+  if (!crop) return [];
+  const { data } = await supabase
+    .from("ale_crop_varieties")
+    .select("display_name, chill_units_cu, chill_hours_ch, chill_portions_cp, gdh_to_bloom")
+    .eq("crop_id", crop.id);
+  return (data ?? []) as VarietyRow[];
+}
+
+// Match a variety name: exact (case-insensitive) → substring (mirrors the R lookup).
+function resolveVariety(varieties: VarietyRow[], name: string | null): VarietyRow | null {
+  if (!name) return null;
+  const lc = name.toLowerCase();
+  return varieties.find((v) => v.display_name.toLowerCase() === lc)
+    ?? varieties.find((v) => v.display_name.toLowerCase().includes(lc))
+    ?? null;
+}
+
+const median = (xs: number[]): number => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// Resolve chill requirements for insufficient-chill. Unknown variety → median
+// across the crop's varieties (DB-driven; differs from the R script's median over
+// its own hardcoded reference set, so the unknown path is not R-parity-tested).
+function resolveChillCR(varieties: VarietyRow[], name: string | null): ChillCR {
+  const v = resolveVariety(varieties, name);
+  if (v) {
+    return { cr_cu: num(v.chill_units_cu), cr_ch: num(v.chill_hours_ch), cr_cp: num(v.chill_portions_cp), found: true, variety_used: v.display_name };
+  }
+  const col = (pick: (r: VarietyRow) => number | null) => varieties.map(pick).filter((x): x is number => x != null);
+  const med = (xs: number[]) => (xs.length ? median(xs) : null);
+  return {
+    cr_cu: med(col((r) => r.chill_units_cu)),
+    cr_ch: med(col((r) => r.chill_hours_ch)),
+    cr_cp: med(col((r) => r.chill_portions_cp)),
+    found: false, variety_used: "UNKNOWN_MEDIAN_FALLBACK",
+  };
 }
 
 // Open-Meteo fetch for heat-stress (hourly temp/rad/wind/rh + daily max/mean).

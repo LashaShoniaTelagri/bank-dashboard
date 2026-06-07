@@ -86,12 +86,13 @@ const Flow = () => {
     if (algorithm === "heat-stress") {
       // cultivar = the Inputs-node variety (DB-managed); year is heat-stress-specific.
       const d = (algoNode!.data ?? {}) as HeatStressNodeData;
-      if (!inputsCfg?.variety || !d.year) return null;
-      return { ...base, cultivar: inputsCfg.variety, year: d.year };
+      if (!inputsCfg?.crop || !inputsCfg?.variety || !d.year) return null;
+      return { ...base, crop: inputsCfg.crop, cultivar: inputsCfg.variety, year: d.year };
     }
     // insufficient-chill — variety from Inputs (optional → median fallback); n_years/climate default server-side.
     const d = (algoNode!.data ?? {}) as InsufficientChillNodeData;
-    return { ...base, variety: inputsCfg?.variety, n_years: d.n_years, climate_type: d.climate_type };
+    if (!inputsCfg?.crop) return null;
+    return { ...base, crop: inputsCfg.crop, variety: inputsCfg?.variety, n_years: d.n_years, climate_type: d.climate_type };
   };
 
   const hasChain = !!algoNode

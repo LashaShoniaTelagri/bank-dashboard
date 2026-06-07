@@ -12,6 +12,16 @@ const FIXTURE_DIR = new URL("../../../../gis-scripts/algorithms/heat-stress/fixt
 const FIXTURES = ["fuji_ro_2024", "lory_ge_2023", "story_ro_2022", "pinklady_ge_2024"];
 const TOL = 1e-3;
 
+// Per-cultivar CU/GDH requirements — in production the Edge loads these from
+// ale_crop_varieties (chill_units_cu / gdh_to_bloom); here they're the same
+// constants the R fixtures used (crop_parameters.R), supplied directly.
+const PARAMS: Record<string, { cu: number; gdh: number }> = {
+  Fuji: { cu: 1114.5, gdh: 8733 },
+  Lory: { cu: 506.5, gdh: 9782 },
+  Story: { cu: 887.5, gdh: 8866 },
+  "Pink Lady": { cu: 643.0, gdh: 9241 },
+};
+
 // Live fetch mirroring fetch_weather() in heat_stress_yield_reduction.R.
 async function fetchHeatWeather(lat: number, lon: number, startDate: string, endDate: string): Promise<HeatWeather> {
   const p = new URLSearchParams({
@@ -47,7 +57,7 @@ async function loadFixture(name: string) {
 for (const name of FIXTURES) {
   Deno.test(`heat-stress parity — ${name}`, async () => {
     const { inputs, result } = await loadFixture(name);
-    const ts = await runHeatStress(inputs, { fetchWeather: fetchHeatWeather });
+    const ts = await runHeatStress(inputs, PARAMS[inputs.cultivar], { fetchWeather: fetchHeatWeather });
     for (const k of Object.keys(result.yield_reduction)) {
       const r = result.yield_reduction[k];
       const t = (ts.yield_reduction as Record<string, number>)[k];

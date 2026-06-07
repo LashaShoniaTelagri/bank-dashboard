@@ -54,7 +54,17 @@ function expectClose(label: string, ts: unknown, r: unknown) {
 for (const name of FIXTURES) {
   Deno.test(`insufficient-chill parity — ${name}`, async () => {
     const { inputs, result } = await loadFixture(name);
-    const ts = await runInsufficientChill(inputs, { fetchSeasonTemps, today: result.meta.run_date });
+    // The Edge loads CR from ale_crop_varieties; here we feed the SAME CR the R
+    // fixture used (recorded in result.chill) so the port reproduces R exactly —
+    // including the unknown-variety median case, whose CR R computed itself.
+    const cr = {
+      cr_cu: result.chill.cr_cu as number | null,
+      cr_ch: result.chill.cr_ch as number | null,
+      cr_cp: result.chill.cr_cp as number | null,
+      found: result.meta.variety_found,
+      variety_used: result.meta.variety,
+    };
+    const ts = await runInsufficientChill(inputs, cr, { fetchSeasonTemps, today: result.meta.run_date });
 
     expectClose("meta.variety", ts.meta.variety, result.meta.variety);
     expectClose("meta.current_season", ts.meta.current_season, result.meta.current_season);

@@ -9,28 +9,11 @@
 // run_date is injected (deps.today) rather than read from the clock, so runs are
 // reproducible and match the R fixture's pinned meta.run_date.
 
-import { makeDate, addDays } from "./compute.ts";
+import { makeDate } from "./compute.ts";
 
-// ── Cultivar chill requirements (mirror chill_parameters.R cultivar_cr_table) ─
-
-interface CR { variety: string; ch: number | null; cu: number | null; cp: number | null; }
-const CR_TABLE: CR[] = [
-  { variety: "Lory",             ch: 340,  cu: 506.5,  cp: 31.9 },
-  { variety: "Pink Lady",        ch: 504,  cu: 643.0,  cp: 40.7 },
-  { variety: "Luiza",            ch: 504,  cu: 643.0,  cp: 40.7 },
-  { variety: "Galy",             ch: 504,  cu: 643.0,  cp: 40.7 },
-  { variety: "Story",            ch: 716,  cu: 887.5,  cp: 51.5 },
-  { variety: "HOT84A1",          ch: 960,  cu: 1153.0, cp: 60.7 },
-  { variety: "Tutti",            ch: 960,  cu: 1153.0, cp: 60.7 },
-  { variety: "Fuji",             ch: 938,  cu: 1114.5, cp: 62.5 },
-  { variety: "Royal Gala",       ch: null, cu: 900.0,  cp: 52.5 },
-  { variety: "Golden Delicious", ch: null, cu: 1080.0, cp: 50.0 },
-  { variety: "Gala",             ch: 1137, cu: 1348.5, cp: 71.3 },
-  { variety: "Isadora",          ch: 1137, cu: 1348.5, cp: 71.3 },
-  { variety: "Venice",           ch: 1137, cu: 1348.5, cp: 71.3 },
-  { variety: "Jonatan Cubinec",  ch: null, cu: 1153.0, cp: null },
-  { variety: "Petrovaca Hvar",   ch: null, cu: 843.0,  cp: null },
-];
+// Per-variety chill requirements come from the DB (ale_crop_varieties), resolved
+// by the caller and passed in as `cr` — not hardcoded here. The model constants
+// below (season window, severity bands, tier coefficients) mirror chill_parameters.R.
 
 const SEASON_START_MONTH = 9, SEASON_START_DAY = 1;
 const SEASON_END_MONTH = 3, SEASON_END_DAY = 31;
@@ -88,32 +71,6 @@ function dynamicModelTotal(temps: number[]): number {
   let total = 0;
   for (let i = 0; i < n; i++) if (E[i] >= 1) total += E[i] * xi[i];
   return total;
-}
-
-// ── Cultivar lookup (exact → partial → median fallback) ──────────────────────
-
-const median = (xs: number[]): number => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-
-interface Lookup { cr_ch: number | null; cr_cu: number | null; cr_cp: number | null; found: boolean; variety_used: string; }
-
-function lookupCultivar(variety: string | null | undefined): Lookup {
-  const medianFallback = (): Lookup => ({
-    cr_ch: median(CR_TABLE.map((r) => r.ch).filter((v): v is number => v != null)),
-    cr_cu: median(CR_TABLE.map((r) => r.cu).filter((v): v is number => v != null)),
-    cr_cp: median(CR_TABLE.map((r) => r.cp).filter((v): v is number => v != null)),
-    found: false, variety_used: "UNKNOWN_MEDIAN_FALLBACK",
-  });
-  if (variety == null || variety === "" || variety === "Unknown") return medianFallback();
-
-  const lc = variety.toLowerCase();
-  let row = CR_TABLE.find((r) => r.variety.toLowerCase() === lc);
-  if (!row) row = CR_TABLE.find((r) => r.variety.toLowerCase().includes(lc));
-  if (!row) return medianFallback();
-  return { cr_ch: row.ch, cr_cu: row.cu, cr_cp: row.cp, found: true, variety_used: row.variety };
 }
 
 // ── Deficit / severity / agreement / tiers ───────────────────────────────────
@@ -177,6 +134,10 @@ function selectPrimary(d: { cdPctCU: number | null; metCU: boolean | null; cdPct
 export interface InsufficientChillInputs {
   lat: number; lon: number; variety?: string | null; n_years?: number; climate_type?: string;
 }
+/** Variety chill requirements, resolved from ale_crop_varieties by the caller.
+ *  `found=false` (+ median CR values) when the variety is unknown — the caller
+ *  computes the median across the crop's varieties. */
+export interface ChillCR { cr_cu: number | null; cr_ch: number | null; cr_cp: number | null; found: boolean; variety_used: string; }
 export interface InsufficientChillDeps {
   /** Hourly temps (°C, chronological) for [startDate, endDate]. */
   fetchSeasonTemps: (lat: number, lon: number, startDate: string, endDate: string) => Promise<number[]>;
@@ -199,7 +160,7 @@ export interface InsufficientChillResult {
 
 // ── Orchestration ────────────────────────────────────────────────────────────
 
-export async function runInsufficientChill(inputs: InsufficientChillInputs, deps: InsufficientChillDeps): Promise<InsufficientChillResult> {
+export async function runInsufficientChill(inputs: InsufficientChillInputs, cr: ChillCR, deps: InsufficientChillDeps): Promise<InsufficientChillResult> {
   const nYears = inputs.n_years ?? 5;
   const climate = inputs.climate_type ?? "continental";
   const runDate = deps.today;
@@ -216,7 +177,6 @@ export async function runInsufficientChill(inputs: InsufficientChillInputs, deps
     return { name: `season_${yr}`, start, end };
   });
 
-  const cr = lookupCultivar(inputs.variety);
 
   interface SeasonResult {
     name: string; chill: { CU: number | null; CH: number | null; CP: number | null };
