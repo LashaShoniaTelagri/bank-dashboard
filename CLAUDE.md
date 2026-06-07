@@ -34,6 +34,7 @@ Quick links:
 7. **One issue at a time.** If asked for multiple fixes, push back and ask which first.
 8. **Investigate before fixing.** Confirm root cause before proposing a change. The reported bug may be working-as-designed or have a different cause.
 9. **Spec updates land with implementation.** When a feature changes architecture, domain, or operations, update the relevant spec in the same PR.
+10. **Don't hardcode app-managed data.** Before inlining any list/param (crops, varieties, enums, thresholds), check if the app already manages it (a DB table, CRUD screen, or existing loader) and read from that source — match the codebase pattern, not a reference/parity script. Treat a "keep in sync manually" comment as a signal to stop. (E.g. heat-stress/insufficient-chill params come from `ale_crop_varieties`, like the frost port — never a hardcoded cultivar table.)
 
 ## Maintenance triggers
 
