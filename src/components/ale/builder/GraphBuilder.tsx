@@ -30,6 +30,29 @@ interface RunResponse {
   parity_note?: string;
 }
 
+const ALGO_LABEL: Record<AleAlgorithm, string> = {
+  "frost-risk": "Frost-risk",
+  "heat-stress": "Heat-stress",
+  "insufficient-chill": "Insufficient-chill",
+};
+
+// One algorithm node traced through its canvas pipeline (Inputs → Weather → algo → Result).
+interface Pipeline {
+  nodeId: string;
+  algorithm: AleAlgorithm;
+  inputs: Record<string, unknown> | null;   // null when errors present
+  resultNodeId: string | null;
+  errors: string[];
+}
+
+// One rendered result card (a pipeline's outcome).
+interface ResultEntry {
+  algorithm: AleAlgorithm;
+  resultNodeId: string | null;
+  data?: RunResponse;
+  error?: string;
+}
+
 const initialNodes: Node[] = [
   { id: "inputs-1", type: "inputs", position: { x: 20, y: 140 }, data: {} },
   { id: "weather-1", type: "weather", position: { x: 290, y: 150 }, data: {} },
@@ -50,7 +73,8 @@ const Flow = () => {
 
   const [name, setName] = useState("My analysis");
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<RunResponse | null>(null);
+  const [results, setResults] = useState<ResultEntry[] | null>(null);
+  const [issues, setIssues] = useState<Pipeline[]>([]);   // pipelines with errors (inline feedback)
 
   const onConnect = useCallback((c: Connection) => setEdges((eds) => addEdge(c, eds)), [setEdges]);
 
@@ -70,62 +94,80 @@ const Flow = () => {
   });
 
   const inputsCfg = nodes.find((n) => n.type === "inputs")?.data as InputsNodeData | undefined;
-  const algoNode = nodes.find((n) => ALGORITHM_TYPES.includes(n.type as AleAlgorithm));
-  const algorithm = (algoNode?.type ?? "frost-risk") as AleAlgorithm;
-
-  // Build the algorithm-specific inputs from the Inputs node (location) + the
-  // algorithm node's own params. Returns null if anything required is missing.
-  const buildInputs = (): Record<string, unknown> | null => {
-    const loc = inputsCfg?.location;
-    if (!loc) return null;
-    const base = { lat: loc.lat, lon: loc.lng };
-    if (algorithm === "frost-risk") {
-      if (!inputsCfg?.crop || !inputsCfg?.variety) return null;
-      return { ...base, variety: inputsCfg.variety, crop: inputsCfg.crop };
-    }
-    if (algorithm === "heat-stress") {
-      // cultivar = the Inputs-node variety (DB-managed); year is heat-stress-specific.
-      const d = (algoNode!.data ?? {}) as HeatStressNodeData;
-      if (!inputsCfg?.crop || !inputsCfg?.variety || !d.year) return null;
-      return { ...base, crop: inputsCfg.crop, cultivar: inputsCfg.variety, year: d.year };
-    }
-    // insufficient-chill — variety from Inputs (optional → median fallback); n_years/climate default server-side.
-    const d = (algoNode!.data ?? {}) as InsufficientChillNodeData;
-    if (!inputsCfg?.crop) return null;
-    return { ...base, crop: inputsCfg.crop, variety: inputsCfg?.variety, n_years: d.n_years, climate_type: d.climate_type };
+  const byId = new Map(nodes.map((n) => [n.id, n] as const));
+  const sourceTypeInto = (nodeId: string, type: AleNodeType) =>
+    edges.some((e) => e.target === nodeId && byId.get(e.source)?.type === type);
+  const firstResultTarget = (nodeId: string): string | null => {
+    for (const e of edges) if (e.source === nodeId && byId.get(e.target)?.type === "result") return e.target;
+    return null;
   };
 
-  const hasChain = !!algoNode
-    && nodes.some((n) => n.type === "weather")
-    && nodes.some((n) => n.type === "result");
-  const canRun = hasChain && buildInputs() != null;
+  // Algorithm-specific inputs: location + crop/variety from the Inputs node, plus the
+  // algorithm node's own params. Returns the missing-field list when incomplete.
+  const buildInputs = (algoNode: Node, algorithm: AleAlgorithm): { inputs: Record<string, unknown> | null; missing: string[] } => {
+    const missing: string[] = [];
+    const loc = inputsCfg?.location;
+    if (!inputsCfg?.crop) missing.push("crop on Inputs");
+    if (!loc) missing.push("location on Inputs");
+    if ((algorithm === "frost-risk" || algorithm === "heat-stress") && !inputsCfg?.variety) missing.push("variety on Inputs");
+    if (algorithm === "heat-stress" && !((algoNode.data ?? {}) as HeatStressNodeData).year) missing.push("year on Heat-stress");
+    if (missing.length) return { inputs: null, missing };
 
-  const requirementHint = algorithm === "heat-stress"
-    ? "Set crop, variety & location on the Inputs node, and year on the Heat-stress node."
-    : algorithm === "insufficient-chill"
-      ? "Set crop, variety & location on the Inputs node (variety optional)."
-      : "Set crop, variety and location on the Inputs node.";
+    const base = { lat: loc!.lat, lon: loc!.lng, crop: inputsCfg!.crop };
+    if (algorithm === "frost-risk") return { inputs: { ...base, variety: inputsCfg!.variety }, missing };
+    if (algorithm === "heat-stress") {
+      const d = algoNode.data as HeatStressNodeData;
+      return { inputs: { ...base, cultivar: inputsCfg!.variety, year: d.year }, missing };
+    }
+    const d = (algoNode.data ?? {}) as InsufficientChillNodeData;   // insufficient-chill (variety optional)
+    return { inputs: { ...base, variety: inputsCfg?.variety, n_years: d.n_years, climate_type: d.climate_type }, missing };
+  };
 
+  // Trace every algorithm node into a pipeline + its validation errors.
+  const analyzePipelines = (): Pipeline[] =>
+    nodes.filter((n) => ALGORITHM_TYPES.includes(n.type as AleAlgorithm)).map((n) => {
+      const algorithm = n.type as AleAlgorithm;
+      const errors: string[] = [];
+      if (!sourceTypeInto(n.id, "weather")) errors.push("connect a Weather source");
+      const resultNodeId = firstResultTarget(n.id);
+      if (!resultNodeId) errors.push("connect to a Result node");
+      const { inputs, missing } = buildInputs(n, algorithm);
+      errors.push(...missing);
+      return { nodeId: n.id, algorithm, inputs: errors.length ? null : inputs, resultNodeId, errors };
+    });
+
+  const pipelines = analyzePipelines();
+  const canRun = pipelines.some((p) => p.errors.length === 0);
+
+  // Run every complete pipeline in parallel (one Edge call per algorithm, no graph_jsonb —
+  // the canvas is the composition layer; each algorithm dispatches independently).
   const run = async () => {
-    const inputs = buildInputs();
-    if (!inputs) {
-      toast({ title: "Inputs incomplete", description: requirementHint, variant: "destructive" });
+    const ps = analyzePipelines();
+    const runnable = ps.filter((p) => p.errors.length === 0 && p.inputs);
+    setIssues(ps.filter((p) => p.errors.length > 0));
+    if (runnable.length === 0) {
+      toast({ title: "Nothing to run", description: "Wire Inputs → Weather → an algorithm → Result (see notes below).", variant: "destructive" });
+      setResults(null);
       return;
     }
     setRunning(true);
-    setResult(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("ale-evaluate", {
-        body: { algorithm, graph_jsonb: serialize(), inputs },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(Array.isArray(data.details) ? data.details.join("; ") : (data.details ?? data.error));
-      setResult(data as RunResponse);
-    } catch (e) {
-      toast({ title: "Run failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    } finally {
-      setRunning(false);
-    }
+    setResults(null);
+    const settled = await Promise.allSettled(runnable.map((p) =>
+      supabase.functions.invoke("ale-evaluate", { body: { algorithm: p.algorithm, inputs: p.inputs } }).then(({ data, error }) => {
+        if (error) throw error;
+        if (data?.error) throw new Error(Array.isArray(data.details) ? data.details.join("; ") : (data.details ?? data.error));
+        return data as RunResponse;
+      })
+    ));
+    setResults(runnable.map((p, i) => {
+      const s = settled[i];
+      return {
+        algorithm: p.algorithm, resultNodeId: p.resultNodeId,
+        data: s.status === "fulfilled" ? s.value : undefined,
+        error: s.status === "rejected" ? (s.reason instanceof Error ? s.reason.message : String(s.reason)) : undefined,
+      };
+    }));
+    setRunning(false);
   };
 
   const doSave = () => {
@@ -143,13 +185,13 @@ const Flow = () => {
       setEdges(g.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
       const picked = list.data?.find((x) => x.id === id);
       if (picked?.name) setName(picked.name);
-      setResult(null);
+      setResults(null); setIssues([]);
     } catch (e) {
       toast({ title: "Load failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
-  const reset = () => { setNodes(initialNodes); setEdges(initialEdges); setResult(null); };
+  const reset = () => { setNodes(initialNodes); setEdges(initialEdges); setResults(null); setIssues([]); };
 
   return (
     <div className="space-y-3">
@@ -197,17 +239,29 @@ const Flow = () => {
 
       {!canRun && (
         <p className="text-xs text-body-secondary">
-          To run: keep an Inputs → Weather → algorithm → Result chain. {requirementHint}
+          Wire Inputs → Weather → an algorithm → Result, then Run. Add several algorithms (each into its own Result) to run them together.
         </p>
       )}
 
-      {result && (
-        <div className="rounded-lg border bg-muted/20 p-4">
-          {(result.algorithm ?? "frost-risk") === "frost-risk"
-            ? <ResultView data={result as unknown as EvalResponse} />
-            : <GenericResult result={result} />}
+      {issues.length > 0 && (
+        <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-800 dark:bg-amber-950/20">
+          <p className="font-medium text-amber-700 dark:text-amber-400">Some pipelines aren't ready:</p>
+          {issues.map((p) => (
+            <p key={p.nodeId} className="text-amber-700 dark:text-amber-400">• {ALGO_LABEL[p.algorithm]}: {p.errors.join("; ")}.</p>
+          ))}
         </div>
       )}
+
+      {results?.map((r, i) => (
+        <div key={i} className="space-y-2 rounded-lg border bg-muted/20 p-4">
+          <div className="text-sm font-semibold text-heading-primary">{ALGO_LABEL[r.algorithm]}</div>
+          {r.error
+            ? <p className="text-sm text-red-600 dark:text-red-400">{r.error}</p>
+            : r.algorithm === "frost-risk"
+              ? <ResultView data={r.data as unknown as EvalResponse} />
+              : <GenericResult result={r.data!} />}
+        </div>
+      ))}
     </div>
   );
 };
