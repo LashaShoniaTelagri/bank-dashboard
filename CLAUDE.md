@@ -61,7 +61,7 @@ Real env files are never committed. Only two reference templates are tracked:
 Rules:
 1. **Never commit real values.** `.gitignore` enforces this for `env.{frontend,backend}.{dev,staging,prod}` patterns. If a real value lands in a committed file, treat it as a credential leak: rotate immediately, then remove via history rewrite if appropriate.
 2. **Adding a new env var = updating the matching `*.example` file in the same PR.** No exceptions. If it's worth reading at runtime, it's worth being discoverable in the template.
-3. **Never read secret files or print secrets to stdout.** Reading `.env*`/`*.pem`/creds is now hard-blocked by the `pretooluse-secret-guard.sh` hook (denies the call, allows `*.example`). To check a var name, read the `*.example` template. Don't run `env`/`printenv`/`aws configure list`/`supabase secrets list` with values.
+3. **Never expose secret *contents*; using a key by reference is fine.** The `pretooluse-secret-guard.sh` hook blocks commands that would print a secret's bytes into context — `cat`/`grep`/`head`/etc. on `.env*`/`*.pem`/creds, local or over `ssh vm 'cat .env'`, and `Read`/`Edit` of a secret file. It **allows** using a key as an SSH identity (`ssh -i key.pem`, `IdentityFile`, `ssh-add`, writing an ssh config that references the key) and allows `*.example`. To check a var name, read the `*.example` template; to see a real value, inspect it yourself outside the session. Don't run `env`/`printenv`/`aws configure list`/`supabase secrets list` with values.
 4. When the user shares secrets in a message (paste, IDE selection), flag the leak immediately and recommend rotation per `specs/security.md`. Don't quietly continue.
 
 ## End-of-task checklist
