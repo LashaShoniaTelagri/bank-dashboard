@@ -262,7 +262,12 @@ function diffResults(ts: unknown, r: unknown): DiffEntry[] {
   return out;
 }
 
+// "Missing" is expressed differently across the two runtimes (TS null/undefined/NaN
+// vs R's "NA"); treat them as equal so they don't show as spurious diffs.
+const isMissing = (x: unknown) => x == null || x === "NA" || (typeof x === "number" && Number.isNaN(x));
+
 function walk(a: unknown, b: unknown, path: string, out: DiffEntry[]): void {
+  if (isMissing(a) && isMissing(b)) return;
   if (typeof a === "number" && typeof b === "number") {
     if (Math.abs(a - b) > 1e-3) out.push({ path, ts: a, r: b });
     return;

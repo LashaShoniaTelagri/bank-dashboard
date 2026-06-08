@@ -109,14 +109,14 @@ function findFullBloom(hourly: HeatHourly[], startDate: string, cuReq: number, g
     cumCU += utahChillWeight(df[i].temp);
     if (cumCU >= cuReq) { chillEnd = i; break; }
   }
-  if (chillEnd === -1) throw new Error(`Chill requirement (${cuReq} CU) never met.`);
+  if (chillEnd === -1) throw new Error(`Bloom not reached for this cultivar at this location: winter chill stayed below the ${cuReq} CU requirement (likely too mild a winter).`);
 
   let cumGDH = 0;
   for (let i = chillEnd + 1; i < df.length; i++) {
     cumGDH += Math.max(0, df[i].temp - GDH_BASE_TEMP);
     if (cumGDH >= gdhReq) return df[i].date;
   }
-  throw new Error(`GDH requirement (${gdhReq} GDH) never met.`);
+  throw new Error(`Bloom not reached for this cultivar at this location: accumulated heat stayed below the ${gdhReq} GDH requirement — likely too cold. Try a warmer location or a lower-requirement cultivar.`);
 }
 
 // ── Sub-model A: Pollen Tube Formation ───────────────────────────────────────
