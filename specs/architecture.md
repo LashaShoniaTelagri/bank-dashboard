@@ -70,6 +70,8 @@ Located in `supabase/functions/<name>/index.ts`. Deno runtime. Each function is 
 - Service role used only after input validation; never trust caller-provided IDs without checking ownership.
 - Email sent via SendGrid v3 API (see `invite-user` for template pattern).
 
+> **ALE module.** `ale-evaluate` (runs the TS engine / a canvas graph, read-through `ale_weather_cache`, calls the R parity service) + the shared engine in `_shared/ale-engine/` + the `ale_*` tables (`ale_runs`, `ale_logic_graphs` templates, …) are documented in [`modules/ale.md`](modules/ale.md), not duplicated here.
+
 ### Adding a new Edge Function
 
 1. Create `supabase/functions/<name>/index.ts`.
