@@ -53,6 +53,20 @@ interface ResultEntry {
   error?: string;
 }
 
+// supabase-js sets a FunctionsHttpError on any non-2xx whose .message is the
+// generic "non-2xx status code". The Edge's real reason is in the response body
+// (error.context); pull it out so the user sees the actual message.
+async function edgeErrorMessage(error: unknown): Promise<string> {
+  const ctx = (error as { context?: Response })?.context;
+  if (ctx && typeof ctx.clone === "function") {
+    try {
+      const body = await ctx.clone().json();
+      if (body?.error) return Array.isArray(body.details) ? body.details.join("; ") : (body.details ?? body.error);
+    } catch { /* body not JSON — fall through to generic message */ }
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 const initialNodes: Node[] = [
   { id: "inputs-1", type: "inputs", position: { x: 20, y: 140 }, data: {} },
   { id: "weather-1", type: "weather", position: { x: 290, y: 150 }, data: {} },
@@ -153,8 +167,8 @@ const Flow = () => {
     setRunning(true);
     setResults(null);
     const settled = await Promise.allSettled(runnable.map((p) =>
-      supabase.functions.invoke("ale-evaluate", { body: { algorithm: p.algorithm, inputs: p.inputs } }).then(({ data, error }) => {
-        if (error) throw error;
+      supabase.functions.invoke("ale-evaluate", { body: { algorithm: p.algorithm, inputs: p.inputs } }).then(async ({ data, error }) => {
+        if (error) throw new Error(await edgeErrorMessage(error));
         if (data?.error) throw new Error(Array.isArray(data.details) ? data.details.join("; ") : (data.details ?? data.error));
         return data as RunResponse;
       })
