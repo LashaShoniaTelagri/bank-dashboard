@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
     // --- Resolve graph (by id, inline, or none = legacy direct frost run) ---
     let graph: GraphSpec | null = null;
-    let graphId: string | null = body.graph_id ?? null;
+    const graphId: string | null = body.graph_id ?? null;
     if (body.graph_id) {
       const { data, error } = await supabase.from("ale_logic_graphs").select("graph_jsonb").eq("id", body.graph_id).maybeSingle();
       if (error || !data) return json({ error: "Graph not found" }, 404);
