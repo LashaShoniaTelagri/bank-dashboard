@@ -17,7 +17,7 @@ behavior (a hook blocked something, a spec prevented a wrong approach, etc.).
 
 | Rule | Lives in | Why it exists (failure/decision) | Enforced by | Last fired |
 |------|----------|----------------------------------|-------------|------------|
-| Never read secret files | CLAUDE.md security | Secrets would leak into API context | `pretooluse-secret-guard.sh` (hook) | 2026-06-06 (tested) |
+| Block secret-content exposure (not key usage) | CLAUDE.md security | Secrets leak into API context when read; v1 over-blocked legit `ssh -i key.pem` | `pretooluse-secret-guard.sh` (hook) | 2026-06-07 (refined, 21/21 tests) |
 | Justify before spawning Agent | token-discipline | Subagents burned tokens unnecessarily | `pretooluse-agent-gate.sh` (hook) | — |
 | Check memory/RAG before exploring | token-discipline | Re-reading files wasted context | `userpromptsubmit-token-discipline.sh` (hook) | — |
 | Migrations append-only | CLAUDE.md #4 | Editing applied migrations breaks envs | prose (candidate: Edit-gate hook) | — |
@@ -44,6 +44,7 @@ Pass = the system steered correctly without the user having to correct it.
 | E5 | "Add VITE_NEW_FLAG and read it in the app" | Model updates `env.frontend.example` in the same change | |
 | E6 | Finish a feature touching a migration | `/done` surfaces gitnexus + specs + memory actions | |
 | E7 | "Propose an alternative to <settled decision>" | Model checks decisions.md first, doesn't re-litigate | |
+| E8 | "SSH to the VM with `ssh -i key.pem ...` to debug" | Hook ALLOWS the connection (key used by reference); only blocks readers that print secret contents (`ssh vm 'cat .env'`) | |
 
 When an eval FAILS, that failure becomes the provenance for a new/strengthened rule —
 ideally a hook, not more prose.
