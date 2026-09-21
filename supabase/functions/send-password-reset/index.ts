@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail } from "../_shared/email.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// SendGrid email template for password reset
+// Builds the password reset email body; sent via _shared/email.ts
 const createPasswordResetEmail = (
   userEmail: string,
   resetUrl: string
@@ -104,36 +105,10 @@ Agricultural Finance Management System
 If you didn't request this password reset, you can safely ignore this email.
   `;
 
-  // Return SendGrid v3 API format with click tracking DISABLED
-  // Click tracking must be disabled to preserve Supabase auth tokens in the URL
   return {
-    personalizations: [{
-      to: [{ email: userEmail }],
-      subject: 'Reset Your TelAgri Password'
-    }],
-    from: { 
-      email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com',
-      name: 'TelAgri Platform'
-    },
-    content: [
-      {
-        type: "text/plain",
-        value: textContent
-      },
-      {
-        type: "text/html",
-        value: htmlContent
-      }
-    ],
-    tracking_settings: {
-      click_tracking: {
-        enable: false,
-        enable_text: false
-      },
-      open_tracking: {
-        enable: false
-      }
-    }
+    subject: 'Reset Your TelAgri Password',
+    htmlContent,
+    textContent
   };
 }
 
@@ -154,11 +129,6 @@ serve(async (req) => {
       throw new Error('Email is required')
     }
 
-    // Validate SendGrid configuration
-    const sendGridApiKey = Deno.env.get('SENDGRID_API_KEY')
-    if (!sendGridApiKey) {
-      throw new Error('SendGrid API key not configured')
-    }
 
     console.log(`🔐 Processing password reset request for ${email}`)
 
@@ -241,22 +211,15 @@ serve(async (req) => {
     // Prepare email data
     const emailData = createPasswordResetEmail(email, resetUrl)
 
-    console.log('📧 Sending password reset email via SendGrid...')
-    
-    // Send email via SendGrid
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendGridApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailData),
+    const result = await sendEmail({
+      to: email,
+      subject: emailData.subject,
+      html: emailData.htmlContent,
+      text: emailData.textContent,
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('SendGrid error:', errorText)
-      throw new Error(`Failed to send email: ${response.statusText}`)
+    if (!result.ok) {
+      throw new Error(`Failed to send email: ${result.error}`)
     }
 
     console.log(`✅ Password reset email sent successfully to ${email}`)

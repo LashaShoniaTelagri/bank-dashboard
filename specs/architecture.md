@@ -68,7 +68,7 @@ Located in `supabase/functions/<name>/index.ts`. Deno runtime. Each function is 
 - Always emit CORS headers; preflight `OPTIONS` returns 200 with the headers.
 - `verify_jwt` is per-function in `supabase/config.toml`. Public flows (`invite-user`, `complete-invitation`, `send-password-reset`, `invite-bank-viewer`) set `verify_jwt = false` and validate input themselves.
 - Service role used only after input validation; never trust caller-provided IDs without checking ownership.
-- Email sent via SendGrid v3 API (see `invite-user` for template pattern).
+- Email sent via Resend through `_shared/email.ts` (see `invite-user` for template pattern).
 
 > **ALE module.** `ale-evaluate` (runs the TS engine / a canvas graph, read-through `ale_weather_cache`, calls the R parity service) + the shared engine in `_shared/ale-engine/` + the `ale_*` tables (`ale_runs`, `ale_logic_graphs` templates, …) are documented in [`modules/ale.md`](modules/ale.md), not duplicated here.
 
@@ -90,7 +90,7 @@ Located in `supabase/functions/<name>/index.ts`. Deno runtime. Each function is 
 ## Integrations
 
 - **Supabase**: primary backend (Auth, DB, Functions, Storage, Realtime).
-- **SendGrid**: outbound email from Edge Functions. Templates inline (HTML strings) — no transactional template service.
+- **Resend**: outbound email from Edge Functions, via the shared `_shared/email.ts` helper. Templates inline (HTML strings) — no transactional template service. Resend does not rewrite links, so invite/reset auth tokens survive in URLs without a tracking opt-out.
 - **Google Maps + Places**: place autocomplete + map embeds. API key via `VITE_GOOGLE_MAPS_API_KEY`.
 - **CloudFront / S3**: static hosting. `dist/` from `vite build` is uploaded by CDK.
 - **WAF**: rate limit 2000 req / 5 min per IP + AWS managed core ruleset + known-bad-inputs.

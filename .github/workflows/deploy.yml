@@ -385,8 +385,8 @@ jobs:
           declare -A secrets=(
             ["PROJECT_URL"]="${PROJECT_URL}"
             ["SERVICE_ROLE_KEY"]="${SERVICE_ROLE_KEY}"
-            ["SENDGRID_API_KEY"]="${SENDGRID_API_KEY}"
-            ["SENDGRID_FROM_EMAIL"]="${SENDGRID_FROM_EMAIL}"
+            ["RESEND_API_KEY"]="${RESEND_API_KEY}"
+            ["RESEND_FROM_EMAIL"]="${RESEND_FROM_EMAIL}"
           )
           
           # Set each secret with error handling

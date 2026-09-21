@@ -62,7 +62,7 @@
 4. Bank viewer sees final score + status.
 
 ### Invitations & 2FA
-- Admin invites by email → SendGrid email → invitation accepted via token → 2FA on first sensitive action.
+- Admin invites by email → Resend email → invitation accepted via token → 2FA on first sensitive action.
 - Trusted devices skip 2FA after first verification (see `20250101080001_add_trusted_devices.sql`).
 - Password reset uses the same token-based flow (`20260122000001_add_password_reset_support.sql`).
 

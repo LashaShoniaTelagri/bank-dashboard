@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail } from "../_shared/email.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// SendGrid email template (using correct v3 API format)
+// Builds the invitation email body; sent via _shared/email.ts
 const createInvitationEmail = (
   userEmail: string,
   role: string,
@@ -199,36 +200,10 @@ TelAgri
 Agricultural Finance Management System
     `;
 
-  // Return correct SendGrid v3 API format with click tracking DISABLED
-  // Click tracking must be disabled to preserve Supabase auth tokens in the URL
   return {
-    personalizations: [{
-      to: [{ email: userEmail }],
-      subject: isUnderwriter ? 'Welcome to TelAgri – Underwriting Access' : `Invitation to TelAgri${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : (bankName && bankName !== 'N/A' ? ` - ${bankName}` : '')}`
-    }],
-    from: { 
-      email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com',
-      name: 'TelAgri Platform'
-    },
-    content: [
-      {
-        type: "text/plain",
-        value: textContent
-      },
-      {
-        type: "text/html",
-        value: htmlContent
-      }
-    ],
-    tracking_settings: {
-      click_tracking: {
-        enable: false,
-        enable_text: false
-      },
-      open_tracking: {
-        enable: false
-      }
-    }
+    subject: isUnderwriter ? 'Welcome to TelAgri – Underwriting Access' : `Invitation to TelAgri${isAdmin ? ' - Administrator Access' : isSpecialist ? ' - Specialist Access' : (bankName && bankName !== 'N/A' ? ` - ${bankName}` : '')}`,
+    htmlContent,
+    textContent
   };
 }
 
@@ -259,11 +234,6 @@ serve(async (req) => {
       throw new Error('Invalid role. Must be one of "admin", "bank_viewer", "specialist"')
     }
 
-    // Validate SendGrid configuration
-    const sendGridApiKey = Deno.env.get('SENDGRID_API_KEY')
-    if (!sendGridApiKey) {
-      throw new Error('SendGrid API key not configured')
-    }
 
     console.log(`Processing invitation for ${email} with role ${role}${bankId ? ` for bank ${bankId}` : ''}`)
 
@@ -447,29 +417,15 @@ serve(async (req) => {
       finalProductsEnabled
     )
 
-    // Log the email data being sent to SendGrid
-    console.log('📧 Sending email via SendGrid with data:', JSON.stringify(emailData, null, 2))
-    
-    // Send email via SendGrid
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendGridApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailData),
+    const result = await sendEmail({
+      to: email,
+      subject: emailData.subject,
+      html: emailData.htmlContent,
+      text: emailData.textContent,
     })
 
-    console.log('📧 SendGrid response status:', response.status)
-    console.log('📧 SendGrid response headers:', JSON.stringify(Object.fromEntries(response.headers.entries())))
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('SendGrid error:', errorText)
-      throw new Error(`Failed to send email: ${response.statusText}`)
-    } else {
-      const responseText = await response.text()
-      console.log('📧 SendGrid success response:', responseText)
+    if (!result.ok) {
+      throw new Error(`Failed to send email: ${result.error}`)
     }
 
     console.log(`✅ Invitation email sent successfully to ${email}`)

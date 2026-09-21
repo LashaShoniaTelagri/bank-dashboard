@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail } from "../_shared/email.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,24 +103,9 @@ Generated for: ${userEmail}
   `;
 
   return {
-    personalizations: [{
-      to: [{ email: userEmail }],
-      subject: `TelAgri Security Code: ${code}`
-    }],
-    from: { 
-      email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com',
-      name: 'TelAgri Security'
-    },
-    content: [
-      {
-        type: "text/plain",
-        value: textContent
-      },
-      {
-        type: "text/html",
-        value: htmlContent
-      }
-    ]
+    subject: `TelAgri Security Code: ${code}`,
+    htmlContent,
+    textContent
   };
 }
 
@@ -142,11 +128,6 @@ serve(async (req) => {
       throw new Error('Email is required')
     }
 
-    // Validate SendGrid configuration
-    const sendGridApiKey = Deno.env.get('SENDGRID_API_KEY')
-    if (!sendGridApiKey) {
-      throw new Error('SendGrid API key not configured')
-    }
 
     console.log(`🔐 Generating 2FA code for ${email} (${userRole})`)
 
@@ -191,24 +172,18 @@ serve(async (req) => {
       throw new Error('Failed to store verification code')
     }
 
-    // Send email via SendGrid
     const emailData = create2FAEmail(email, code, userRole || 'user')
-    
-    console.log('📧 Sending 2FA code via SendGrid...')
-    
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendGridApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailData),
+
+    const result = await sendEmail({
+      to: email,
+      subject: emailData.subject,
+      html: emailData.htmlContent,
+      text: emailData.textContent,
+      fromName: 'TelAgri Security',
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('SendGrid error:', errorText)
-      throw new Error(`Failed to send 2FA code: ${response.statusText}`)
+    if (!result.ok) {
+      throw new Error(`Failed to send 2FA code: ${result.error}`)
     }
 
     console.log(`✅ 2FA code sent successfully to ${email}`)
