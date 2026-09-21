@@ -56,7 +56,7 @@ When you modify these areas, check if the listed spec needs an update:
 Real env files are never committed. Only two reference templates are tracked:
 
 - `env.frontend.example` — every `VITE_*` var the frontend reads. Public-key placeholders only.
-- `env.backend.example` — every secret an Edge Function or backend script reads. Placeholder values only (e.g. `SENDGRID_API_KEY=__SENDGRID_API_KEY__`).
+- `env.backend.example` — every secret an Edge Function or backend script reads. Placeholder values only (e.g. `RESEND_API_KEY=__RESEND_API_KEY__`).
 
 Rules:
 1. **Never commit real values.** `.gitignore` enforces this for `env.{frontend,backend}.{dev,staging,prod}` patterns. If a real value lands in a committed file, treat it as a credential leak: rotate immediately, then remove via history rewrite if appropriate.

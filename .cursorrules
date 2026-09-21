@@ -39,7 +39,7 @@ You are working on TelAgri Monitoring - a secure financial platform for managing
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
 - Backend: Supabase (PostgreSQL + Auth + Storage + Edge Functions)
-- Email: SendGrid integration
+- Email: Resend integration
 - Deployment: AWS (planned)
 - Security: 2FA, RLS, JWT tokens, rate limiting
 
@@ -664,7 +664,7 @@ Frontend (React SPA):
 Backend (Supabase):
 ├── Supabase Cloud for database & auth
 ├── AWS Lambda for Edge Functions (if migrating)
-├── AWS SES/SendGrid for email delivery
+├── Resend for email delivery
 └── AWS CloudWatch for monitoring
 
 Storage:
@@ -712,7 +712,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_APP_URL=https://your-domain.com
 
 # Backend variables (sensitive, server-side only)
-SENDGRID_API_KEY=your-sendgrid-key  # NEVER in frontend builds
+RESEND_API_KEY=your-resend-key  # NEVER in frontend builds
 SUPABASE_DB_PASSWORD=your-password  # NEVER in frontend builds
 ```
 

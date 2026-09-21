@@ -50,7 +50,7 @@ Read access: admin only. Insert: any (server-side `SECURITY DEFINER` functions a
 ### What lives where
 
 - **Frontend env** (`env.frontend.dev` / `env.frontend.prod`): only `VITE_*` public values (Supabase anon key, app metadata, Google Maps key with HTTP referrer restrictions). Never committed.
-- **Backend env** (`env.backend.dev` / `env.backend.prod`): SendGrid keys, Supabase service role, OpenWeatherMap, anything else server-side. Never committed.
+- **Backend env** (`env.backend.dev` / `env.backend.prod`): Resend keys, Supabase service role, OpenWeatherMap, anything else server-side. Never committed.
 - **Reference templates**: `env.frontend.example` and `env.backend.example` are the ONLY env files in git. Placeholder values only. Every env var the runtime reads must appear here.
 - **AWS Parameter Store / Secrets Manager**: source of truth for CI/CD-injected secrets — see `scripts/manage-env.sh`, `scripts/update-parameter-store.sh`, `scripts/fetch-env-from-aws.sh`.
 - **Edge Function secrets**: configured via Supabase CLI / dashboard, not in code.
@@ -69,7 +69,7 @@ Treat any of these as a leak: secret pasted in a message/IDE selection, secret s
 
 | Provider | Rotation step |
 |----------|---------------|
-| `SENDGRID_API_KEY` | SendGrid → Settings → API Keys → revoke + create new |
+| `RESEND_API_KEY` | Resend → API Keys → revoke + create new |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase project → Settings → API → reset service role key |
 | `SUPABASE_DB_PASSWORD` | Supabase project → Settings → Database → reset password |
 | `OPENWEATHER_MAP_API_KEY` | OpenWeatherMap → My API Keys → regenerate |

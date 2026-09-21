@@ -377,8 +377,8 @@ VITE_APP_HYPERDX_ENABLED=${environment === 'prod' ? 'true' : 'false'}`;
     return `# Backend Environment Configuration (Server-side only)
 
 # Email Service (SENSITIVE - replace with real values)
-SENDGRID_API_KEY=REPLACE_WITH_SENDGRID_API_KEY
-SENDGRID_FROM_EMAIL=noreply@telagri.com
+RESEND_API_KEY=REPLACE_WITH_RESEND_API_KEY
+RESEND_FROM_EMAIL=noreply@telagri.com
 
 # Server Configuration
 SITE_URL=${baseUrl}

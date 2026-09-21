@@ -29,7 +29,7 @@ Core flows:
 | Charts | Recharts | + custom chart-builder |
 | Backend | Supabase | Postgres, Auth, Edge Functions (Deno/TS), Storage, Realtime |
 | Infra | AWS CDK v2 | CloudFront + S3 + WAF; Route53 cross-account |
-| Email | SendGrid | called from Edge Functions |
+| Email | Resend | called from Edge Functions via `_shared/email.ts` |
 | Maps | Google Maps + Places | |
 | CI/CD | GitHub Actions | `.github/workflows/deploy.yml`, `migrate.yml` |
 | Node engine | Node ≥ 20, npm ≥ 10 | enforced in `package.json#engines` |
@@ -82,5 +82,5 @@ telagri-bank-dashboard/
 
 - **Supabase project** (Postgres + Auth) — managed in Supabase Cloud, two projects (dev/prod).
 - **AWS account** — CloudFront + S3 + WAF + Route53 (cross-account).
-- **SendGrid** — email delivery.
+- **Resend** — email delivery.
 - **GIS team's R scripts** — agronomic algorithms; copies live in `gis-scripts/` for reference.
