@@ -12,7 +12,8 @@ Authoritative living docs for this project. Read before coding. If anything in `
 | [`security.md`](security.md) | Auth, 2FA, RBAC, audit log, secrets |
 | [`operations.md`](operations.md) | Deployment (CDK + GitHub Actions), migrations, runbooks, common commands |
 | [`decisions.md`](decisions.md) | ADR log — settled architectural decisions, append-only |
-| [`modules/ale.md`](modules/ale.md) | Agronomical Logic Engine module (in build) |
+| [`modules/ale.md`](modules/ale.md) | **Agronomical Logic Engine — the strategic product engine.** Algorithms (frost-risk first, more in dev) from phenology + weather + satellite (Sentinel Hub, future); authoring workflow; canvas builder |
+| [`modules/bank-delivery.md`](modules/bank-delivery.md) | **FUTURE / deferred** — how ALE results reach banks (orders, monitoring, orchard cash-flow). Designed, not built |
 
 ## How to use
 

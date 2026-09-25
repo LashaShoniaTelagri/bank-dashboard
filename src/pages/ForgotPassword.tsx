@@ -29,7 +29,7 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      // Call custom Edge Function to send branded password reset email via SendGrid
+      // Call custom Edge Function to send branded password reset email via Resend
       const { data, error } = await supabase.functions.invoke('send-password-reset', {
         body: { email }
       });
