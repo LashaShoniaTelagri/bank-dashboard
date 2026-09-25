@@ -179,6 +179,8 @@ supabase/migrations/20250117000001_add_specialist_role_and_data_analysis.sql
 3. Check the main project documentation in `/docs`
 4. Contact the development team
 
+# BOT TEST
+
 ---
 
 **🌾 TelAgri Bank Dashboard - Serving farmers with banking-grade reliability! 🏦**
