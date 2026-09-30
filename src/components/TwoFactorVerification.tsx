@@ -116,7 +116,7 @@ export const TwoFactorVerification = ({
         if (errorMessage.includes('too many verification codes') || errorMessage.includes('wait 10 minutes')) {
           title = "Too Many Requests";
           description = "You've requested too many verification codes. Please wait 10 minutes before trying again.";
-        } else if (errorMessage.includes('sendgrid') || errorMessage.includes('email')) {
+        } else if (errorMessage.includes('resend') || errorMessage.includes('email')) {
           title = "Email Service Issue";
           description = "Unable to send email. Please contact support if this continues.";
         } else if (errorMessage.includes('api key') || errorMessage.includes('configuration')) {

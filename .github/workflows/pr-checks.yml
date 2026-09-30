@@ -1,0 +1,87 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [dev, main, staging]
+
+# No OIDC, provider secrets, write token, environment, or deployment capability.
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: PR frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.20.0'
+
+      - name: Install locked dependencies without lifecycle hooks
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build with nonfunctional test configuration
+        env:
+          VITE_SUPABASE_URL: https://preview-ci.invalid
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-not-a-credential
+        run: npm run build
+
+  ale-unit:
+    name: PR ALE unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: '2.7.1'
+
+      - name: Run deterministic ALE tests with no runtime permissions
+        run: >-
+          deno test --no-config --no-lock --no-prompt --allow-import=deno.land
+          supabase/functions/_shared/ale-engine/frostRisk.test.ts
+          supabase/functions/_shared/ale-engine/graph.test.ts
+
+  security-scan:
+    name: PR security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Scan dependencies and configuration
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          # Preserve the existing informational scan; define a vulnerability
+          # baseline before making findings a merge gate.
+          exit-code: '0'
+          scanners: vuln,misconfig
+
+# Do not upload this synthetic build as a deployable artifact. Vercel uses its
+# separately scoped preview environment. Live-weather parity tests require
+# separately reviewed fixtures and are not part of this deterministic test job.

@@ -1,17 +1,12 @@
 name: 🌾 Deploy TelAgri Bank Dashboard
 
 # This workflow:
-# - On PULL REQUEST: Only runs build, lint, test, and security scan (no deployment)
+# - Pull requests use pr-checks.yml, without cloud credentials or deployment
 # - On PUSH (merge): Runs full pipeline including deployment to AWS  
 # - On MANUAL: Allows manual deployment to any environment (dev, staging, prod)
 
 on:
   push:
-    branches:
-      - main
-      - dev
-      - staging
-  pull_request:
     branches:
       - main
       - dev
@@ -28,6 +23,9 @@ on:
           - staging
           - prod
 
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '20'
   PYTHON_VERSION: '3.11'
@@ -38,6 +36,7 @@ jobs:
     name: 🏗️ Build PWA
     runs-on: ubuntu-latest
     needs: [environment]
+    environment: ${{ needs.environment.outputs.env }}
     permissions:
       id-token: write
       contents: read
@@ -45,6 +44,8 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
@@ -88,11 +89,10 @@ jobs:
           fi
           
           # Check if .env contains frontend variables
-          VITE_COUNT=$(grep -c '^VITE_' .env || echo "0")
+          VITE_COUNT=$(grep -c '^VITE_' .env || true)
           if [ "$VITE_COUNT" -eq 0 ]; then
-            echo "⚠️ Warning: No VITE_ variables found in .env file"
-            echo "📋 .env file contents:"
-            cat .env
+            echo "❌ No frontend variables found; configuration contents are not logged"
+            exit 1
           else
             echo "✅ Found $VITE_COUNT frontend variables in .env file"
           fi
@@ -115,6 +115,14 @@ jobs:
   environment:
     name: 🎯 Determine Environment
     runs-on: ubuntu-latest
+    # Manual runs must use the branch belonging to the selected environment.
+    # This is defense in depth; protect environments and AWS OIDC trust too.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' &&
+       ((github.ref == 'refs/heads/main' && inputs.environment == 'prod') ||
+        (github.ref == 'refs/heads/dev' && inputs.environment == 'dev') ||
+        (github.ref == 'refs/heads/staging' && inputs.environment == 'staging')))
     outputs:
       env: ${{ steps.env.outputs.env }}
       domain: ${{ steps.env.outputs.domain }}
@@ -323,7 +331,6 @@ jobs:
           
           # Export Supabase access token for CLI authentication
           export SUPABASE_ACCESS_TOKEN
-          echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
           
           # Validate access token
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
@@ -385,8 +392,8 @@ jobs:
           declare -A secrets=(
             ["PROJECT_URL"]="${PROJECT_URL}"
             ["SERVICE_ROLE_KEY"]="${SERVICE_ROLE_KEY}"
-            ["SENDGRID_API_KEY"]="${SENDGRID_API_KEY}"
-            ["SENDGRID_FROM_EMAIL"]="${SENDGRID_FROM_EMAIL}"
+            ["RESEND_API_KEY"]="${RESEND_API_KEY}"
+            ["RESEND_FROM_EMAIL"]="${RESEND_FROM_EMAIL}"
           )
           
           # Set each secret with error handling
@@ -424,8 +431,8 @@ jobs:
     name: 🔒 Security Scan
     runs-on: ubuntu-latest
     needs: [build]
-    # Run security scan on all PRs and main branch pushes
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    # PR checks are isolated in pr-checks.yml.
+    if: github.ref == 'refs/heads/main'
     permissions:
       security-events: write
       actions: read
@@ -487,4 +494,4 @@ jobs:
           else
             echo "❌ Deployment pipeline failed!"
             echo "📋 Check the logs for details"
-          fi 
+          fi

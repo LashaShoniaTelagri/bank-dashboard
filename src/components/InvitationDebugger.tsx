@@ -226,11 +226,11 @@ export const InvitationDebugger = () => {
             status: 'warning',
             message: "🔍 Security validation error. Check Supabase Edge Function logs for token generation details."
           });
-        } else if (error.message?.includes('SendGrid')) {
+        } else if (error.message?.includes('Resend')) {
           addResult({
             test: "Error Analysis",
             status: 'warning', 
-            message: "🔍 SendGrid issue. Verify SENDGRID_API_KEY and SENDGRID_FROM_EMAIL in Supabase secrets."
+            message: "🔍 Resend issue. Verify RESEND_API_KEY and RESEND_FROM_EMAIL in Supabase secrets."
           });
         }
         

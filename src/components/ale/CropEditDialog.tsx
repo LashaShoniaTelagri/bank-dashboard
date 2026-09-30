@@ -25,6 +25,8 @@ import {
 // =============================================================================
 
 const cropFormSchema = z.object({
+  // Only used in create mode; immutable once set. Empty => derived from display_name.
+  slug: z.string().trim().regex(/^[a-z0-9_-]*$/, "lowercase letters, digits, - or _ only").max(60).optional(),
   display_name: z.string().trim().min(1, "Required").max(120),
   description: z.string().trim().max(2000).optional().or(z.literal("")),
   hemisphere: z.enum(["north", "south"]),
@@ -64,13 +66,15 @@ export type EditableCrop = {
 // =============================================================================
 
 interface Props {
-  crop: EditableCrop | null;       // null when closed
+  open: boolean;
+  crop: EditableCrop | null;          // null + open => create mode
   onClose: () => void;
-  onSaved?: (id: string) => void;  // notify parent so it can flash the row
+  onSaved?: (id: string) => void;     // edit: notify parent so it can flash the row
+  onCreated?: (id: string) => void;   // create: notify parent (e.g. open the new crop's detail)
 }
 
-export const CropEditDialog = ({ crop, onClose, onSaved }: Props) => {
-  const open = crop !== null;
+export const CropEditDialog = ({ open, crop, onClose, onSaved, onCreated }: Props) => {
+  const isCreate = crop === null;
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -79,14 +83,53 @@ export const CropEditDialog = ({ crop, onClose, onSaved }: Props) => {
     defaultValues: getDefaults(crop),
   });
 
-  // Reset form whenever a different crop opens
+  // Reset the form whenever the dialog (re)opens — covers both editing a
+  // different crop and reopening the create form after a previous create.
   useEffect(() => {
-    if (crop) form.reset(getDefaults(crop));
+    if (open) form.reset(getDefaults(crop));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crop?.id]);
+  }, [open, crop?.id]);
 
   const mutation = useMutation({
-    mutationFn: async (values: CropFormValues) => {
+    mutationFn: async (values: CropFormValues): Promise<string> => {
+      const description = values.description?.trim() ? values.description.trim() : null;
+
+      // ── Create ──────────────────────────────────────────────────────────
+      if (isCreate) {
+        const slug = (values.slug?.trim() || slugify(values.display_name));
+        if (!slug) throw new Error("Could not derive a slug — set one explicitly.");
+        const { data, error: insertErr } = await supabase
+          .from("ale_crops")
+          .insert({
+            slug,
+            display_name: values.display_name,
+            description,
+            hemisphere: values.hemisphere,
+            is_active: values.is_active,
+            chill_biofix_month: values.chill_biofix_month,
+            chill_biofix_day: values.chill_biofix_day,
+            insufficient_chill_penalty: values.insufficient_chill_penalty,
+            insufficient_chill_cutoff_month: values.insufficient_chill_cutoff_month,
+            insufficient_chill_cutoff_day: values.insufficient_chill_cutoff_day,
+            created_by: user?.id ?? null,
+            updated_by: user?.id ?? null,
+          })
+          .select("id")
+          .single();
+        if (insertErr) throw insertErr;
+
+        const { error: auditErr } = await supabase.from("audit_log").insert({
+          user_id: user?.id ?? null,
+          action: "ale_crop_create",
+          table_name: "ale_crops",
+          record_id: data.id,
+          new_values: { slug, display_name: values.display_name },
+        });
+        if (auditErr) console.warn("audit_log insert failed:", auditErr);
+        return data.id;
+      }
+
+      // ── Update ──────────────────────────────────────────────────────────
       if (!crop) throw new Error("No crop in scope");
 
       // Build the update payload (normalize empty description to null)
@@ -134,11 +177,13 @@ export const CropEditDialog = ({ crop, onClose, onSaved }: Props) => {
         // Audit failure shouldn't block the save; log and continue.
         console.warn("audit_log insert failed:", auditErr);
       }
+      return crop.id;
     },
-    onSuccess: async () => {
-      toast({ title: "Saved", description: "Crop updated." });
+    onSuccess: async (id) => {
+      toast({ title: "Saved", description: isCreate ? "Crop created." : "Crop updated." });
       await queryClient.invalidateQueries({ queryKey: ["ale-crops"] });
-      if (crop && onSaved) onSaved(crop.id);
+      if (isCreate) onCreated?.(id);
+      else onSaved?.(id);
       onClose();
     },
     onError: (e: Error) => {
@@ -152,9 +197,11 @@ export const CropEditDialog = ({ crop, onClose, onSaved }: Props) => {
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Edit crop {crop?.display_name && `— ${crop.display_name}`}</DialogTitle>
+          <DialogTitle>{isCreate ? "Add crop" : `Edit crop${crop?.display_name ? ` — ${crop.display_name}` : ""}`}</DialogTitle>
           <DialogDescription>
-            Slug <code className="text-xs font-mono">{crop?.slug}</code> is immutable.
+            {isCreate
+              ? "The slug is permanent — leave it blank to derive it from the display name."
+              : <>Slug <code className="text-xs font-mono">{crop?.slug}</code> is immutable.</>}
           </DialogDescription>
         </DialogHeader>
 
@@ -172,6 +219,23 @@ export const CropEditDialog = ({ crop, onClose, onSaved }: Props) => {
                 </FormItem>
               )}
             />
+
+            {isCreate && (
+              <FormField
+                control={form.control}
+                name="slug"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Slug</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ""} placeholder="apple (auto from name if blank)" />
+                    </FormControl>
+                    <FormDescription className="text-[10px]">Lowercase letters, digits, - or _. Permanent.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -316,7 +380,11 @@ export const CropEditDialog = ({ crop, onClose, onSaved }: Props) => {
   );
 };
 
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
 const getDefaults = (crop: EditableCrop | null): CropFormValues => ({
+  slug: crop?.slug ?? "",
   display_name: crop?.display_name ?? "",
   description: crop?.description ?? "",
   hemisphere: (crop?.hemisphere as "north" | "south") ?? "north",

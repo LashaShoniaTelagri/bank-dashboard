@@ -64,8 +64,8 @@ Configure these in **Settings → Secrets and variables → Actions → Secrets*
 | `SUPABASE_URL_PROD` | Production Supabase URL | `https://xxx.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY_DEV` | Development service role key | `eyJ...` |
 | `SUPABASE_SERVICE_ROLE_KEY_PROD` | Production service role key | `eyJ...` |
-| `SENDGRID_API_KEY` | SendGrid API key for emails | `SG.xxx` |
-| `SENDGRID_FROM_EMAIL` | From email address | `noreply@telagri.com` |
+| `RESEND_API_KEY` | Resend API key for emails | `re_xxx` |
+| `RESEND_FROM_EMAIL` | From email address | `noreply@telagri.com` |
 
 ### Repository Variables
 Configure these in **Settings → Secrets and variables → Actions → Variables**:

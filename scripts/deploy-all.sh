@@ -141,8 +141,8 @@ set_edge_function_secrets() {
     declare -A secrets=(
         ["PROJECT_URL"]="${PROJECT_URL:-${VITE_SUPABASE_URL}}"
         ["SERVICE_ROLE_KEY"]="${SERVICE_ROLE_KEY}"
-        ["SENDGRID_API_KEY"]="${SENDGRID_API_KEY}"
-        ["SENDGRID_FROM_EMAIL"]="${SENDGRID_FROM_EMAIL:-noreply@telagri.com}"
+        ["RESEND_API_KEY"]="${RESEND_API_KEY}"
+        ["RESEND_FROM_EMAIL"]="${RESEND_FROM_EMAIL:-noreply@telagri.com}"
     )
     
     local set_count=0

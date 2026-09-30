@@ -129,7 +129,7 @@ Prereqs: Docker Desktop, Supabase CLI (`brew install supabase/tap/supabase`), No
    | `lasha@telagri.com` | `admin123` | admin | FieldMonitoring + Underwriting + ALE |
    | `lasha+spec@telagri.com` | `specialist123` | specialist | FieldMonitoring + ALE |
 
-   Passwords are seeded as defaults; override them through the real password-reset flow to exercise email delivery. Locally that lands in **Mailpit at http://localhost:64324** (Supabase Auth's built-in flow) or SendGrid (the app's custom Edge Function flow — requires `SENDGRID_API_KEY` in `env.backend.local`).
+   Passwords are seeded as defaults; override them through the real password-reset flow to exercise email delivery. Locally that lands in **Mailpit at http://localhost:64324** (Supabase Auth's built-in flow) or Resend (the app's custom Edge Function flow — requires `RESEND_API_KEY` in `env.backend.local`).
 
    `seed.sql` is **never** applied to dev/staging/prod — CI's `supabase db push` only runs migrations. Safe to commit.
 

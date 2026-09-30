@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail } from "../_shared/email.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,17 +99,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? Deno.env.get('PROJECT_URL') ?? ''
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? ''
-    const sendGridApiKey = Deno.env.get('SENDGRID_API_KEY')
-    const fromEmail = Deno.env.get('SENDGRID_FROM_EMAIL') || 'noreply@telagri.com'
     const siteUrl = Deno.env.get('SITE_URL') || req.headers.get('origin') || 'https://dashboard.telagri.com'
 
-    if (!sendGridApiKey) {
-      console.warn('SendGrid API key not configured - skipping notification')
-      return new Response(
-        JSON.stringify({ success: false, reason: 'SendGrid not configured' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      )
-    }
 
     const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
 
@@ -153,34 +145,18 @@ serve(async (req) => {
       dashboardUrl
     )
 
-    const emailPayload = {
-      personalizations: [{
-        to: [{ email: submitter.email }],
-        subject: `Your Application ${appNumber} Has Been Scored - TelAgri`
-      }],
-      from: { email: fromEmail, name: 'TelAgri Platform' },
-      content: [
-        { type: "text/plain", value: textContent },
-        { type: "text/html", value: htmlContent }
-      ]
-    }
-
     console.log(`Sending score notification to ${submitter.email} for ${appNumber} (score: ${overallScore})`)
 
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendGridApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailPayload),
+    const result = await sendEmail({
+      to: submitter.email,
+      subject: `Your Application ${appNumber} Has Been Scored - TelAgri`,
+      html: htmlContent,
+      text: textContent,
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('SendGrid error:', response.status, errorText)
+    if (!result.ok) {
       return new Response(
-        JSON.stringify({ success: false, error: `SendGrid error: ${response.status}` }),
+        JSON.stringify({ success: false, reason: result.notConfigured ? 'Resend not configured' : undefined, error: result.error }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       )
     }

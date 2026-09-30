@@ -1,10 +1,38 @@
 # ALE — Agronomical Logic Engine
 
-In-build module that replaces the hardcoded R workflow in `gis-scripts/scripts/frost-risk/`. Lets specialists (= agronomists) self-serve crop parameters and compose evaluation logic visually, without GIS or engineering handoff.
+**ALE is TelAgri's strategic product engine** (see [`decisions.md`](../decisions.md) § 0021). It hosts the **algorithms** that turn agronomic risk into numbers — replacing the legacy manual F-100 field-monitoring model. Frost-risk is the **first of many** algorithms; more are in development. Inputs are **crop phenology, weather, and satellite imagery (Sentinel Hub — future)**. Specialists (= agronomists) self-serve crop parameters and compose logic on a canvas, without engineering handoff.
 
 ## Why
 
-Today's flow: agronomist authors logic in Word/Excel → GIS rewrites as R → engineer ports / wires it. Slow, error-prone, every new logic variant repeats the cycle. Reference: `gis-scripts/specs/dynamic-crop-parameter-config.md`, `gis-scripts/scripts/frost-risk/data/crop_data.R`.
+The legacy flow was: agronomist authors logic in Word/Excel → GIS rewrites as R → engineer ports / wires it, per farmer, by hand. Slow, error-prone, unscalable. ALE makes the algorithms first-class and reusable. Reference: `gis-scripts/specs/dynamic-crop-parameter-config.md`, `gis-scripts/scripts/frost-risk/data/crop_data.R`.
+
+## Algorithm authoring workflow (operating model)
+
+Every algorithm is produced by the same pipeline:
+
+1. **Agronomist** designs the risk logic + narrative — which data sources to use, what parameters to inject, how the result is calculated.
+2. **GIS specialist** (R/Python + data-analytics expertise) implements it as an **R script** under `gis-scripts/`, and verifies it with the agronomist until they agree it's correct.
+3. **Engineer** TS-ports the R into the ALE engine (`supabase/functions/_shared/ale-engine/`). The **R parity service** (§ R parity service; ADR 0013) runs the original R alongside the TS port so outputs can be diffed field-by-field until sign-off.
+
+So R is the source of truth during authoring; the TS port is the production runtime; parity guards the translation.
+
+## Algorithm roadmap
+
+| Algorithm | Inputs | Status |
+|-----------|--------|--------|
+| **frost-risk** | phenology (chill/GDH/bloom), weather (Open-Meteo) | TS-ported; R parity live at `algo.telagri.com` |
+| **heat-stress** | phenology (Utah CU + Richardson GDH → bloom), weather (temp/radiation/wind/RH + daily max/mean) | TS-ported; R parity; canvas node (2026-06-07) |
+| **insufficient-chill** | multi-season chill (Utah CU + Weinberger CH + Dynamic CP via `ChillModels`), weather | TS-ported; R parity; canvas node (2026-06-07) |
+| disease, others | phenology + weather + satellite | in development (agronomist/GIS) — port as they're delivered |
+| (cross-cutting) **satellite ingestion** | Sentinel Hub imagery → NDVI/vigor | **future build** — prerequisite for several algorithms |
+
+Adding an algorithm = drop `gis-scripts/algorithms/<id>/{run.R,manifest.json}` (parity auto-discovers it), TS-port it into the engine, and expose it as a node type in the canvas. **Note:** an algorithm needing a new CRAN package also requires a parity image rebuild (ADR 0022). The TS engine ports (`heatStress.ts`, `insufficientChill.ts`) are verified field-by-field against R-generated fixtures (`gis-scripts/algorithms/<id>/fixtures/`) by `*.parity.test.ts` (live Open-Meteo, ±1e-3). insufficient-chill ports `ChillModels::utah_model`/`dynamic_model` exactly.
+
+## Current implementation state (2026-06)
+
+- **Engine** (`_shared/ale-engine/`): pure-TS ports — frost-risk (`compute.ts`/`weather.ts`/`frostRisk.ts`), **heat-stress** (`heatStress.ts`), **insufficient-chill** (`insufficientChill.ts`) — plus a **graph runner** (`graph.ts`, frost-only; non-frost bypasses it). Deno tests + `*.parity.test.ts` passing (7/7 vs R fixtures).
+- **`ale-evaluate` Edge Function**: dispatches by `body.algorithm`. frost-risk → graph or direct run (read-through `ale_weather_cache`); heat-stress / insufficient-chill → their TS ports with their own Open-Meteo fetch; any id → best-effort R parity + field diff; writes `ale_runs` (now has an `algorithm` column, ADR migration `20260607000001`). Unknown ids with no TS port are R-only. **Per-variety algorithm params are DB-driven** — the Edge loads CU/GDH (heat-stress) and CR_CU/CH/CP (insufficient-chill) from `ale_crop_varieties` (the same dynamic catalogue Crop Management edits) and passes them to the pure ports; the ports hardcode no cultivar tables. Unknown variety (insufficient-chill) → median across the crop's DB varieties (this diverges from the R script's median over its own hardcoded set, so the unknown path is not R-parity-tested).
+- **Canvas builder** (`src/components/ale/builder/`): React Flow drag-and-drop — palette node types (Inputs · Weather · Satellite-stub · **Frost-risk · Heat-stress · Insufficient-chill** · Result). Algorithm-specific params live on the algorithm node (Inputs supplies location); run dispatches by the canvas algorithm node. Frost results render in `ResultView`; others in `GenericResultView` + R-parity panel. Save/load graphs to `ale_logic_graphs` (named **templates**). Composition layer per ADR 0008.
 
 ## Scope (V1)
 
@@ -112,6 +140,42 @@ UI: ALE switch shows in `UsersManagement.tsx` only when role is `specialist`. Ba
 
 Both R Plumber wrapper and TS engine target this exact shape; diff is field-by-field.
 
+### heat-stress result
+
+```ts
+{
+  meta: { lat, lon, cultivar, year },
+  yield_reduction: {
+    ptf: number,            // pollen tube formation loss (0-0.20)
+    bud_formation: number,  // previous-season bud/flower loss (0-0.20)
+    sunburn_sd: number,     // sunburn days loss (0-0.20)
+    sunburn_sn: number,     // sunburn necrosis loss (uncapped)
+    total: number,          // sum
+    retained_yield: number  // max(0, 1 - total)
+  }
+}
+```
+
+### insufficient-chill result
+
+```ts
+{
+  meta: { lat, lon, variety, variety_found, climate_type, run_date, season_complete, current_season },
+  chill: { cu_accumulated, ch_accumulated, cp_accumulated, cr_cu, cr_ch, cr_cp },
+  deficit: { cd_cu, cd_ch, cd_cp, cd_pct_primary, primary_model, severity, model_agreement },
+  tiers: {
+    tier1: { prob_sufficient, yield_risk_prob, risk_label, n_seasons, n_sufficient },  // multi-year probability
+    tier2: { yield_reduction, yield_reduction_pct, confidence },                       // binary coefficient
+    tier3: { yield_reduction, yield_reduction_pct, confidence }                        // proportional
+  },
+  recommended: { yield_reduction, output_tier },
+  historical: Array<{ season, cd_pct, severity, tier2_pct, tier3_pct, chill_met }>,
+  projection: null   // mid-season projection object when the current season is incomplete
+}
+```
+
+`run_date` is server-side (`Sys.Date()` in R / injected `today` in TS) — season windows derive from it, so parity fixtures pin it. Non-frost algorithm outputs render through the schema-agnostic `GenericResultView`; only frost-risk has a bespoke `ResultView`.
+
 ### Trigger model
 
 - **Sync** — `POST /functions/v1/ale-evaluate` with `{ graph_id, inputs }`. Snapshot, run engine, write `ale_runs`, return result. Used by run UI.
@@ -150,12 +214,12 @@ When in parity mode, `ale-evaluate` returns:
 
 ## UI surfaces
 
-- `/ale/crops` — CRUD crops + varieties + frost thresholds + bloom windows + monthly stages (forms / table editors).
-- `/ale/global-physics` — admin / granted-specialist editor for Utah/Dynamic/Weinberger/Richardson constants. Versioned with diff/revert.
-- `/ale/logic/:cropId/:varietyId/:regionId` — React Flow graph editor with primitive palette and live in-browser preview using `simValue` mocks.
-- `/ale/runs` — pick crop + variety + region + Google Places lat/lon + date range → submit → see results matching the schema above + run history.
-- `/ale/parity` — fixtures table with R-frozen vs TS-live results side-by-side.
-- `/ale/grants` (admin only) — grant/revoke ALE access to specialists.
+ALE renders as a single `AleManagement` shell (admin `/admin/ale` tab; specialist dashboard, access-gated) with classic tabs for the two modules:
+
+- **Crop Management** (`CropListView` ⇄ `CropDetailView`) — crop list (Add crop, per-row delete) → click a crop for its detail: varieties, frost thresholds, bloom windows, monthly stages, each with full CRUD via the `ale/*EditDialog` components. Destructive actions confirm through `ConfirmDeleteDialog` (`AlertDialog`). Global physics (read-only active version) and the parity fixtures table render under the crop list.
+- **Run Analysis** — pick a Google-map location + crop/variety → run the frost-risk algorithm and view results. **Phase 2 (in build).**
+
+Deferred from the original per-route design: separate `/ale/logic` React Flow editor and `ale_logic_graphs` versioning — replaced by a **direct run** (location + crop/variety → result). See ADR (added with Phase 2).
 
 ## Build plan (7 phases)
 
@@ -185,6 +249,7 @@ V1 baseline data (one-shot SQL migration) seeded from `gis-scripts/scripts/frost
 - Open-Meteo Archive API (past dates) and Forecast API (next ~14 days). Free, no API key.
 - Variety / crop / region selected in run form.
 - lat/lon from Google Places autocomplete (already integrated in dashboard).
+- **Satellite imagery (Sentinel Hub) — future.** NDVI/vigor and related indices for plant-health inputs to several in-development algorithms. Ingestion service not yet built; see § Algorithm roadmap.
 
 ## Decisions reference
 
