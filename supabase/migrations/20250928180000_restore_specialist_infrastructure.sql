@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.specialist_assignments (
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
+
   -- Ensure unique assignment per specialist-farmer-phase combination
   UNIQUE(specialist_id, farmer_id, phase)
 );
@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS public.ai_chat_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Older installations created AI sessions with specialist_id, without these
+-- compatibility columns. Later policies/indexes and 20250928183000 require them.
+-- Keep existing owners and rows intact; do not infer or rewrite user identities.
+ALTER TABLE public.ai_chat_sessions
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS session_name TEXT;
+
 -- 5. Enable RLS on all tables
 ALTER TABLE public.specialist_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.analysis_sessions ENABLE ROW LEVEL SECURITY;
@@ -72,80 +79,201 @@ ALTER TABLE public.ai_chat_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_chat_messages ENABLE ROW LEVEL SECURITY;
 
 -- 6. Create RLS policies for specialist_assignments
-CREATE POLICY "Specialists can view their own assignments" ON public.specialist_assignments
-  FOR SELECT USING (auth.uid() = specialist_id);
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'specialist_assignments'
+      AND policyname = 'Specialists can view their own assignments'
+  ) THEN
+    CREATE POLICY "Specialists can view their own assignments" ON public.specialist_assignments
+      FOR SELECT USING (auth.uid() = specialist_id);
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Admins can view all specialist assignments" ON public.specialist_assignments
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'specialist_assignments'
+      AND policyname = 'Admins can view all specialist assignments'
+  ) THEN
+    CREATE POLICY "Admins can view all specialist assignments" ON public.specialist_assignments
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Admins can create specialist assignments" ON public.specialist_assignments
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'specialist_assignments'
+      AND policyname = 'Admins can create specialist assignments'
+  ) THEN
+    CREATE POLICY "Admins can create specialist assignments" ON public.specialist_assignments
+      FOR INSERT WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Admins can update specialist assignments" ON public.specialist_assignments
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'specialist_assignments'
+      AND policyname = 'Admins can update specialist assignments'
+  ) THEN
+    CREATE POLICY "Admins can update specialist assignments" ON public.specialist_assignments
+      FOR UPDATE USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Specialists can update their own assignment status" ON public.specialist_assignments
-  FOR UPDATE USING (auth.uid() = specialist_id);
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'specialist_assignments'
+      AND policyname = 'Specialists can update their own assignment status'
+  ) THEN
+    CREATE POLICY "Specialists can update their own assignment status" ON public.specialist_assignments
+      FOR UPDATE USING (auth.uid() = specialist_id);
+  END IF;
+END
+$restore_policy$;
 
 -- 7. Create RLS policies for analysis_sessions
-CREATE POLICY "Specialists can manage their own analysis sessions" ON public.analysis_sessions
-  FOR ALL USING (auth.uid() = specialist_id);
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'analysis_sessions'
+      AND policyname = 'Specialists can manage their own analysis sessions'
+  ) THEN
+    CREATE POLICY "Specialists can manage their own analysis sessions" ON public.analysis_sessions
+      FOR ALL USING (auth.uid() = specialist_id);
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Admins can view all analysis sessions" ON public.analysis_sessions
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'analysis_sessions'
+      AND policyname = 'Admins can view all analysis sessions'
+  ) THEN
+    CREATE POLICY "Admins can view all analysis sessions" ON public.analysis_sessions
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE user_id = auth.uid() AND role = 'admin'
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
 -- 8. Create RLS policies for chat_messages
-CREATE POLICY "Users can view messages in their sessions" ON public.chat_messages
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.analysis_sessions 
-      WHERE id = chat_messages.session_id 
-      AND specialist_id = auth.uid()
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'chat_messages'
+      AND policyname = 'Users can view messages in their sessions'
+  ) THEN
+    CREATE POLICY "Users can view messages in their sessions" ON public.chat_messages
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM public.analysis_sessions
+          WHERE id = chat_messages.session_id
+          AND specialist_id = auth.uid()
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Users can create messages in their sessions" ON public.chat_messages
-  FOR INSERT WITH CHECK (
-    auth.uid() = sender_id AND
-    EXISTS (
-      SELECT 1 FROM public.analysis_sessions 
-      WHERE id = chat_messages.session_id 
-      AND specialist_id = auth.uid()
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'chat_messages'
+      AND policyname = 'Users can create messages in their sessions'
+  ) THEN
+    CREATE POLICY "Users can create messages in their sessions" ON public.chat_messages
+      FOR INSERT WITH CHECK (
+        auth.uid() = sender_id AND
+        EXISTS (
+          SELECT 1 FROM public.analysis_sessions
+          WHERE id = chat_messages.session_id
+          AND specialist_id = auth.uid()
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
 -- 9. Create RLS policies for AI chat infrastructure
-CREATE POLICY "Users can manage their own AI chat sessions" ON public.ai_chat_sessions
-  FOR ALL USING (auth.uid() = user_id);
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'ai_chat_sessions'
+      AND policyname = 'Users can manage their own AI chat sessions'
+  ) THEN
+    CREATE POLICY "Users can manage their own AI chat sessions" ON public.ai_chat_sessions
+      FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END
+$restore_policy$;
 
-CREATE POLICY "Users can manage messages in their AI chat sessions" ON public.ai_chat_messages
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.ai_chat_sessions 
-      WHERE id = ai_chat_messages.session_id 
-      AND user_id = auth.uid()
-    )
-  );
+-- Preserve any existing policy, including stricter predicates and roles.
+DO $restore_policy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies
+    WHERE schemaname = 'public' AND tablename = 'ai_chat_messages'
+      AND policyname = 'Users can manage messages in their AI chat sessions'
+  ) THEN
+    CREATE POLICY "Users can manage messages in their AI chat sessions" ON public.ai_chat_messages
+      FOR ALL USING (
+        EXISTS (
+          SELECT 1 FROM public.ai_chat_sessions
+          WHERE id = ai_chat_messages.session_id
+          AND user_id = auth.uid()
+        )
+      );
+  END IF;
+END
+$restore_policy$;
 
 -- 10. Grant necessary permissions
 GRANT SELECT, INSERT, UPDATE ON public.specialist_assignments TO authenticated;
@@ -174,7 +302,7 @@ COMMENT ON TABLE public.ai_chat_messages IS 'Messages in AI chat sessions';
 -- 13. Recreate the specialist_dashboard_data view (if it was dropped)
 DROP VIEW IF EXISTS public.specialist_dashboard_data CASCADE;
 CREATE VIEW public.specialist_dashboard_data AS
-SELECT 
+SELECT
   sa.id as assignment_id,
   sa.farmer_id,
   sa.phase,
@@ -195,7 +323,7 @@ SELECT
 FROM public.specialist_assignments sa
 JOIN public.farmers f ON sa.farmer_id = f.id
 JOIN public.banks b ON sa.bank_id = b.id
-LEFT JOIN public.farmer_data_uploads fdu 
+LEFT JOIN public.farmer_data_uploads fdu
   ON sa.farmer_id = fdu.farmer_id
   AND COALESCE((fdu.metadata->>'f100_phase')::int, NULL) = sa.phase
 LEFT JOIN public.analysis_sessions as2
@@ -229,7 +357,7 @@ SET search_path = public
 AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT
     sa.id,
     sa.farmer_id,
     f.name,
@@ -257,8 +385,8 @@ BEGIN
     AND as2.specialist_id = sa.specialist_id
   LEFT JOIN public.chat_messages cm
     ON cm.session_id IN (
-      SELECT id FROM public.analysis_sessions 
-      WHERE farmer_id = sa.farmer_id 
+      SELECT id FROM public.analysis_sessions
+      WHERE farmer_id = sa.farmer_id
       AND specialist_id = sa.specialist_id
     )
   WHERE sa.specialist_id = p_specialist_id
