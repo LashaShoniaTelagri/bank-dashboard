@@ -102,6 +102,8 @@ jobs:
           ENVIRONMENT: ${{ needs.environment.outputs.env }}
         run: |
           echo "🏗️ Building PWA for environment: $ENVIRONMENT"
+          node --test scripts/check-dev-supabase-target.test.mjs
+          node scripts/check-dev-supabase-target.mjs frontend
           npm run build
 
       - name: 📊 Upload build artifacts
@@ -181,15 +183,21 @@ jobs:
       - name: 🔧 Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.95.4
+
+      - name: Verify migration target
+        env:
+          ENVIRONMENT: ${{ needs.environment.outputs.env }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: node scripts/check-dev-supabase-target.mjs migrations
 
       - name: 🔎 Show migration status (pre)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --debug
-          supabase migration status --debug || true
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          supabase migration list --linked
 
       - name: 🗄️ Run database migrations
         env:
@@ -201,17 +209,16 @@ jobs:
             echo "❌ Missing required Supabase secrets (SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_ID)"
             exit 1
           fi
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --debug
-          # --include-all: apply migrations even if their timestamp is older than
-          # the latest already-applied one on remote. Required for retro backfill
-          # migrations like the 20250927114000-114003 set that fill in schema drift
-          # the original timestamped migrations missed. Backfills are IF NOT EXISTS
-          # / IF EXISTS guarded, so they're no-ops on cloud and safe to re-apply.
-          supabase db push --linked --include-all --debug
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          # Reviewed historical backfills remain included. The rebuilt dev ledger
+          # matches main; this baseline was checked with --dry-run (no pending SQL).
+          supabase db push --linked --include-all
 
       - name: ✅ Show migration status (post)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          supabase migration status --debug || true
+          supabase migration list --linked
 
   # Deploy infrastructure with CDK
   deploy:
@@ -319,7 +326,7 @@ jobs:
       - name: 🔧 Setup Supabase CLI for Edge Functions
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.95.4
 
       - name: 🔧 Deploy Edge Functions
         env:
@@ -340,6 +347,8 @@ jobs:
           
           # Fetch backend environment from Parameter Store
           echo "🔧 Fetching backend environment configuration..."
+          umask 077
+          trap 'rm -f env.backend.temp' EXIT
           aws ssm get-parameter \
             --name "/telagri/monitoring/${ENVIRONMENT}/backend/env" \
             --with-decryption \
@@ -350,10 +359,14 @@ jobs:
           set -a
           source env.backend.temp
           set +a
+
+          # Reject stale/wrong dev bindings before any function/secret writes.
+          export ENVIRONMENT='${{ needs.environment.outputs.env }}'
+          node scripts/check-dev-supabase-target.mjs backend
           
           # Link to Supabase project
           echo "🔗 Linking to Supabase project: ${SUPABASE_PROJECT_ID}"
-          supabase link --project-ref ${SUPABASE_PROJECT_ID} --password ${SUPABASE_DB_PASSWORD}
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
           
           # Deploy all Edge Functions dynamically
           echo "🚀 Deploying Edge Functions..."

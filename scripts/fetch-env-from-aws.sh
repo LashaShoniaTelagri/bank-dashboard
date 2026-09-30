@@ -76,7 +76,4 @@ echo "🔒 Backend configuration is stored separately at: $BACKEND_PARAMETER"
 echo "   Backend variables are NOT included in frontend builds for security"
 echo "   Access backend config in Supabase Edge Functions or server-side code only"
 
-echo "🔍 Current .env file contents:"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-cat .env 2>/dev/null || echo "(empty)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔒 Environment values are not logged."
