@@ -1,0 +1,47 @@
+name: ALE shared backend preview
+
+# Requires CI-only bootstrap on default main before GitHub emits this event.
+# Trusted DEFAULT-BRANCH workflow, tooling from protected dev base, never PR code.
+# The environment MUST require Lasha's deployment approval for each run/revision.
+on:
+  pull_request_target:
+    branches: [dev]
+    types: [labeled, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  deployments: write
+
+concurrency:
+  group: ale-collaboration-preview-backend
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(github.event.pull_request.labels.*.name, 'ale-preview-active')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: collaboration-preview-backend
+    steps:
+      - name: Checkout trusted base tooling
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Deploy admitted ALE revision to fixed shared preview only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_PR: ${{ github.event.pull_request.number }}
+          PREVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+          PREVIEW_BASE: ${{ github.event.pull_request.base.sha }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_PREVIEW_ACCESS_TOKEN }}
+        run: python3 scripts/preview/deploy.py
+# No DB credentials, migrations, AWS access, npm hooks, PR scripts, or production
+# target. Keep the active label until the reviewer releases the shared backend.

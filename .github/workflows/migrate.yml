@@ -1,447 +1,59 @@
-name: 🗄️ Database Migrations
-
-# This workflow runs database migrations independently of the main deployment
-# Use this for:
-# - Emergency database fixes
-# - Testing migrations in specific environments
-# - Manual migration runs outside normal deployment cycle
+name: Database migrations (reviewed branches only)
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to run migrations against'
+        description: Environment matching the selected branch
         required: true
-        default: 'dev'
+        default: dev
         type: choice
-        options:
-          - dev
-          - staging
-          - prod
+        options: [dev, staging, prod]
       migration_action:
-        description: 'Migration action to perform'
+        description: Inspect first; push only reviewed forward migrations
         required: true
-        default: 'push'
+        default: dry-run
         type: choice
-        options:
-          - push    # Apply new migrations
-          - reset   # Reset database (DANGEROUS - removes all data)
-          - repair  # Repair migration state
-          - list    # List migration status only
-      confirm_destructive:
-        description: 'Type "CONFIRM" to allow destructive operations (reset)'
-        required: false
-        type: string
+        options: [list, dry-run, push]
 
-env:
-  NODE_VERSION: '20'
+permissions:
+  contents: read
 
 jobs:
-  # Determine environment settings
-  environment:
-    name: 🎯 Determine Environment
-    runs-on: ubuntu-latest
-    outputs:
-      env: ${{ steps.env.outputs.env }}
-      project_id: ${{ steps.env.outputs.project_id }}
-    
-    steps:
-      - name: 🎯 Set environment configuration
-        id: env
-        run: |
-          ENV="${{ github.event.inputs.environment }}"
-          echo "env=${ENV}" >> $GITHUB_OUTPUT
-          
-          # Set project ID based on environment
-          case ${ENV} in
-            prod)
-              echo "project_id=${{ secrets.SUPABASE_PROJECT_ID_PROD || secrets.SUPABASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
-              ;;
-            staging)
-              echo "project_id=${{ secrets.SUPABASE_PROJECT_ID_STAGING || secrets.SUPABASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
-              ;;
-            dev)
-              echo "project_id=${{ secrets.SUPABASE_PROJECT_ID_DEV || secrets.SUPABASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
-              ;;
-          esac
-          
-          echo "🎯 Target environment: ${ENV}"
-
-  # Validation for destructive operations
-  validate:
-    name: 🔍 Validate Operation
-    runs-on: ubuntu-latest
-    needs: [environment]
-    if: github.event.inputs.migration_action == 'reset'
-    
-    steps:
-      - name: 🚨 Validate destructive operation
-        run: |
-          if [ "${{ github.event.inputs.confirm_destructive }}" != "CONFIRM" ]; then
-            echo "❌ Destructive operation requires confirmation"
-            echo "Please type 'CONFIRM' in the confirm_destructive field"
-            exit 1
-          fi
-          
-          if [ "${{ needs.environment.outputs.env }}" == "prod" ]; then
-            echo "🚨 WARNING: You are about to reset the PRODUCTION database!"
-            echo "This will DELETE ALL DATA in the production environment"
-            echo "Proceeding in 10 seconds... Cancel now if this is not intended"
-            sleep 10
-          fi
-          
-          echo "✅ Destructive operation confirmed"
-
-  # Run database migrations
   migrate:
-    name: 🗄️ Run Migrations
+    if: >-
+      (github.ref == 'refs/heads/dev' && inputs.environment == 'dev') ||
+      (github.ref == 'refs/heads/staging' && inputs.environment == 'staging') ||
+      (github.ref == 'refs/heads/main' && inputs.environment == 'prod')
     runs-on: ubuntu-latest
-    needs: [environment]
-    # Skip validation job dependency for non-destructive operations
-    # For destructive operations, validation must pass
-    if: |
-      github.event.inputs.migration_action != 'reset' || 
-      (github.event.inputs.migration_action == 'reset' && needs.validate.result == 'success')
-    environment: ${{ needs.environment.outputs.env }}
-    
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: 📥 Install dependencies
-        run: npm ci
-
-      - name: 🔧 Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          version: latest
-
-      - name: 🔧 Setup database connection
+          node-version: '24.20.0'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Verify target, link, and run the selected operation
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ needs.environment.outputs.project_id }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: |
-          echo "🔧 Setting up database connection (${{ needs.environment.outputs.env }})..."
-          echo "Project ID: $SUPABASE_PROJECT_ID"
-          echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
-          echo "DB Password: ${SUPABASE_DB_PASSWORD:+Set}${SUPABASE_DB_PASSWORD:-Not Set}"
-          
-          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "❌ SUPABASE_DB_PASSWORD is not set!"
-            echo "Please add SUPABASE_DB_PASSWORD to GitHub repository secrets"
-            exit 1
-          fi
-          
-          # Construct and save database URL for subsequent steps
-          # Using pooled connection for CI/CD compatibility (direct connection has IPv6 issues in GitHub Actions)
-          # Added pgbouncer=true and connection_limit=1 to minimize prepared statement conflicts
-          DB_URL="postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
-          echo "DB_URL=$DB_URL" >> $GITHUB_ENV
-          echo "✅ Database connection configured (using pooled connection with conflict mitigation)"
-
-      - name: 📋 List current migration status
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          echo "📋 Current migration status:"
-          
-          # Enhanced retry function for database operations
-          retry_command() {
-            local cmd="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: $cmd"
-              
-              # Capture both stdout and stderr
-              local output
-              if output=$(eval "$cmd" 2>&1); then
-                echo "✅ Command succeeded on attempt $attempt"
-                echo "$output"
-                return 0
-              else
-                echo "❌ Command failed on attempt $attempt"
-                echo "$output"
-                
-                # Check for specific "up to date" messages
-                if echo "$output" | grep -q "Remote database is up to date"; then
-                  echo "✅ Database is already up to date - treating as success"
-                  return 0
-                fi
-                
-                # Check for prepared statement errors that might indicate up-to-date database
-                if echo "$output" | grep -q "prepared statement.*already exists"; then
-                  echo "⚠️ Prepared statement conflict detected"
-                  # For db push commands, this typically means database is already up to date
-                  if echo "$cmd" | grep -q "db push"; then
-                    echo "✅ Database is already up to date - treating prepared statement conflict as success"
-                    return 0
-                  # For migration list commands, also treat as success since connection is working
-                  elif echo "$cmd" | grep -q "migration list"; then
-                    echo "✅ Migration list connection works despite prepared statement conflict - treating as success"
-                    return 0
-                  else
-                    echo "⚠️ Prepared statement conflict in other command - continuing retry..."
-                  fi
-                fi
-                
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "🚨 All attempts failed"
-                  return 1
-                fi
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-                attempt=$((attempt + 1))
-              fi
-            done
-          }
-          
-          retry_command "supabase migration list --db-url '$DB_URL'"
-
-      - name: 🗄️ Apply migrations (push)
-        if: github.event.inputs.migration_action == 'push'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          MIGRATION_ACTION: ${{ inputs.migration_action }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-        run: |
-          echo "🗄️ Running database migrations using Supabase CLI..."
-          
-          # Export environment variables for Supabase CLI
-          export SUPABASE_ACCESS_TOKEN
-          export SUPABASE_DB_PASSWORD  
-          export SUPABASE_PROJECT_ID
-          
-          echo "Project ID: ${SUPABASE_PROJECT_ID:0:3}***"
-          echo "Access Token: ${SUPABASE_ACCESS_TOKEN:+Set}${SUPABASE_ACCESS_TOKEN:-Not Set}"
-          echo "DB Password: ${SUPABASE_DB_PASSWORD:+Set}${SUPABASE_DB_PASSWORD:-Not Set}"
-          
-          # Pre-validation: Check Supabase CLI and credentials
-          echo "🔍 Pre-validation checks..."
-          
-          # Verify Supabase CLI is available
-          if ! command -v supabase >/dev/null 2>&1; then
-            echo "❌ Supabase CLI not found"
-            exit 1
-          fi
-          
-          echo "✅ Supabase CLI version: $(supabase --version)"
-          
-          # Verify required environment variables
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_PROJECT_ID" ]; then
-            echo "❌ Missing required environment variables"
-            exit 1
-          fi
-          
-          echo "✅ All required environment variables are set"
-          
-          # Link project using exported environment variables
-          echo "🔗 Linking to Supabase project..."
-          if supabase link --project-ref "$SUPABASE_PROJECT_ID"; then
-            echo "✅ Project linked successfully"
-          else
-            echo "❌ Failed to link project"
-            exit 1
-          fi
-          
-          # Pre-migration validation: Check current migration status
-          echo "📋 Pre-migration validation..."
-          echo "Current migration status:"
-          supabase migration list --linked || {
-            echo "⚠️ Could not retrieve migration list, but continuing..."
-          }
-          
-          # Apply migrations
-          echo "🚀 Applying database migrations..."
-          # --include-all: apply out-of-order migrations (e.g. retro backfills).
-          # See deploy.yml for the rationale.
-          if supabase db push --linked --include-all; then
-            echo "✅ Migrations applied successfully"
-          else
-            echo "❌ Migration failed"
-            
-            # Post-failure diagnostics
-            echo "🔍 Post-failure diagnostics..."
-            echo "Migration status after failure:"
-            supabase migration list || echo "Could not retrieve migration status"
-            
-            echo "Database diff (if any):"
-            supabase db diff || echo "Could not retrieve database diff"
-            
-            exit 1
-          fi
-          
-          # Post-migration validation
-          echo "📊 Post-migration validation..."
-          
-          # Verify migration status
-          echo "Final migration status:"
-          supabase migration list --linked
-          
-          # Check for any schema differences
-          echo "Checking for remaining schema differences..."
-          if supabase db diff --linked; then
-            echo "⚠️ Schema differences detected after migration"
-          else
-            echo "✅ No schema differences - migrations fully applied"
-          fi
-          
-          # Basic table verification using SQL query
-          echo "🔍 Verifying key database objects..."
-          if supabase db reset --linked --debug 2>&1 | head -20 | grep -q "Connected to project" || \
-             echo "SELECT 'Database connection verified'" | supabase db reset --linked --sql 2>/dev/null | grep -q "verified"; then
-            echo "✅ Database connectivity verified"
-          else
-            echo "⚠️ Could not verify database connectivity (this may be normal)"
-          fi
-          
-          echo "✅ Migration process completed successfully"
-
-      - name: 🚨 Reset database (DESTRUCTIVE)
-        if: github.event.inputs.migration_action == 'reset'
-        env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          echo "🚨 RESETTING DATABASE - THIS WILL DELETE ALL DATA!"
-          
-          # Retry function for database operations
-          retry_command() {
-            local cmd="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: $cmd"
-              if eval "$cmd"; then
-                echo "✅ Command succeeded on attempt $attempt"
-                return 0
-              else
-                echo "❌ Command failed on attempt $attempt"
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "🚨 All attempts failed"
-                  return 1
-                fi
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-                attempt=$((attempt + 1))
-              fi
-            done
-          }
-          
-          retry_command "supabase db reset --db-url '$DB_URL'"
-          echo "✅ Database reset completed"
-
-      - name: 🔧 Repair migration state
-        if: github.event.inputs.migration_action == 'repair'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          echo "🔧 Repairing migration state..."
-          
-          # Retry function for database operations
-          retry_command() {
-            local cmd="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: $cmd"
-              if eval "$cmd"; then
-                echo "✅ Command succeeded on attempt $attempt"
-                return 0
-              else
-                echo "❌ Command failed on attempt $attempt"
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "🚨 All attempts failed"
-                  return 1
-                fi
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-                attempt=$((attempt + 1))
-              fi
-            done
-          }
-          
-          retry_command "supabase migration repair --db-url '$DB_URL' --status applied --version $(ls supabase/migrations/ | tail -1 | cut -d'_' -f1)"
-          echo "✅ Migration state repaired"
-
-      - name: 📊 Final migration status
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          echo "📊 Final migration status:"
-          
-          # Retry function for database operations
-          retry_command() {
-            local cmd="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: $cmd"
-              if eval "$cmd"; then
-                echo "✅ Command succeeded on attempt $attempt"
-                return 0
-              else
-                echo "❌ Command failed on attempt $attempt"
-                if [ $attempt -eq $max_attempts ]; then
-                  echo "🚨 All attempts failed"
-                  return 1
-                fi
-                echo "⏳ Waiting 5 seconds before retry..."
-                sleep 5
-                attempt=$((attempt + 1))
-              fi
-            done
-          }
-          
-          retry_command "supabase migration list --db-url '$DB_URL'"
-          echo ""
-          echo "🗄️ Database schema info:"
-          retry_command "supabase db diff --db-url '$DB_URL'" || echo "No schema differences detected"
-
-  # Notification
-  notify:
-    name: 📢 Notify
-    runs-on: ubuntu-latest
-    needs: [environment, migrate]
-    if: always()
-    
-    steps:
-      - name: 📢 Migration notification
-        run: |
-          echo "📊 Migration Summary:"
-          echo "===================="
-          echo "🎯 Environment: ${{ needs.environment.outputs.env }}"
-          echo "🔧 Action: ${{ github.event.inputs.migration_action }}"
-          echo "📋 Status: ${{ needs.migrate.result }}"
-          echo ""
-          
-          if [ "${{ needs.migrate.result }}" == "success" ]; then
-            echo "✅ Database migration completed successfully!"
-            case "${{ github.event.inputs.migration_action }}" in
-              push)
-                echo "🗄️ New migrations have been applied"
-                ;;
-              reset)
-                echo "🚨 Database has been reset (all data removed)"
-                ;;
-              repair)
-                echo "🔧 Migration state has been repaired"
-                ;;
-              list)
-                echo "📋 Migration status retrieved"
-                ;;
-            esac
-          else
-            echo "❌ Migration operation failed!"
-            echo "📋 Check the logs for details"
-          fi 
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_PROJECT_ID"
+          node scripts/check-dev-supabase-target.mjs migrations
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          case "$MIGRATION_ACTION" in
+            list) supabase migration list --linked ;;
+            dry-run) supabase db push --linked --include-all --dry-run ;;
+            push) supabase db push --linked --include-all ;;
+            *) exit 1 ;;
+          esac
+# No reset/repair, secret logging, eval, or automatic retry of database writes.

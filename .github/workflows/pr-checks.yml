@@ -37,6 +37,9 @@ jobs:
       - name: Test dev deployment target guards
         run: node --test scripts/check-dev-supabase-target.test.mjs
 
+      - name: Test preview admission controls
+        run: python3 -m unittest discover -s scripts/preview -p 'test_*.py' -v
+
       - name: Build with nonfunctional test configuration
         env:
           VITE_SUPABASE_URL: https://preview-ci.invalid
@@ -59,10 +62,11 @@ jobs:
           deno-version: '2.7.1'
 
       - name: Run deterministic ALE tests with no runtime permissions
-        run: >-
-          deno test --no-config --no-lock --no-prompt --allow-import=deno.land
-          supabase/functions/_shared/ale-engine/frostRisk.test.ts
-          supabase/functions/_shared/ale-engine/graph.test.ts
+        run: |
+          set -euo pipefail
+          mapfile -d '' tests < <(find supabase/functions/_shared/ale-engine -type f -name '*.test.ts' ! -name '*.parity.test.ts' -print0 | sort -z)
+          test "${#tests[@]}" -gt 0
+          deno test --no-config --no-lock --no-prompt --allow-import=deno.land "${tests[@]}"
 
   security-scan:
     name: PR security scan
