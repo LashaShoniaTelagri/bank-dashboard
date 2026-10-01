@@ -34,6 +34,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test dev deployment target guards
+        run: node --test scripts/check-dev-supabase-target.test.mjs
+
       - name: Build with nonfunctional test configuration
         env:
           VITE_SUPABASE_URL: https://preview-ci.invalid
